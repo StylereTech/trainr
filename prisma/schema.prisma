@@ -116,6 +116,7 @@ model TrainerProfile {
   reviews         Review[]    @relation("TrainerReviews")
   assets          UploadedAsset[]
   favorites       Favorite[]
+  wallet          TrainerWallet?
 
   @@map("trainer_profiles")
 }
@@ -339,7 +340,8 @@ model Booking {
   payment          Payment?
   review           Review?
 
-  messages Message[]
+  messages      Message[]
+  walletEntries WalletEntry[]
 
   @@index([trainerProfileId, date, startTime])
   @@index([parentProfileId])
@@ -658,4 +660,73 @@ enum ReportStatus {
   REVIEWING
   RESOLVED
   DISMISSED
+}
+
+// ==================
+// TRAINER WALLET
+// ==================
+
+model TrainerWallet {
+  id               String   @id @default(cuid())
+  trainerProfileId String   @unique
+  availableBalance Int      @default(0) // cents
+  pendingBalance   Int      @default(0) // cents (pending withdrawal)
+  withdrawnTotal   Int      @default(0) // cents (lifetime withdrawn)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  trainerProfile TrainerProfile    @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  entries        WalletEntry[]
+  withdrawals    WithdrawalRequest[]
+
+  @@map("trainer_wallets")
+}
+
+model WalletEntry {
+  id            String          @id @default(cuid())
+  walletId      String
+  bookingId     String?
+  type          WalletEntryType
+  amountInCents Int
+  description   String
+  createdAt     DateTime        @default(now())
+
+  wallet  TrainerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  booking Booking?      @relation(fields: [bookingId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@map("wallet_entries")
+}
+
+model WithdrawalRequest {
+  id             String           @id @default(cuid())
+  walletId       String
+  amountInCents  Int
+  status         WithdrawalStatus @default(PENDING)
+  stripePayoutId String?
+  failureReason  String?
+  processedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  wallet TrainerWallet @relation(fields: [walletId], references: [id])
+
+  @@index([walletId])
+  @@map("withdrawal_requests")
+}
+
+enum WalletEntryType {
+  BOOKING_CREDIT
+  WITHDRAWAL
+  REFUND_DEBIT
+  ADJUSTMENT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
 }

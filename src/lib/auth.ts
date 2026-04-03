@@ -54,6 +54,12 @@ export const authOptions: any = {
       return session
     },
   },
+  events: {
+    async signIn({ user }: any) {
+      // Role cookie is set via the session callback response headers
+      // This is handled by the middleware reading the JWT
+    },
+  },
   pages: { signIn: "/auth/signin" },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   secret: process.env.NEXTAUTH_SECRET,

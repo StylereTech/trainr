@@ -59,18 +59,18 @@ export async function PATCH(req: NextRequest) {
   const report = await prisma.moderationReport.findUnique({ where: { id: reportId } })
   if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
 
-  const statusMap = {
+  const statusMap: Record<string, string> = {
     resolve: 'RESOLVED',
     dismiss: 'DISMISSED',
     reviewing: 'REVIEWING',
-  } as const
+  }
 
-  if (!statusMap[action]) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  if (!statusMap[action as string]) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
   const updated = await prisma.moderationReport.update({
     where: { id: reportId },
     data: {
-      status: statusMap[action],
+      status: statusMap[action as string] as any,
       resolution: resolution || null,
       resolvedBy: adminUserId,
       resolvedAt: new Date(),

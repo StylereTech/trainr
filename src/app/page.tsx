@@ -99,7 +99,8 @@ export default function HomePage() {
           alt="Trainr youth sports hero featuring athletes and the Trainr logo"
           fill
           priority
-          className="object-cover object-center md:object-top"
+          sizes="100vw"
+          className="object-cover object-top"
         />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
@@ -219,12 +220,13 @@ export default function HomePage() {
             </div>
 
             <div className="premium-shell p-0">
-              <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[520px]">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] sm:aspect-[3/4] md:aspect-[4/5]">
                 <Image
                   src={TRAINR_IMAGE_CATALOG.basketball.hero.src}
                   alt={TRAINR_IMAGE_CATALOG.basketball.hero.alt}
                   fill
-                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover object-center"
                 />
                 <div className="hero-overlay" />
                 <div className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white backdrop-blur-xl">Basketball collection mood</div>
@@ -258,9 +260,9 @@ export default function HomePage() {
               return (
                 <Link key={sport.slug} href={`/browse?sport=${sport.slug}`}>
                   <Card className="group h-full overflow-hidden rounded-[1.8rem] border-white/10 bg-white/[0.04] text-white transition duration-300 hover:-translate-y-1 hover:border-emerald-400/30">
-                    <div className="relative h-56">
+                    <div className="relative aspect-[16/10]">
                       {isLiveTrainrImage(visual) ? (
-                        <Image src={visual.src} alt={visual.alt} fill className="object-cover transition duration-500 group-hover:scale-105" />
+                        <Image src={visual.src} alt={visual.alt} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 20vw" className="object-cover object-top transition duration-500 group-hover:scale-105" />
                       ) : (
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.28),_transparent_36%),linear-gradient(160deg,_rgba(255,255,255,0.08),_rgba(255,255,255,0.03))]" />
                       )}
@@ -350,7 +352,8 @@ export default function HomePage() {
               src={TRAINR_IMAGE_CATALOG.basketball.brand.src}
               alt={TRAINR_IMAGE_CATALOG.basketball.brand.alt}
               fill
-              className="object-cover"
+              sizes="100vw"
+              className="object-cover object-center"
             />
             <div className="hero-overlay" />
             <div className="relative p-8 text-center md:p-12">

@@ -68,7 +68,7 @@ export default function SportsPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero border-b border-white/10">
-        <Image src={TRAINR_IMAGE_CATALOG.soccer.brand.src} alt={TRAINR_IMAGE_CATALOG.soccer.brand.alt} fill priority className="object-cover" />
+        <Image src={TRAINR_IMAGE_CATALOG.soccer.brand.src} alt={TRAINR_IMAGE_CATALOG.soccer.brand.alt} fill priority sizes="100vw" className="object-cover object-top" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative py-12 md:py-20">
@@ -104,12 +104,13 @@ export default function SportsPage() {
             <div className="space-y-4">
               <Card className="premium-shell overflow-hidden border-white/10 bg-white/5 p-0 text-white shadow-2xl">
                 <div className="grid gap-0 sm:grid-cols-[1.1fr_.9fr]">
-                  <div className="relative min-h-[240px]">
+                  <div className="relative aspect-[16/10] sm:aspect-auto sm:min-h-full">
                     <Image
                       src={TRAINR_IMAGE_CATALOG.baseball.brand.src}
                       alt={TRAINR_IMAGE_CATALOG.baseball.brand.alt}
                       fill
-                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, 55vw"
+                      className="object-cover object-center"
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-slate-950/70 via-slate-950/20 to-transparent" />
                   </div>
@@ -158,10 +159,10 @@ export default function SportsPage() {
             return (
               <Card key={sport.slug} className="overflow-hidden rounded-[2rem] border-white/10 bg-white/[0.04] text-white shadow-xl">
                 <div className={`grid lg:grid-cols-[.95fr_1.05fr] ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1' : ''}`}>
-                  <div className="relative min-h-[300px] border-b border-white/10 lg:min-h-full lg:border-b-0 lg:border-r lg:[&.order-2]:border-l lg:[&.order-2]:border-r-0">
+                  <div className="relative aspect-[16/10] border-b border-white/10 lg:aspect-auto lg:min-h-full lg:border-b-0 lg:border-r lg:[&.order-2]:border-l lg:[&.order-2]:border-r-0">
                     {isLiveTrainrImage(visual) ? (
                       <>
-                        <Image src={visual.src} alt={visual.alt} fill className="object-cover" />
+                        <Image src={visual.src} alt={visual.alt} fill sizes="(max-width: 1024px) 100vw, 48vw" className="object-cover object-top" />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
                       </>
                     ) : (

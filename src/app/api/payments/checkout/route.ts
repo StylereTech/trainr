@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { stripe, stripeRuntimeStatus } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
+import { calculateSplit } from '@/lib/fees'
 
 // POST /api/payments/checkout — Create a Stripe checkout session for a booking
 export async function POST(req: NextRequest) {
@@ -45,8 +46,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not your booking' }, { status: 403 })
     }
 
-    if (booking.status !== 'CONFIRMED') {
-      return NextResponse.json({ error: 'Booking must be confirmed before payment can begin' }, { status: 400 })
+    if (booking.status !== 'PENDING' && booking.status !== 'CONFIRMED') {
+      return NextResponse.json({ error: 'Booking is not in a payable state' }, { status: 400 })
     }
 
     // Check if payment already exists
@@ -66,8 +67,7 @@ export async function POST(req: NextRequest) {
       orderBy: { effectiveDate: 'desc' },
     })
     const commissionPercent = feeConfig?.platformCommissionPercent ?? 15
-    const platformFeeInCents = Math.round(booking.totalAmountInCents * (commissionPercent / 100))
-    const trainerPayoutInCents = booking.totalAmountInCents - platformFeeInCents
+    const { platformFee: platformFeeInCents, trainerShare: trainerPayoutInCents } = calculateSplit(booking.totalAmountInCents, commissionPercent)
 
     // Create Stripe Checkout Session
     const checkoutSession = await stripe.checkout.sessions.create({

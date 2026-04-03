@@ -2,10 +2,48 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { stripe, stripeRuntimeStatus, verifyWebhookSignature } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
+import { calculateSplit } from '@/lib/fees'
 import Stripe from 'stripe'
 
-// POST /api/payments/webhook — Stripe webhook handler
 export const runtime = 'nodejs'
+
+async function creditTrainerWallet(bookingId: string, trainerProfileId: string, trainerShareCents: number) {
+  await prisma.$transaction(async (tx) => {
+    // Find or create wallet
+    let wallet = await tx.trainerWallet.findUnique({
+      where: { trainerProfileId },
+    })
+
+    if (!wallet) {
+      wallet = await tx.trainerWallet.create({
+        data: { trainerProfileId },
+      })
+    }
+
+    // Check for duplicate credit (idempotency)
+    const existingEntry = await tx.walletEntry.findFirst({
+      where: { walletId: wallet.id, bookingId, type: 'BOOKING_CREDIT' },
+    })
+    if (existingEntry) return // Already credited
+
+    // Create ledger entry
+    await tx.walletEntry.create({
+      data: {
+        walletId: wallet.id,
+        bookingId,
+        type: 'BOOKING_CREDIT',
+        amountInCents: trainerShareCents,
+        description: `Booking payment credit for booking ${bookingId}`,
+      },
+    })
+
+    // Update available balance
+    await tx.trainerWallet.update({
+      where: { id: wallet.id },
+      data: { availableBalance: { increment: trainerShareCents } },
+    })
+  })
+}
 
 export async function POST(req: NextRequest) {
   if (!stripeRuntimeStatus().webhookConfigured || !stripeRuntimeStatus().secretConfigured) {
@@ -28,7 +66,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Handle events
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
@@ -37,29 +74,43 @@ export async function POST(req: NextRequest) {
       if (bookingId) {
         const paymentIntentId = session.payment_intent as string
 
+        // Get booking for split calculation
+        const booking = await prisma.booking.findUnique({
+          where: { id: bookingId },
+          include: { trainerProfile: true, parentProfile: true },
+        })
+
+        if (!booking) break
+
+        const { platformFee, trainerShare } = calculateSplit(booking.totalAmountInCents)
+
         // Update payment status
         await prisma.payment.upsert({
           where: { bookingId },
           update: {
             stripePaymentIntentId: paymentIntentId,
             status: 'SUCCEEDED',
+            platformFeeInCents: platformFee,
+            trainerPayoutInCents: trainerShare,
           },
           create: {
             bookingId,
             stripePaymentIntentId: paymentIntentId,
-            amountInCents: session.amount_total || 0,
-            platformFeeInCents: 0,
-            trainerPayoutInCents: 0,
+            amountInCents: booking.totalAmountInCents,
+            platformFeeInCents: platformFee,
+            trainerPayoutInCents: trainerShare,
             status: 'SUCCEEDED',
           },
         })
 
         // Confirm booking
-        const booking = await prisma.booking.update({
+        await prisma.booking.update({
           where: { id: bookingId },
           data: { status: 'CONFIRMED' },
-          include: { trainerProfile: true, parentProfile: true },
         })
+
+        // Credit trainer wallet
+        await creditTrainerWallet(bookingId, booking.trainerProfileId, trainerShare)
 
         // Notify both parties
         await prisma.notification.createMany({
@@ -68,7 +119,7 @@ export async function POST(req: NextRequest) {
               userId: booking.trainerProfile.userId,
               type: 'PAYMENT_RECEIVED',
               title: 'Payment Received!',
-              message: `Payment of $${((session.amount_total || 0) / 100).toFixed(2)} received for session on ${new Date(booking.date).toLocaleDateString()}.`,
+              message: `Payment of $${(booking.totalAmountInCents / 100).toFixed(2)} received. Your share of $${(trainerShare / 100).toFixed(2)} has been credited to your wallet.`,
               data: { bookingId },
             },
             {
@@ -140,10 +191,8 @@ export async function POST(req: NextRequest) {
     }
 
     case 'account.updated': {
-      // Stripe Connect onboarding updates
       const account = event.data.object as Stripe.Account
       if (account.charges_enabled && account.details_submitted) {
-        // Find trainer by stripe account id
         await prisma.trainerProfile.updateMany({
           where: { stripeAccountId: account.id },
           data: { stripeOnboardingComplete: true },

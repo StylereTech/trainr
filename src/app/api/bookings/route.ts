@@ -3,12 +3,14 @@ import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { calculateSplit, calculateDiscount } from '@/lib/fees'
+import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
 
 const bookingCreateSchema = z.object({
   serviceOfferingId: z.string().min(1),
   athleteProfileId: z.string().min(1),
   date: z.string().min(1),
-  startTime: z.string().min(1),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'startTime must be HH:MM'),
   notes: z.string().optional(),
   couponCode: z.string().optional(),
 })
@@ -20,8 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
-    const role = session.user.role
+    const userId = (session.user as any).id
+    const role = (session.user as any).role
     if (role !== 'PARENT') {
       return NextResponse.json({ error: 'Only parents can create bookings' }, { status: 403 })
     }
@@ -29,8 +31,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = bookingCreateSchema.parse(body)
 
-    // Get parent profile
-    const parent = await prisma.parentProfile.findUnique({ where: { userId } })
+    // Get parent profile WITH user info for notification
+    const parent = await prisma.parentProfile.findUnique({
+      where: { userId },
+      include: { user: { select: { email: true } } },
+    })
     if (!parent) {
       return NextResponse.json({ error: 'Parent profile not found' }, { status: 404 })
     }
@@ -52,61 +57,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 })
     }
 
-    // Check for time conflicts
-    const existingBooking = await prisma.booking.findFirst({
+    const bookingDate = new Date(data.date)
+
+    // --- AVAILABILITY VALIDATION ---
+    const trainerSlots = await prisma.availabilitySlot.findMany({
       where: {
         trainerProfileId: service.trainerProfileId,
-        date: new Date(data.date),
-        startTime: data.startTime,
-        status: { in: ['PENDING', 'CONFIRMED'] },
+        isAvailable: true,
       },
     })
-    if (existingBooking) {
-      return NextResponse.json({ error: 'This time slot is already booked' }, { status: 409 })
+
+    if (!isTimeSlotAvailable(trainerSlots, bookingDate, data.startTime, service.durationMinutes)) {
+      return NextResponse.json(
+        { error: 'Trainer is not available at the requested date/time' },
+        { status: 400 }
+      )
     }
 
-    // Calculate fees
-    const totalAmount = service.priceInCents
-    const platformFee = Math.round(totalAmount * 0.15)
-    const processingFee = Math.round(totalAmount * 0.029 + 30)
-    const trainerPayout = totalAmount - platformFee
+    // --- DOUBLE-BOOKING CHECK ---
+    // Check for overlapping bookings (not just exact startTime match)
+    const requestedStartMin = timeToMinutes(data.startTime)
+    const requestedEndMin = requestedStartMin + service.durationMinutes
+    const endTime = minutesToTime(requestedEndMin)
 
-    // Check coupon
+    const conflictingBookings = await prisma.booking.findMany({
+      where: {
+        trainerProfileId: service.trainerProfileId,
+        date: bookingDate,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+      },
+      select: { startTime: true, endTime: true },
+    })
+
+    const hasConflict = conflictingBookings.some((existing) => {
+      const existStart = timeToMinutes(existing.startTime)
+      const existEnd = timeToMinutes(existing.endTime)
+      return requestedStartMin < existEnd && requestedEndMin > existStart
+    })
+
+    if (hasConflict) {
+      return NextResponse.json({ error: 'This time slot overlaps with an existing booking' }, { status: 409 })
+    }
+
+    // --- FEE CALCULATION (centralized) ---
+    const grossAmount = service.priceInCents
+
+    // --- COUPON (atomic race-safe) ---
     let discount = 0
     if (data.couponCode) {
-      const coupon = await prisma.coupon.findUnique({ where: { code: data.couponCode } })
-      if (coupon && coupon.isActive && coupon.currentUses < coupon.maxUses && (!coupon.expiresAt || new Date(coupon.expiresAt) > new Date())) {
-        discount = coupon.discountPercent
-          ? Math.round(totalAmount * coupon.discountPercent / 100)
-          : (coupon.discountAmountInCents || 0)
-        await prisma.coupon.update({ where: { code: data.couponCode }, data: { currentUses: { increment: 1 } } })
+      const couponResult = await prisma.$transaction(async (tx) => {
+        const coupon = await tx.coupon.findUnique({ where: { code: data.couponCode! } })
+        if (
+          !coupon ||
+          !coupon.isActive ||
+          coupon.currentUses >= coupon.maxUses ||
+          (coupon.expiresAt && new Date(coupon.expiresAt) <= new Date())
+        ) {
+          return null
+        }
+        // Atomic increment with WHERE guard — prevents race condition
+        const updated = await tx.coupon.updateMany({
+          where: { code: data.couponCode!, currentUses: { lt: coupon.maxUses } },
+          data: { currentUses: { increment: 1 } },
+        })
+        if (updated.count === 0) return null
+        return coupon
+      })
+
+      if (couponResult) {
+        discount = calculateDiscount(
+          grossAmount,
+          couponResult.discountPercent,
+          couponResult.discountAmountInCents
+        )
       }
     }
 
-    const finalAmount = totalAmount - discount
-    const finalPlatformFee = Math.round(finalAmount * 0.15)
-    const finalTrainerPayout = finalAmount - finalPlatformFee
+    const finalAmount = Math.max(grossAmount - discount, 0)
+    const { platformFee, trainerShare } = calculateSplit(finalAmount)
 
-    // Calculate end time
-    const [startH, startM] = data.startTime.split(':').map(Number)
-    const endMinutes = startH * 60 + startM + service.durationMinutes
-    const endH = Math.floor(endMinutes / 60)
-    const endM = endMinutes % 60
-    const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
-
-    // Create booking
+    // --- CREATE BOOKING ---
     const booking = await prisma.booking.create({
       data: {
         parentProfileId: parent.id,
         trainerProfileId: service.trainerProfileId,
         athleteProfileId: athlete.id,
         serviceOfferingId: service.id,
-        date: new Date(data.date),
+        date: bookingDate,
         startTime: data.startTime,
         endTime,
         totalAmountInCents: finalAmount,
-        platformFeeInCents: finalPlatformFee,
-        trainerPayoutInCents: finalTrainerPayout,
+        platformFeeInCents: platformFee,
+        trainerPayoutInCents: trainerShare,
         notes: data.notes,
         status: 'PENDING',
       },
@@ -117,13 +159,14 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Create notification for trainer
+    // --- NOTIFICATION (human-readable, not parent.id) ---
+    const parentDisplayName = parent.user.email
     await prisma.notification.create({
       data: {
         userId: service.trainerProfile.userId,
         type: 'BOOKING_REQUEST',
         title: 'New Booking Request',
-        message: `You have a new booking request from ${parent.id} for ${service.title} on ${new Date(data.date).toLocaleDateString()}.`,
+        message: `New booking from ${parentDisplayName} for ${service.title} on ${bookingDate.toLocaleDateString()} at ${data.startTime}.`,
         data: { bookingId: booking.id },
       },
     })
@@ -145,8 +188,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
-    const role = session.user.role
+    const userId = (session.user as any).id
+    const role = (session.user as any).role
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
