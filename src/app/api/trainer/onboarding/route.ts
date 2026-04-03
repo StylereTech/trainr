@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest) {
     const trainer = await prisma.trainerProfile.findUnique({ where: { userId } })
     if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.trainerProfile.update({
         where: { id: trainer.id },
         data: {

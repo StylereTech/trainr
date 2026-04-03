@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest) {
       if (withdrawal.status !== 'PROCESSING') {
         return NextResponse.json({ error: 'Can only complete processing withdrawals' }, { status: 400 })
       }
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.withdrawalRequest.update({
           where: { id: withdrawalId },
           data: { status: 'PAID', processedAt: new Date() },
@@ -124,7 +124,7 @@ export async function PATCH(req: NextRequest) {
       if (!['APPROVED', 'PROCESSING'].includes(withdrawal.status)) {
         return NextResponse.json({ error: 'Invalid status for failure' }, { status: 400 })
       }
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.withdrawalRequest.update({
           where: { id: withdrawalId },
           data: { status: 'FAILED', failureReason: reason || 'Payout failed' },
@@ -154,7 +154,7 @@ export async function PATCH(req: NextRequest) {
       if (withdrawal.status !== 'PENDING') {
         return NextResponse.json({ error: 'Can only cancel pending withdrawals' }, { status: 400 })
       }
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         await tx.withdrawalRequest.update({
           where: { id: withdrawalId },
           data: { status: 'CANCELLED' },

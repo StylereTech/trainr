@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+
 
 // GET /api/search — Search trainers with filters
 export async function GET(req: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get('sort') || 'rating' // rating, price_asc, price_desc, newest, reviews
 
   // Build where clause for trainer profiles
-  const where: Prisma.TrainerProfileWhereInput = {
+  const where: any = {
     approvalStatus: 'APPROVED',
     isActive: true,
   }
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Determine sort order
-  let orderBy: Prisma.TrainerProfileOrderByWithRelationInput
+  let orderBy: any
   switch (sort) {
     case 'price_asc':
       orderBy = { serviceOfferings: { _count: 'asc' } } // approx; real price sort needs raw query

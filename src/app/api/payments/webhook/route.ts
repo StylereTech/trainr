@@ -8,7 +8,7 @@ import Stripe from 'stripe'
 export const runtime = 'nodejs'
 
 async function creditTrainerWallet(bookingId: string, trainerProfileId: string, trainerShareCents: number) {
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     // Find or create wallet
     let wallet = await tx.trainerWallet.findUnique({
       where: { trainerProfileId },

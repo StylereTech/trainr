@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         goals: data.goals || [],
         notes: data.notes,
         sports: {
-          create: sportRecords.map((sport) => ({ sportId: sport.id })),
+          create: sportRecords.map((sport: any) => ({ sportId: sport.id })),
         },
       },
       include: { sports: { include: { sport: true } } },

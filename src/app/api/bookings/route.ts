@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       select: { startTime: true, endTime: true },
     })
 
-    const hasConflict = conflictingBookings.some((existing) => {
+    const hasConflict = conflictingBookings.some((existing: any) => {
       const existStart = timeToMinutes(existing.startTime)
       const existEnd = timeToMinutes(existing.endTime)
       return requestedStartMin < existEnd && requestedEndMin > existStart
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     // --- COUPON (atomic race-safe) ---
     let discount = 0
     if (data.couponCode) {
-      const couponResult = await prisma.$transaction(async (tx) => {
+      const couponResult = await prisma.$transaction(async (tx: any) => {
         const coupon = await tx.coupon.findUnique({ where: { code: data.couponCode! } })
         if (
           !coupon ||

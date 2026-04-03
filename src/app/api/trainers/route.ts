@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '12')
     const skip = (page - 1) * limit
 
-    const where: Prisma.TrainerProfileWhereInput = {
+    const where: any = {
       approvalStatus: 'APPROVED',
       isActive: true,
     }
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Sort
-    let orderBy: Prisma.TrainerProfileOrderByWithRelationInput = { avgRating: 'desc' }
+    let orderBy: any = { avgRating: 'desc' }
     if (sort === 'price_low') {
       orderBy = { serviceOfferings: { _count: 'asc' } } // Fallback — proper price sort needs raw query
     } else if (sort === 'price_high') {

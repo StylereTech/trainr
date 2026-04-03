@@ -70,7 +70,7 @@ export async function POST(
       where: { trainerProfileId: booking.trainerProfileId, isPublished: true },
       select: { rating: true },
     })
-    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
+    const avgRating = allReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / allReviews.length
 
     await prisma.trainerProfile.update({
       where: { id: booking.trainerProfileId },

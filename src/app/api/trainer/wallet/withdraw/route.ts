@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Atomic: validate balance + create withdrawal + deduct in one transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const wallet = await tx.trainerWallet.findUnique({
         where: { trainerProfileId: trainer.id },
       })

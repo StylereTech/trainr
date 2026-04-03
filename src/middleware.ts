@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+// @ts-ignore - next-auth/jwt types not resolving in edge middleware
 import { getToken } from 'next-auth/jwt'
 
 // Routes that require no auth

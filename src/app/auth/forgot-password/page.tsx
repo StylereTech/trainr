@@ -47,8 +47,8 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-slate-950 text-white md:grid md:grid-cols-2">
       <div className="relative hidden overflow-hidden md:block">
         <Image
-          src={TRAINR_IMAGE_CATALOG.custom.coachingClean.src}
-          alt={TRAINR_IMAGE_CATALOG.custom.coachingClean.alt}
+          src={TRAINR_IMAGE_CATALOG.baseball.hero.src}
+          alt={TRAINR_IMAGE_CATALOG.baseball.hero.alt}
           fill
           sizes="50vw"
           className="object-cover object-center"
