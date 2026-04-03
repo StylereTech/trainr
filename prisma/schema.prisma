@@ -40,8 +40,10 @@ model User {
   adminActions    AdminAction[]    @relation("AdminUser")
   reportsResolved ModerationReport[] @relation("Resolver")
 
-  verificationToken String?
-  verificationExpiry DateTime?
+  verificationToken   String?
+  verificationExpiry  DateTime?
+  resetPasswordToken  String?
+  resetPasswordExpiry DateTime?
 
   @@map("users")
 }

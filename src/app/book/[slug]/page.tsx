@@ -143,7 +143,23 @@ export default function BookingPage() {
         return
       }
 
-      toast({ title: 'Booking Requested!', description: 'The trainer will confirm your session soon.' })
+      // Attempt immediate checkout redirect (pay-to-book)
+      try {
+        const checkoutRes = await fetch('/api/payments/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: data.id }),
+        })
+        const checkoutData = await checkoutRes.json()
+        if (checkoutRes.ok && checkoutData.checkoutUrl) {
+          window.location.href = checkoutData.checkoutUrl
+          return
+        }
+      } catch {
+        // Stripe not configured or checkout failed — fall back to dashboard
+      }
+
+      toast({ title: 'Booking Created!', description: 'Complete payment from your dashboard to confirm.' })
       router.push('/parent/dashboard')
     } catch {
       toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
@@ -445,9 +461,9 @@ export default function BookingPage() {
                 <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950">
                   <div className="font-semibold">What happens next</div>
                   <div className="mt-3 space-y-2">
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Trainer reviews the request and confirms the session.</div>
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Payment only happens after confirmation.</div>
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Messaging stays open for goals, logistics, and follow-up.</div>
+                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Pay securely through Stripe to lock in your session.</div>
+                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Trainer is notified instantly and confirms the details.</div>
+                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Messaging opens for goals, logistics, and follow-up.</div>
                   </div>
                 </div>
 
@@ -462,9 +478,9 @@ export default function BookingPage() {
                   disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting}
                   onClick={handleSubmit}
                 >
-                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CreditCard className="mr-2 h-4 w-4" />Request Booking</>}
+                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
                 </Button>
-                <p className="text-center text-xs text-slate-500">You won&apos;t be charged until the trainer confirms.</p>
+                <p className="text-center text-xs text-slate-500">You&apos;ll be taken to secure checkout to confirm your session.</p>
               </CardContent>
             </Card>
           </div>

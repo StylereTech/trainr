@@ -69,6 +69,22 @@ export async function POST(req: NextRequest) {
     // TODO: Send verification email via Resend when configured
     // await sendVerificationEmail(user.email, verificationToken)
 
+    // Notify admins when a new trainer registers
+    if (data.role === 'TRAINER') {
+      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      if (admins.length > 0) {
+        await prisma.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.id,
+            type: 'NEW_TRAINER_SIGNUP',
+            title: 'New Trainer Registration',
+            message: `${data.firstName} ${data.lastName} (${data.email}) just registered as a trainer and needs approval.`,
+            data: { userId: user.id, email: data.email },
+          })),
+        })
+      }
+    }
+
     return NextResponse.json({
       id: user.id,
       email: user.email,
