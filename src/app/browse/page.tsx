@@ -110,7 +110,7 @@ function BrowsePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="site-hero border-b border-white/10">
-        <Image src={TRAINR_IMAGE_CATALOG.football.brand.src} alt={TRAINR_IMAGE_CATALOG.football.brand.alt} fill priority sizes="100vw" className="object-cover object-top" />
+        <Image src={TRAINR_IMAGE_CATALOG.baseball.hero.src} alt={TRAINR_IMAGE_CATALOG.baseball.hero.alt} fill priority className="object-cover" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative py-10 md:py-14">
@@ -145,7 +145,7 @@ function BrowsePage() {
                   alt={TRAINR_IMAGE_CATALOG.baseball.hero.alt}
                   width={1200}
                   height={1200}
-                  className="aspect-[16/9] w-full object-cover object-center"
+                  className="h-[300px] w-full object-contain"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-5">

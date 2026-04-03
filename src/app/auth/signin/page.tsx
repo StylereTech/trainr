@@ -51,7 +51,7 @@ export default function SignInPage() {
       <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[1.05fr_.95fr]">
         <div className="premium-shell relative overflow-hidden p-0">
           <div className="relative h-[320px] md:h-[420px] lg:h-[700px]">
-            <Image src={TRAINR_IMAGE_CATALOG.baseball.brand.src} alt={TRAINR_IMAGE_CATALOG.baseball.brand.alt} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover object-center" priority />
+            <Image src={TRAINR_IMAGE_CATALOG.baseball.brand.src} alt={TRAINR_IMAGE_CATALOG.baseball.brand.alt} fill className="object-cover" priority />
             <div className="image-wash" />
             <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-8">
               <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">Built for families who care about progress</Badge>

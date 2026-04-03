@@ -56,11 +56,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Payment already initiated' }, { status: 400 })
     }
 
-    // Verify trainer has Stripe Connect set up
-    if (!booking.trainerProfile.stripeAccountId || !booking.trainerProfile.stripeOnboardingComplete) {
-      return NextResponse.json({ error: 'Trainer payment setup incomplete. Please try again later.' }, { status: 400 })
-    }
-
     // Get current fee config
     const feeConfig = await prisma.feeConfig.findFirst({
       where: { isActive: true },
@@ -69,8 +64,11 @@ export async function POST(req: NextRequest) {
     const commissionPercent = feeConfig?.platformCommissionPercent ?? 15
     const { platformFee: platformFeeInCents, trainerShare: trainerPayoutInCents } = calculateSplit(booking.totalAmountInCents, commissionPercent)
 
-    // Create Stripe Checkout Session
-    const checkoutSession = await stripe.checkout.sessions.create({
+    // Determine if trainer has Stripe Connect (marketplace split) or direct charge (platform collects)
+    const hasConnect = booking.trainerProfile.stripeAccountId && booking.trainerProfile.stripeOnboardingComplete
+
+    // Build Stripe Checkout Session options
+    const checkoutParams: any = {
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
@@ -86,7 +84,18 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      payment_intent_data: {
+      metadata: {
+        bookingId: booking.id,
+      },
+      success_url: toAbsoluteAppUrl(`/dashboard?payment=success&booking=${bookingId}`),
+      cancel_url: toAbsoluteAppUrl(`/parent/dashboard?payment=cancelled&booking=${bookingId}`),
+      customer_email: booking.parentProfile.user.email,
+    }
+
+    // If trainer has Connect, use marketplace split (application_fee + transfer)
+    // Otherwise, direct charge to platform — trainer share tracked in wallet for manual payout
+    if (hasConnect) {
+      checkoutParams.payment_intent_data = {
         application_fee_amount: platformFeeInCents,
         transfer_data: {
           destination: booking.trainerProfile.stripeAccountId,
@@ -96,14 +105,19 @@ export async function POST(req: NextRequest) {
           trainerId: booking.trainerProfileId,
           parentId: booking.parentProfileId,
         },
-      },
-      metadata: {
-        bookingId: booking.id,
-      },
-      success_url: toAbsoluteAppUrl(`/dashboard?payment=success&booking=${bookingId}`),
-      cancel_url: toAbsoluteAppUrl(`/parent/dashboard?payment=cancelled&booking=${bookingId}`),
-      customer_email: booking.parentProfile.user.email,
-    })
+      }
+    } else {
+      checkoutParams.payment_intent_data = {
+        metadata: {
+          bookingId: booking.id,
+          trainerId: booking.trainerProfileId,
+          parentId: booking.parentProfileId,
+          directCharge: 'true', // Flag for webhook to track trainer payout manually
+        },
+      }
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create(checkoutParams)
 
     // Create or update payment record
     await prisma.payment.upsert({

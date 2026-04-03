@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // Routes that require no auth
 const PUBLIC_PATHS = [
@@ -40,36 +41,7 @@ const ROLE_PATHS: { prefix: string; roles: string[] }[] = [
   { prefix: '/api/trainer/wallet', roles: ['TRAINER'] },
 ]
 
-/**
- * Decode JWT payload from NextAuth session token cookie.
- * NextAuth v4 with JWT strategy stores the token in a cookie named
- * `next-auth.session-token` (or `__Secure-next-auth.session-token` in production).
- * The token is a JWE, but we can use the NextAuth /api/auth/session endpoint
- * for full validation. For middleware, we do a lightweight check:
- * if the cookie exists, the user is authenticated.
- * Role is embedded in the JWT payload by the jwt callback.
- */
-function getSessionFromCookie(req: NextRequest): { authenticated: boolean; role?: string } {
-  // NextAuth session cookie names
-  const tokenCookie =
-    req.cookies.get('__Secure-next-auth.session-token') ||
-    req.cookies.get('next-auth.session-token')
-
-  if (!tokenCookie?.value) {
-    return { authenticated: false }
-  }
-
-  // JWE token — we can't decode role without the secret in Edge middleware.
-  // For role-based middleware, we'll use a secondary cookie set by our auth callbacks.
-  const roleCookie = req.cookies.get('trainr-user-role')
-
-  return {
-    authenticated: true,
-    role: roleCookie?.value,
-  }
-}
-
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Allow public paths
@@ -82,10 +54,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const { authenticated, role } = getSessionFromCookie(req)
+  // Decode the NextAuth JWT directly — gives us role without a separate cookie
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
   // Not authenticated
-  if (!authenticated) {
+  if (!token) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -95,7 +68,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Role-based access (only enforced if role cookie is present)
+  const role = token.role as string | undefined
+
+  // Role-based access
   if (role) {
     for (const { prefix, roles } of ROLE_PATHS) {
       if (pathname.startsWith(prefix)) {

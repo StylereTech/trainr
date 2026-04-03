@@ -146,7 +146,7 @@ function SignUpPage() {
         <div className="order-1 lg:order-2">
           <div className="premium-shell p-0">
             <div className="relative h-[300px] md:h-[380px] lg:h-[720px] overflow-hidden">
-              <Image src={heroImage.src} alt={heroImage.alt} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover object-center" priority />
+              <Image src={heroImage.src} alt={heroImage.alt} fill className="object-cover" priority />
               <div className="image-wash" />
               <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-8">
                 <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">

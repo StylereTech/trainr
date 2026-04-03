@@ -53,7 +53,7 @@ export default function ForTrainersPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
-        <Image src={TRAINR_IMAGE_CATALOG.football.brandAlt.src} alt={TRAINR_IMAGE_CATALOG.football.brandAlt.alt} fill priority sizes="100vw" className="object-cover object-top" />
+        <Image src={TRAINR_IMAGE_CATALOG.basketball.brand.src} alt={TRAINR_IMAGE_CATALOG.basketball.brand.alt} fill priority className="object-cover" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
@@ -121,8 +121,8 @@ export default function ForTrainersPage() {
       <section className="section-flow py-16 md:py-20">
         <div className="container grid items-center gap-10 lg:grid-cols-[.92fr_1.08fr]">
           <div className="premium-shell p-0">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] sm:aspect-[3/4]">
-              <Image src={TRAINR_IMAGE_CATALOG.custom.coachingBranded.src} alt={TRAINR_IMAGE_CATALOG.custom.coachingBranded.alt} fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover object-top" />
+            <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[420px]">
+              <Image src={TRAINR_IMAGE_CATALOG.football.hero.src} alt={TRAINR_IMAGE_CATALOG.football.hero.alt} fill className="object-cover" />
               <div className="hero-overlay" />
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function ForTrainersPage() {
       <section className="section-flow pb-16 pt-10 md:pb-20">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src={TRAINR_IMAGE_CATALOG.basketball.brandAlt.src} alt={TRAINR_IMAGE_CATALOG.basketball.brandAlt.alt} fill sizes="100vw" className="object-cover object-center" />
+            <Image src={TRAINR_IMAGE_CATALOG.basketball.hero.src} alt={TRAINR_IMAGE_CATALOG.basketball.hero.alt} fill className="object-cover" />
             <div className="hero-overlay" />
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to coach on Trainr?</h2>
