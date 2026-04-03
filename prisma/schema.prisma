@@ -1,0 +1,661 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================
+// CORE USER & AUTH
+// ==================
+
+enum Role {
+  PARENT
+  TRAINER
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  emailVerified DateTime?
+  passwordHash  String
+  role          Role     @default(PARENT)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parentProfile   ParentProfile?
+  trainerProfile  TrainerProfile?
+  notifications   Notification[]
+  sentMessages    Message[]        @relation("SentMessages")
+  messageThreadsA MessageThread[]  @relation("ParticipantA")
+  messageThreadsB MessageThread[]  @relation("ParticipantB")
+  uploadedAssets  UploadedAsset[]
+  reportsFiled    ModerationReport[] @relation("Reporter")
+
+  // Admin-specific
+  adminActions    AdminAction[]    @relation("AdminUser")
+  reportsResolved ModerationReport[] @relation("Resolver")
+
+  verificationToken String?
+  verificationExpiry DateTime?
+
+  @@map("users")
+}
+
+// ==================
+// PROFILES
+// ==================
+
+model ParentProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  zipCode   String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  athletes AthleteProfile[]
+  bookings Booking[]  @relation("ParentBookings")
+  reviews  Review[]   @relation("ParentReviews")
+  favorites Favorite[]
+
+  @@map("parent_profiles")
+}
+
+model TrainerProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  firstName             String
+  lastName              String
+  slug                  String   @unique
+  headline              String?
+  bio                   String?
+  phone                 String?
+  yearsExperience       Int      @default(0)
+  approvalStatus        ApprovalStatus @default(PENDING)
+  approvedAt            DateTime?
+  rejectedReason        String?
+  avgRating             Float    @default(0)
+  totalReviews          Int      @default(0)
+  totalSessions         Int      @default(0)
+  totalBookings         Int      @default(0)
+  locationType          LocationType @default(IN_PERSON)
+  address               String?
+  city                  String?
+  state                 String?
+  zipCode               String?
+  latitude              Float?
+  longitude             Float?
+  travelRadius          Int      @default(25) // miles
+  stripeAccountId       String?
+  stripeOnboardingComplete Boolean @default(false)
+  completionPercentage  Int      @default(0)
+  featured              Boolean  @default(false)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sports   TrainerSport[]
+  specialties TrainerSpecialty[]
+  certifications Certification[]
+  serviceOfferings ServiceOffering[]
+  packages        Package[]
+  availabilitySlots AvailabilitySlot[]
+  bookings        Booking[]   @relation("TrainerBookings")
+  reviews         Review[]    @relation("TrainerReviews")
+  assets          UploadedAsset[]
+  favorites       Favorite[]
+
+  @@map("trainer_profiles")
+}
+
+model AthleteProfile {
+  id              String   @id @default(cuid())
+  parentProfileId String
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  gender          Gender?
+  skillLevel      SkillLevel @default(BEGINNER)
+  goals           String[]
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  sports        AthleteSport[]
+  bookings      Booking[]
+
+  @@map("athlete_profiles")
+}
+
+// ==================
+// SPORTS & SPECIALTIES
+// ==================
+
+model Sport {
+  id          String @id @default(cuid())
+  name        String @unique
+  slug        String @unique
+  icon        String?
+  description String?
+  order       Int    @default(0)
+  isActive    Boolean @default(true)
+
+  specialties        Specialty[]
+  trainerSports      TrainerSport[]
+  athleteSports      AthleteSport[]
+  serviceOfferings   ServiceOffering[]
+  coupons            Coupon[]
+
+  @@map("sports")
+}
+
+model Specialty {
+  id          String @id @default(cuid())
+  sportId     String
+  name        String
+  slug        String
+  description String?
+
+  sport             Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  trainerSpecialties TrainerSpecialty[]
+
+  @@unique([sportId, slug])
+  @@map("specialties")
+}
+
+// ==================
+// JUNCTION TABLES
+// ==================
+
+model TrainerSport {
+  id             String @id @default(cuid())
+  trainerProfileId String
+  sportId        String
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  sport          Sport          @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerProfileId, sportId])
+  @@map("trainer_sports")
+}
+
+model TrainerSpecialty {
+  id             String @id @default(cuid())
+  trainerProfileId String
+  specialtyId    String
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  specialty      Specialty      @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerProfileId, specialtyId])
+  @@map("trainer_specialties")
+}
+
+model AthleteSport {
+  id             String @id @default(cuid())
+  athleteProfileId String
+  sportId        String
+
+  athleteProfile AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  sport          Sport          @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteProfileId, sportId])
+  @@map("athlete_sports")
+}
+
+// ==================
+// SERVICES & PACKAGES
+// ==================
+
+model ServiceOffering {
+  id              String @id @default(cuid())
+  trainerProfileId String
+  sportId         String?
+  title           String
+  description     String?
+  durationMinutes Int    @default(60)
+  priceInCents    Int
+  type            ServiceType @default(INDIVIDUAL)
+  isActive        Boolean @default(true)
+  maxParticipants Int    @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  sport          Sport?         @relation(fields: [sportId], references: [id])
+  bookings       Booking[]
+  packageItems   PackageItem[]
+
+  @@map("service_offerings")
+}
+
+model Package {
+  id              String @id @default(cuid())
+  trainerProfileId String
+  title           String
+  description     String?
+  totalSessions   Int
+  priceInCents    Int
+  validForDays    Int    @default(90)
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  items          PackageItem[]
+  bookings       Booking[]
+
+  @@map("packages")
+}
+
+model PackageItem {
+  id                String @id @default(cuid())
+  packageId         String
+  serviceOfferingId String
+  sessionsCount     Int    @default(1)
+
+  package         Package         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
+
+  @@map("package_items")
+}
+
+// ==================
+// AVAILABILITY
+// ==================
+
+model AvailabilitySlot {
+  id              String   @id @default(cuid())
+  trainerProfileId String
+  dayOfWeek       Int?     // 0=Sunday, 6=Saturday (for recurring)
+  specificDate    DateTime? // for one-off slots
+  startTime       String   // "09:00"
+  endTime         String   // "17:00"
+  isRecurring     Boolean  @default(true)
+  isAvailable     Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@map("availability_slots")
+}
+
+// ==================
+// BOOKINGS
+// ==================
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+model Booking {
+  id                String   @id @default(cuid())
+  parentProfileId   String
+  trainerProfileId  String
+  athleteProfileId  String
+  serviceOfferingId String
+  packageId         String?
+  packageSessionNumber Int?
+  date              DateTime
+  startTime         String
+  endTime           String
+  status            BookingStatus @default(PENDING)
+  location          String?
+  notes             String?
+  cancellationReason String?
+  rescheduledFromId String?
+  totalAmountInCents    Int
+  platformFeeInCents    Int
+  trainerPayoutInCents  Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  parentProfile    ParentProfile   @relation("ParentBookings", fields: [parentProfileId], references: [id])
+  trainerProfile   TrainerProfile  @relation("TrainerBookings", fields: [trainerProfileId], references: [id])
+  athleteProfile   AthleteProfile  @relation(fields: [athleteProfileId], references: [id])
+  serviceOffering  ServiceOffering @relation(fields: [serviceOfferingId], references: [id])
+  package          Package?        @relation(fields: [packageId], references: [id])
+  rescheduledFrom  Booking?        @relation("RescheduledBookings", fields: [rescheduledFromId], references: [id])
+  rescheduledTo    Booking[]       @relation("RescheduledBookings")
+  payment          Payment?
+  review           Review?
+
+  messages Message[]
+
+  @@index([trainerProfileId, date, startTime])
+  @@index([parentProfileId])
+  @@index([status])
+  @@map("bookings")
+}
+
+// ==================
+// PAYMENTS
+// ==================
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Payment {
+  id                  String   @id @default(cuid())
+  bookingId           String   @unique
+  stripePaymentIntentId String?
+  stripeChargeId      String?
+  stripeTransferId    String?
+  amountInCents       Int
+  platformFeeInCents  Int
+  trainerPayoutInCents Int
+  processingFeeInCents Int    @default(0)
+  status              PaymentStatus @default(PENDING)
+  refundAmountInCents Int      @default(0)
+  refundReason        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ==================
+// MESSAGING
+// ==================
+
+model MessageThread {
+  id              String   @id @default(cuid())
+  participantAId  String   // parent
+  participantBId  String   // trainer
+  lastMessageAt   DateTime @default(now())
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  participantA User    @relation("ParticipantA", fields: [participantAId], references: [id])
+  participantB User    @relation("ParticipantB", fields: [participantBId], references: [id])
+  messages     Message[]
+
+  @@unique([participantAId, participantBId])
+  @@map("message_threads")
+}
+
+model Message {
+  id             String    @id @default(cuid())
+  threadId       String
+  senderId       String
+  content        String
+  bookingId      String?
+  readAt         DateTime?
+  isSystemMessage Boolean  @default(false)
+  isFlagged      Boolean  @default(false)
+  createdAt      DateTime  @default(now())
+
+  thread   MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender   User          @relation("SentMessages", fields: [senderId], references: [id])
+  booking  Booking?      @relation(fields: [bookingId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@map("messages")
+}
+
+// ==================
+// REVIEWS
+// ==================
+
+model Review {
+  id                  String   @id @default(cuid())
+  bookingId           String   @unique
+  trainerProfileId    String
+  parentProfileId     String
+  rating              Int      // 1-5 overall
+  knowledgeRating     Int      // 1-5
+  communicationRating Int      // 1-5
+  punctualityRating   Int      // 1-5
+  comment             String?
+  trainerResponse     String?
+  trainerResponseAt   DateTime?
+  isPublished         Boolean  @default(true)
+  flaggedAt           DateTime?
+  flagReason          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  booking        Booking        @relation(fields: [bookingId], references: [id])
+  trainerProfile TrainerProfile @relation("TrainerReviews", fields: [trainerProfileId], references: [id])
+  parentProfile  ParentProfile  @relation("ParentReviews", fields: [parentProfileId], references: [id])
+
+  @@index([trainerProfileId])
+  @@map("reviews")
+}
+
+// ==================
+// FAVORITES
+// ==================
+
+model Favorite {
+  id              String @id @default(cuid())
+  parentProfileId String
+  trainerProfileId String
+  createdAt       DateTime @default(now())
+
+  parentProfile  ParentProfile  @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([parentProfileId, trainerProfileId])
+  @@map("favorites")
+}
+
+// ==================
+// NOTIFICATIONS
+// ==================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// ==================
+// COUPONS
+// ==================
+
+model Coupon {
+  id                    String    @id @default(cuid())
+  code                  String    @unique
+  discountPercent       Int?
+  discountAmountInCents Int?
+  maxUses               Int       @default(100)
+  currentUses           Int       @default(0)
+  expiresAt             DateTime?
+  isActive              Boolean   @default(true)
+  applicableSportId     String?
+  createdById           String
+  createdAt             DateTime  @default(now())
+
+  applicableSport Sport? @relation(fields: [applicableSportId], references: [id])
+
+  @@map("coupons")
+}
+
+// ==================
+// MODERATION
+// ==================
+
+model ModerationReport {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reportedUserId String?
+  entityType   String
+  entityId     String
+  reason       String
+  description  String?
+  status       ReportStatus     @default(OPEN)
+  resolvedBy   String?
+  resolution   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  reporter  User?  @relation("Reporter", fields: [reporterId], references: [id])
+  resolver  User?  @relation("Resolver", fields: [resolvedBy], references: [id])
+
+  @@map("moderation_reports")
+}
+
+model AdminAction {
+  id          String   @id @default(cuid())
+  adminUserId String
+  actionType  String
+  targetType  String
+  targetId    String
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  adminUser User @relation("AdminUser", fields: [adminUserId], references: [id])
+
+  @@map("admin_actions")
+}
+
+// ==================
+// FEE CONFIG
+// ==================
+
+model FeeConfig {
+  id                      String   @id @default(cuid())
+  platformCommissionPercent Float   @default(15.0)
+  stripeFeePercent        Float    @default(2.9)
+  processingFeeCents      Int      @default(30)
+  minBookingAmountCents   Int      @default(1500)
+  isActive                Boolean  @default(true)
+  effectiveDate           DateTime @default(now())
+  createdAt               DateTime @default(now())
+
+  @@map("fee_configs")
+}
+
+// ==================
+// UPLOADED ASSETS
+// ==================
+
+enum AssetType {
+  PHOTO
+  CERTIFICATION
+  BACKGROUND_CHECK
+  VIDEO
+  GALLERY
+}
+
+model UploadedAsset {
+  id              String    @id @default(cuid())
+  userId          String
+  trainerProfileId String?
+  url             String
+  type            AssetType
+  isVerified      Boolean   @default(false)
+  caption         String?
+  order           Int       @default(0)
+  uploadedAt      DateTime  @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainerProfile TrainerProfile? @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@map("uploaded_assets")
+}
+
+// ==================
+// CERTIFICATIONS
+// ==================
+
+model Certification {
+  id              String   @id @default(cuid())
+  trainerProfileId String
+  name            String
+  issuingOrg      String?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  credentialId    String?
+  url             String?
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@map("certifications")
+}
+
+// ==================
+// ENUMS (stored as strings)
+// ==================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum LocationType {
+  IN_PERSON
+  VIRTUAL
+  BOTH
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ServiceType {
+  INDIVIDUAL
+  GROUP
+  VIRTUAL
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
