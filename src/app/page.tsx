@@ -119,11 +119,11 @@ export default function HomePage() {
               </div>
 
               <h1 className="mt-6 max-w-[11.5ch] text-[2.6rem] font-bold leading-[0.95] tracking-[-0.06em] sm:max-w-4xl sm:text-5xl md:text-6xl xl:text-7xl">
-                Your kid deserves a great coach.
-                <span className="mt-2 block text-gradient">Finding one shouldn&apos;t be hard.</span>
+                Find a coach your athlete connects with,
+                <span className="mt-2 block text-gradient">and book their first session today.</span>
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-200 md:max-w-2xl md:text-xl">
-                Browse vetted trainers in football, baseball, basketball, soccer, and track & field. Pick a time that works. Book and pay in under two minutes.
+                Vetted youth trainers in football, baseball, basketball, soccer, and track &amp; field. Check their reviews, pick a time, and pay — all in one place.
               </p>
 
               <div className="mt-8 flex max-w-full flex-col gap-3 sm:flex-row">
