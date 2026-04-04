@@ -66,6 +66,7 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(true)
 
   const [selectedService, setSelectedService] = useState('')
   const [selectedAthlete, setSelectedAthlete] = useState('')
@@ -77,7 +78,13 @@ export default function BookingPage() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/trainers/${slug}`).then((r) => r.json()),
-      fetch('/api/athletes').then((r) => r.json()),
+      fetch('/api/athletes').then((r) => {
+        if (r.status === 401) {
+          setIsAuthenticated(false)
+          return { athletes: [] }
+        }
+        return r.json()
+      }),
     ])
       .then(([trainerData, athletesData]) => {
         setTrainer(trainerData)
@@ -304,7 +311,15 @@ export default function BookingPage() {
                 <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">2</span> Match the athlete</h2>
               </CardHeader>
               <CardContent>
-                {athletes.length > 0 ? (
+                {!isAuthenticated ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center">
+                    <p className="mb-4 text-sm text-slate-600">Sign in or create an account to book a session.</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <Link href={`/auth/signin?callbackUrl=/book/${slug}`}><Button size="sm">Sign In</Button></Link>
+                      <Link href={`/auth/signup?callbackUrl=/book/${slug}`}><Button variant="outline" size="sm">Sign Up</Button></Link>
+                    </div>
+                  </div>
+                ) : athletes.length > 0 ? (
                   <div className="space-y-4">
                     <Select value={selectedAthlete} onValueChange={setSelectedAthlete}>
                       <SelectTrigger className="h-12"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
