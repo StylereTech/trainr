@@ -93,18 +93,18 @@ const homepageSignals = [
 export default function HomePage() {
   return (
     <>
-      <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
+      <section className="site-hero min-h-[80vh] md:min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
         <Image
           src="/images/trainr/custom/home-hero-logo.jpg"
           alt="Trainr youth sports hero featuring athletes and the Trainr logo"
           fill
           priority
-          className="object-cover object-center md:object-top"
+          className="object-cover object-top"
         />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
 
-        <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
+        <div className="container relative flex min-h-[80vh] md:min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
           <div className="grid w-full gap-8 overflow-hidden lg:grid-cols-[1.05fr_.95fr] lg:items-end lg:gap-10">
             <div className="min-w-0 max-w-3xl overflow-hidden">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-xl sm:px-4">
