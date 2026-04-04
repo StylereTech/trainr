@@ -49,9 +49,9 @@ const initialFilters = (searchParams: URLSearchParams): FilterState => ({
 })
 
 const refinementSignals = [
-  { icon: ShieldCheck, title: 'Trust-first discovery', text: 'Filters, featured counts, and review signals are surfaced earlier so families can decide faster.' },
-  { icon: Sparkles, title: 'Cleaner result framing', text: 'The search experience now feels calmer, easier to scan, and less crowded from the first look.' },
-  { icon: LayoutGrid, title: 'Mobile scanability', text: 'Sport chips scroll horizontally, controls stack cleanly, and result cards maintain breathing room on phones.' },
+  { icon: ShieldCheck, title: 'Verified coaches only', text: 'Every trainer on Trainr has a complete profile with real credentials and parent reviews.' },
+  { icon: Sparkles, title: 'Filter by what matters', text: 'Narrow by sport, location, rating, and session type to find the right fit fast.' },
+  { icon: LayoutGrid, title: 'Compare side by side', text: 'See ratings, pricing, specialties, and availability at a glance across every coach.' },
 ]
 
 function BrowsePage() {
@@ -117,17 +117,17 @@ function BrowsePage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_.76fr] lg:items-end">
             <div className="max-w-3xl">
               <Badge className="mb-4 border border-emerald-400/30 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">
-                <Trophy className="mr-1 h-3.5 w-3.5" /> Family-friendly search & browse
+                <Trophy className="mr-1 h-3.5 w-3.5" /> Browse coaches
               </Badge>
               <h1 className="text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Find a coach who actually fits your athlete.</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-                Search vetted trainers by sport, location, and session type. Designed for families who want clear trust signals, cleaner profiles, and faster decisions on every screen.
+                Search by sport, location, and session type. Read parent reviews, compare pricing, and book the right coach in minutes.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 {[
-                  { label: 'Profiles visible now', value: total > 0 ? total.toString() : '0', note: 'live search results' },
-                  { label: 'Featured on this page', value: featuredCount.toString(), note: 'highlighted for easier browsing' },
-                  { label: 'Average rating shown', value: averageRating, note: 'based on loaded results' },
+                  { label: 'Trainers available', value: total > 0 ? total.toString() : '0', note: 'matching your search' },
+                  { label: 'Featured coaches', value: featuredCount.toString(), note: 'top-rated in your area' },
+                  { label: 'Avg. rating', value: averageRating, note: 'from parent reviews' },
                 ].map((item) => (
                   <div key={item.label} className="premium-stat">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">{item.label}</div>
@@ -150,8 +150,8 @@ function BrowsePage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-5">
                   <div className="premium-panel p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Discovery built for families</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Use sport, location, reviews, and profile quality to narrow down the right coach faster — now with a friendlier, cleaner browse experience.</p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Trusted by parents</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">Filter by sport, location, reviews, and session type to find the right coach for your athlete.</p>
                   </div>
                 </div>
               </div>
@@ -367,8 +367,8 @@ function BrowsePage() {
         <div className="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Browse page refinement delivered</div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Result discovery now feels cleaner, friendlier, and easier to use on mobile without changing the underlying API or trainer card routing.</p>
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Not finding the right fit?</div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Try adjusting your filters or searching a nearby city. New coaches join Trainr every week.</p>
             </div>
             <Button variant="outline" className="w-full rounded-2xl border-white/15 bg-transparent text-white hover:bg-white/10 hover:text-white md:w-auto" onClick={clearFilters}>
               Reset search

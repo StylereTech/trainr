@@ -17,7 +17,7 @@ const steps = [
     number: '1',
     icon: Search,
     title: 'Shortlist the right coach',
-    description: 'Browse vetted coaches by sport, location, session style, rating, and specialty so the search feels intentional instead of overwhelming.',
+    description: 'Filter by sport, location, session type, and rating. Read real parent reviews and compare coaches until you find the right one.',
     details: [
       'Filter by sport, specialty, and location',
       'Read verified parent reviews',
@@ -29,7 +29,7 @@ const steps = [
     number: '2',
     icon: Calendar,
     title: 'Book with context',
-    description: 'Choose a trainer, select a time, add athlete notes, and confirm securely without the usual scheduling friction.',
+    description: 'Pick a time that works, add your athlete\'s goals, and pay securely through Stripe. Done in under two minutes.',
     details: [
       'Real-time availability',
       'Private sessions or packages',
@@ -41,7 +41,7 @@ const steps = [
     number: '3',
     icon: Star,
     title: 'Train, review, and build momentum',
-    description: 'Show up aligned, get quality coaching, and turn a successful first session into a repeatable relationship.',
+    description: 'Your athlete shows up ready, the coach already knows their goals. Leave a review and rebook the coaches that click.',
     details: [
       'Clear communication before the session starts',
       'Message your trainer through the platform',
@@ -55,31 +55,31 @@ const familyJourney = [
   {
     icon: Users,
     title: 'For busy parents',
-    text: 'Profile quality, trust signals, and booking clarity are easier to scan on the first visit.',
+    text: 'Search, compare, and book from your phone. Manage multiple kids and sports without the back-and-forth.',
   },
   {
     icon: ClipboardList,
     title: 'For athletes with goals',
-    text: 'Families can share context up front so sessions begin with better intent and alignment.',
+    text: 'Share what your kid is working on before the session starts so the coach shows up with a plan.',
   },
   {
     icon: Trophy,
-    title: 'For long-term development',
-    text: 'The experience is built for repeat sessions, not just one-off discovery and checkout.',
+    title: 'For long-term growth',
+    text: 'One session can change everything. Rebook the coaches that work and track your athlete\'s progress over time.',
   },
 ]
 
 const features = [
-  { icon: Shield, title: 'Vetted trainers', description: 'Profiles are structured around trust signals so families compare with more confidence.' },
-  { icon: CreditCard, title: 'Secure payments', description: 'Stripe-powered checkout supports a smoother and more credible booking flow.' },
-  { icon: MessageSquare, title: 'In-app messaging', description: 'Communicate without turning the process into scattered texts and side threads.' },
-  { icon: Star, title: 'Honest reviews', description: 'Session-backed reviews help quality coaches rise and help families avoid guesswork.' },
+  { icon: Shield, title: 'Vetted trainers', description: 'Every coach has a verified profile with credentials, experience, and reviews from other parents.' },
+  { icon: CreditCard, title: 'Secure payments', description: 'Pay through Stripe at checkout. Your card info is never stored on our servers.' },
+  { icon: MessageSquare, title: 'In-app messaging', description: 'Message your coach directly through Trainr. No need for phone numbers or side threads.' },
+  { icon: Star, title: 'Honest reviews', description: 'Only parents who completed a session can leave a review. No fake ratings.' },
 ]
 
 const reassurance = [
-  'Clearer discovery path for families new to private coaching',
-  'Better trust framing before booking decisions are made',
-  'Mobile-friendly reading flow across each section',
+  'No long-term commitments required',
+  'Verified coaches with real parent reviews',
+  'Secure payments through Stripe',
 ]
 
 export default function HowItWorksPage() {
@@ -92,10 +92,10 @@ export default function HowItWorksPage() {
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
           <div className="grid w-full gap-8 lg:grid-cols-[1.02fr_.98fr] lg:items-end lg:gap-10">
             <div className="max-w-3xl">
-              <Badge className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/10">Simple booking, stronger trust</Badge>
-              <h1 className="text-4xl font-bold tracking-[-0.05em] md:text-6xl">How Trainr works for families who care about fit.</h1>
+              <Badge className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/10">Simple booking, real results</Badge>
+              <h1 className="text-4xl font-bold tracking-[-0.05em] md:text-6xl">How Trainr works for your family.</h1>
               <p className="mt-5 max-w-2xl text-lg text-slate-200 md:text-xl">
-                The site now carries one clear, welcoming sports language across discovery, education, and onboarding — while keeping the booking flow simple and clear.
+                Find a coach, book a session, and watch your athlete improve. The whole process takes a few minutes.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 {reassurance.map((item) => (
@@ -110,7 +110,7 @@ export default function HowItWorksPage() {
             <div className="premium-shell max-w-xl justify-self-end p-5 md:p-6">
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Family journey snapshot</div>
               <div className="mt-4 space-y-3">
-                {['Search with clearer trust cues', 'Book with athlete context', 'Rebook around measurable progress'].map((item, index) => (
+                {['Browse coaches by sport and location', 'Book and pay in minutes', 'Rebook the coaches your kid loves'].map((item, index) => (
                   <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-500/20 text-sm font-semibold text-emerald-200">0{index + 1}</div>
                     <span className="text-sm text-slate-200">{item}</span>

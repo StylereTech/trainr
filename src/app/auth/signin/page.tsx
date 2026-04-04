@@ -54,8 +54,8 @@ export default function SignInPage() {
             <Image src={TRAINR_IMAGE_CATALOG.baseball.brand.src} alt={TRAINR_IMAGE_CATALOG.baseball.brand.alt} fill className="object-cover" priority />
             <div className="image-wash" />
             <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-8">
-              <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">Built for families who care about progress</Badge>
-              <h2 className="mt-4 text-2xl font-bold md:text-4xl">Step back into a coaching experience that feels trustworthy and premium.</h2>
+              <Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10">Welcome back</Badge>
+              <h2 className="mt-4 text-2xl font-bold md:text-4xl">Your coaches, your schedule, your athlete&apos;s progress. All in one place.</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 {trustPoints.map((point) => (
                   <div key={point} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur">
@@ -87,10 +87,10 @@ export default function SignInPage() {
           <CardContent>
             <div className="premium-panel mb-5 p-4 text-sm text-slate-300">
               <div className="flex items-center gap-2 font-semibold text-white">
-                <Sparkles className="h-4 w-4 text-emerald-300" /> Premium account flow
+                <Sparkles className="h-4 w-4 text-emerald-300" /> Your account
               </div>
               <div className="mt-2 grid gap-2">
-                {['See bookings faster', 'Keep athlete details organized', 'Return to trusted trainers in one place'].map((item) => (
+                {['View upcoming sessions', 'Manage your athletes', 'Rebook your favorite coaches'].map((item) => (
                   <div key={item} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
                     <span>{item}</span>
@@ -119,9 +119,9 @@ export default function SignInPage() {
 
             <div className="premium-panel mt-6 p-4 text-sm text-slate-300">
               <div className="flex items-center gap-2 font-semibold text-white">
-                <Star className="h-4 w-4 text-amber-400" /> Why families return to Trainr
+                <Star className="h-4 w-4 text-amber-400" /> Why families come back
               </div>
-              <p className="mt-2">Trainer discovery, safety cues, and scheduling are designed to reduce friction from first search to recurring sessions.</p>
+              <p className="mt-2">Great coaches, easy rebooking, and real results. Parents stick with Trainr because it works.</p>
             </div>
           </CardContent>
           <CardFooter className="justify-center">

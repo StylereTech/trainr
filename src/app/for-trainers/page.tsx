@@ -37,9 +37,9 @@ const trainerSteps = [
 ]
 
 const operatingPoints = [
-  { icon: LayoutDashboard, title: 'Cleaner workflow', text: 'Availability, offers, messaging, and payouts now feel like one connected system.' },
-  { icon: ShieldCheck, title: 'Credibility first', text: 'Quality coaches look established from the first visit instead of buried in clutter.' },
-  { icon: HandCoins, title: 'Transparent economics', text: 'Families get a smooth checkout while trainers understand exactly what they keep.' },
+  { icon: LayoutDashboard, title: 'One dashboard', text: 'Your schedule, bookings, messages, and payouts all in one place.' },
+  { icon: ShieldCheck, title: 'Look professional', text: 'Your profile shows credentials, reviews, and session options so parents trust you from the start.' },
+  { icon: HandCoins, title: 'Know what you earn', text: 'You keep 85% of every booking. No hidden fees, no surprises.' },
 ]
 
 const growthSignals = [
@@ -62,7 +62,7 @@ export default function ForTrainersPage() {
               <Badge className="mb-4 border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">For Trainers</Badge>
               <h1 className="text-4xl font-bold tracking-[-0.05em] md:text-6xl">A better home for coaches who want serious families.</h1>
               <p className="mt-5 max-w-2xl text-lg text-slate-200 md:text-xl">
-                Trainr helps youth coaches present themselves clearly, book more smoothly, and grow repeat business through a public experience that now feels warmer and more connected across the brand.
+                Set your rates, control your schedule, and let families find you. Trainr handles the booking, payments, and reviews so you can focus on coaching.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <Link href="/auth/signup?role=trainer">
@@ -100,7 +100,7 @@ export default function ForTrainersPage() {
         <div className="container">
           <div className="mb-10 max-w-2xl">
             <h2 className="text-3xl font-bold md:text-4xl">Why strong coaches choose Trainr</h2>
-            <p className="mt-3 text-slate-300">Not just a listing page — a cleaner way for strong coaches to build trust, reputation, and repeatable growth.</p>
+            <p className="mt-3 text-slate-300">Everything you need to get booked, get paid, and grow your coaching business.</p>
           </div>
           <div className="grid max-w-6xl gap-6 md:grid-cols-2 lg:grid-cols-3">
             {benefits.map((benefit, index) => (
@@ -185,8 +185,8 @@ export default function ForTrainersPage() {
                 ))}
               </div>
               <div className="mt-6 rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Sitewide consistency</div>
-                <p className="mt-2 text-sm text-slate-300">Trainer acquisition now shares the same cleaner, more welcoming brand language as the homepage, browse, sports, and auth surfaces.</p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Getting started is free</div>
+                <p className="mt-2 text-sm text-slate-300">Create your profile, publish your services, and start accepting bookings. You only pay the platform fee when you get paid.</p>
               </div>
             </CardContent>
           </Card>

@@ -26,37 +26,37 @@ const howItWorks = [
     step: '01',
     icon: Search,
     title: 'Find the right coach',
-    description: 'Browse by sport, location, and coaching style with a clearer, more welcoming experience for families.',
+    description: 'Search by sport, location, and specialty. Read real parent reviews. Pick someone your kid will actually want to train with.',
   },
   {
     step: '02',
     icon: ClipboardList,
-    title: 'Book with confidence',
-    description: "Share your athlete's goals, compare session options, and move into checkout with less guesswork.",
+    title: 'Book and pay',
+    description: "Choose a time, share your athlete's goals, and pay securely. The whole thing takes about two minutes.",
   },
   {
     step: '03',
     icon: Trophy,
-    title: 'Keep the momentum going',
-    description: 'Turn a great first session into a training rhythm your athlete enjoys and your family can trust.',
+    title: 'Watch them improve',
+    description: 'Great coaches build confidence fast. Rebook the ones that click and watch your athlete grow.',
   },
 ]
 
 const familyDecisionPoints = [
   {
     icon: Shield,
-    title: 'Feel confident sooner',
-    text: 'Families see credibility, profile quality, and real proof earlier instead of having to dig for it.',
+    title: 'Coaches you can trust',
+    text: 'Every trainer has a verified profile with real reviews, credentials, and coaching background you can check before booking.',
   },
   {
     icon: CalendarDays,
-    title: 'Clear before checkout',
-    text: 'Scheduling, format, and pricing read more like a clean booking flow than a directory.',
+    title: 'Pricing up front',
+    text: 'See exactly what a session costs, how long it lasts, and when the trainer is available. No surprises at checkout.',
   },
   {
     icon: Users,
-    title: 'Built for real families',
-    text: 'The story, visuals, and calls to action are now built around how parents actually choose support for their athlete.',
+    title: 'Made for busy parents',
+    text: 'Search, book, and pay from your phone in minutes. Manage multiple kids and sports in one place.',
   },
 ]
 
@@ -85,9 +85,9 @@ const testimonials = [
 ]
 
 const homepageSignals = [
-  'New logo hero creates a warmer first impression',
-  'Homepage language feels more family-friendly',
-  'Sport imagery stays mapped only to approved Trainr assets',
+  'Coaches across 5 youth sports',
+  'Verified reviews from real parents',
+  'Secure payments through Stripe',
 ]
 
 export default function HomePage() {
@@ -200,10 +200,10 @@ export default function HomePage() {
         <div className="content-grid">
           <div className="grid items-center gap-10 lg:grid-cols-[1.02fr_.98fr]">
             <div>
-              <div className="premium-kicker">Family decision support</div>
-              <h2 className="mt-5 text-3xl font-bold tracking-tight md:text-5xl">A friendlier front door for families choosing who coaches their athlete.</h2>
+              <div className="premium-kicker">Why parents choose Trainr</div>
+              <h2 className="mt-5 text-3xl font-bold tracking-tight md:text-5xl">Stop guessing. Start with coaches other parents already trust.</h2>
               <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-300">
-                The new Trainr look keeps the strong sports energy, but adds a warmer first impression so the brand feels more approachable, more credible, and easier for families to trust from the first click.
+                Every coach on Trainr has a real profile with verified reviews, clear pricing, and available time slots. You see what you need to make a decision before you ever pull out your card.
               </p>
               <div className="mt-6 grid gap-4 sm:grid-cols-3">
                 {familyDecisionPoints.map((item) => (
@@ -227,11 +227,11 @@ export default function HomePage() {
                   className="object-cover"
                 />
                 <div className="hero-overlay" />
-                <div className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white backdrop-blur-xl">Basketball collection mood</div>
+                <div className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white backdrop-blur-xl">Basketball</div>
                 <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                   <div className="premium-panel p-5">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Friendlier homepage direction</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Homepage, browse, sports, auth, and trainer acquisition surfaces now feel more connected while the landing experience leads with a warmer family-first tone.</p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Real coaches, real results</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">Parents book trainers who specialize in their kid&apos;s sport. Coaches build lasting relationships with families who keep coming back.</p>
                   </div>
                 </div>
               </div>
@@ -244,9 +244,9 @@ export default function HomePage() {
         <div className="container">
           <div className="mb-10 flex flex-col gap-4 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
             <div className="max-w-2xl">
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">Sport collections</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Approved imagery now carries the Trainr story across every core sport.</h2>
-              <p className="mt-3 text-slate-300">Each collection card uses mapped in-repo visuals so the site feels consistent, trustworthy, and honest about its media.</p>
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">Browse by sport</div>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Five sports. Hundreds of coaches. One place to find them.</h2>
+              <p className="mt-3 text-slate-300">Pick your athlete&apos;s sport and see who&apos;s available near you.</p>
             </div>
             <Link href="/sports" className="inline-flex items-center justify-center text-sm font-medium text-emerald-300">
               View all sport categories <ChevronRight className="ml-1 h-4 w-4" />
@@ -271,7 +271,7 @@ export default function HomePage() {
                     </div>
                     <CardContent className="p-5">
                       <div className="text-lg font-semibold">{sport.icon} {sport.name}</div>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">{isLiveTrainrImage(visual) ? `Live visual: ${visual.tone}` : `${visual.label} — ${visual.status}`}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">Find {sport.name.toLowerCase()} coaches near you</p>
                     </CardContent>
                   </Card>
                 </Link>
@@ -286,12 +286,12 @@ export default function HomePage() {
           <div className="mb-12 flex flex-col gap-4 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
             <div className="max-w-2xl">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">How it works</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight">A guided path from shortlist to session.</h2>
-              <p className="mt-3 text-slate-300">The page flow now matches the warmer homepage treatment while keeping the decision-making simple.</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">Search. Book. Train.</h2>
+              <p className="mt-3 text-slate-300">Three steps from browsing coaches to your kid&apos;s first session.</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-200">
               <HeartHandshake className="h-4 w-4 text-emerald-300" />
-              Family-first experience design
+              Built for busy families
             </div>
           </div>
           <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
@@ -316,7 +316,7 @@ export default function HomePage() {
           <div className="mb-12 text-center">
             <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">Parent proof</div>
             <h2 className="mt-3 mb-3 text-3xl font-bold tracking-tight">What families say after the first few sessions.</h2>
-            <p className="text-slate-300">Real reviews, framed in the same calm and trustworthy system.</p>
+            <p className="text-slate-300">Real feedback from parents who booked through Trainr.</p>
           </div>
           <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
             {testimonials.map((t, i) => (
@@ -356,7 +356,7 @@ export default function HomePage() {
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">Are you a sports trainer?</h2>
               <p className="mx-auto mb-8 max-w-2xl text-slate-200 leading-7">
-                Join hundreds of coaches earning on their own schedule with a brand experience that now feels more welcoming and consistent across the full public site.
+                Set your own rates, pick your own hours, and get booked by families who are already looking for what you do.
               </p>
               <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
                 <Link href="/auth/signup?role=trainer">

@@ -15,54 +15,54 @@ export const metadata: Metadata = {
 
 const sportDescriptions: Record<string, { tagline: string; description: string; benefits: string[]; developmentFocus: string; trustNote: string; categoryTone: string }> = {
   football: {
-    tagline: 'Elite Football Training',
-    description: 'From quarterback mechanics to defensive fundamentals, find the right football trainer for your athlete with position-specific development and clearer family expectations.',
+    tagline: 'Football Training',
+    description: 'Quarterback mechanics, defensive fundamentals, speed work, and combine prep. Find a football coach who develops your athlete\'s position skills and confidence.',
     benefits: ['Position-specific drills', 'Speed & agility work', 'Film study prep', 'Combine preparation'],
-    developmentFocus: 'Ideal for athletes building explosiveness, confidence, and position IQ.',
-    trustNote: 'Live football training imagery is now wired into the media system for stronger category trust.',
-    categoryTone: 'Explosive, disciplined, and built for stronger position-specific confidence.',
+    developmentFocus: 'Great for athletes building explosiveness, confidence, and football IQ at any position.',
+    trustNote: 'Coaches verified with background checks and parent reviews.',
+    categoryTone: 'Explosive, disciplined, and built for game-day confidence.',
   },
   baseball: {
-    tagline: 'Professional Baseball Coaching',
-    description: 'Hitting, pitching, catching, and fielding — connect with coaches who understand youth baseball mechanics and long-term development.',
+    tagline: 'Baseball Coaching',
+    description: 'Hitting, pitching, catching, and fielding. Work with coaches who understand youth mechanics and know how to develop players the right way.',
     benefits: ['Hitting mechanics', 'Pitching velocity & command', 'Catching techniques', 'Defensive fundamentals'],
-    developmentFocus: 'Perfect for athletes refining mechanics without rushing form.',
-    trustNote: 'Live baseball imagery is already wired into the experience for richer category storytelling.',
-    categoryTone: 'Measured, technical, and ideal for long-horizon player development.',
+    developmentFocus: 'Perfect for athletes who want to sharpen their mechanics without rushing their development.',
+    trustNote: 'Coaches verified with background checks and parent reviews.',
+    categoryTone: 'Technical, patient, and focused on long-term player growth.',
   },
   basketball: {
-    tagline: 'Next-Level Basketball Skills',
-    description: 'Shooting, ball handling, footwork, and game IQ — discover basketball trainers who help athletes become more complete players.',
+    tagline: 'Basketball Training',
+    description: 'Shooting, ball handling, footwork, and game IQ. Find basketball trainers who help your athlete become a more complete player.',
     benefits: ['Shooting form & accuracy', 'Ball handling & dribbling', 'Defensive positioning', 'Game situation training'],
     developmentFocus: 'Great for guards, wings, and youth players building confidence under pressure.',
-    trustNote: 'Live basketball visuals are available in-repo and now support premium category presentation.',
-    categoryTone: 'Fast, polished, and confidence-building for athletes who need game-ready reps.',
+    trustNote: 'Coaches verified with background checks and parent reviews.',
+    categoryTone: 'Fast-paced, confidence-building, and game-ready.',
   },
   soccer: {
-    tagline: 'World-Class Soccer Training',
-    description: 'From strikers to goalkeepers, find soccer trainers who can develop technique, movement, and decision-making in a structured environment.',
+    tagline: 'Soccer Training',
+    description: 'Strikers to goalkeepers. Find soccer trainers who develop technique, movement, and decision-making for your athlete\'s position.',
     benefits: ['Ball control & dribbling', 'Passing & receiving', 'Position-specific training', 'Speed & conditioning'],
-    developmentFocus: 'Built for families prioritizing technical repetition and tactical growth.',
-    trustNote: 'Live soccer training imagery is now available in the repo and mapped into the category card.',
-    categoryTone: 'Technical, fluid, and shaped around movement quality and repetition.',
+    developmentFocus: 'Built for athletes focused on technical repetition and tactical awareness.',
+    trustNote: 'Coaches verified with background checks and parent reviews.',
+    categoryTone: 'Technical, fluid, and focused on movement quality.',
   },
   'track-field': {
-    tagline: 'Championship Track & Field Coaching',
-    description: 'Sprinting, jumps, throws, hurdles, and distance — specialized coaches for every event with a strong focus on mechanics and progression.',
+    tagline: 'Track & Field Coaching',
+    description: 'Sprints, jumps, throws, hurdles, and distance. Specialized coaches for every event who focus on mechanics and measurable improvement.',
     benefits: ['Sprint mechanics', 'Hurdle technique', 'Jump form & distance', 'Throwing fundamentals'],
-    developmentFocus: 'Best for athletes focused on discipline, repeatable form, and measurable performance gains.',
-    trustNote: 'Live track & field sprint imagery is now mapped into the category experience.',
-    categoryTone: 'Precise, repeatable, and built around measurable progression.',
+    developmentFocus: 'Best for athletes who want disciplined coaching and measurable progress in their event.',
+    trustNote: 'Coaches verified with background checks and parent reviews.',
+    categoryTone: 'Precise, disciplined, and results-driven.',
   },
 }
 
 const categoryHighlights = [
-  { icon: ShieldCheck, title: 'Parent-first clarity', description: 'Each sport rail frames trainer discovery around safety, skill fit, and progression.' },
-  { icon: Sparkles, title: 'Premium presentation', description: 'Live approved imagery now supports all five core sports while the shared mapping system stays ready for future categories.' },
-  { icon: Trophy, title: 'Development-driven copy', description: 'Every category now explains what families can expect before they browse trainers.' },
+  { icon: ShieldCheck, title: 'Vetted coaches', description: 'Every trainer is reviewed by parents and verified before they can accept bookings.' },
+  { icon: Sparkles, title: 'Sport-specific training', description: 'Coaches specialize in your athlete\'s sport with drills, skills, and development plans that match their level.' },
+  { icon: Trophy, title: 'Clear expectations', description: 'See what each coach offers, what it costs, and what your kid will work on before you book.' },
 ]
 
-const consistencySignals = ['Consistent category cards', 'Placeholder-safe media routing', 'Cleaner small-screen browsing']
+const consistencySignals = ['5 youth sports covered', 'Coaches across the country', 'Book your first session today']
 
 export default function SportsPage() {
   return (
@@ -75,16 +75,16 @@ export default function SportsPage() {
           <div className="grid gap-10 lg:grid-cols-[1.02fr_.98fr] lg:items-center">
             <div className="max-w-3xl">
               <div className="premium-kicker mb-5">
-                <Layers3 className="h-4 w-4" /> Premium sport collections
+                <Layers3 className="h-4 w-4" /> Browse by sport
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] md:text-6xl">Explore every sport through a more premium, consistent discovery lens.</h1>
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] md:text-6xl">Pick a sport. Find a coach your kid will love.</h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 md:text-lg">
-                Families can now scan sport-by-sport coaching categories with sharper value framing and richer approved imagery across every core sport.
+                Football, baseball, basketball, soccer, and track &amp; field. Each sport has coaches who specialize in youth development at every level.
               </p>
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-200">
                 <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">5 youth sports</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Live media mapping across all core sports</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Mobile-first category browsing</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Coaches at every skill level</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Book in minutes</span>
               </div>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/browse">
@@ -114,9 +114,9 @@ export default function SportsPage() {
                     <div className="absolute inset-0 bg-gradient-to-r from-slate-950/70 via-slate-950/20 to-transparent" />
                   </div>
                   <div className="p-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">Category spotlight</div>
-                    <h2 className="mt-3 text-2xl font-semibold">All five core sports now anchor a more premium browse experience.</h2>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">Approved imagery is now live across football, baseball, basketball, soccer, and track & field, with the fallback system still protecting any future missing categories.</p>
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">Every sport covered</div>
+                    <h2 className="mt-3 text-2xl font-semibold">Specialized coaches for every sport your kid plays.</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">Whether they&apos;re just starting out or training for varsity, there&apos;s a coach on Trainr who focuses on exactly what they need.</p>
                   </div>
                 </div>
               </Card>
@@ -188,7 +188,7 @@ export default function SportsPage() {
                         <p className="mt-3 text-sm leading-6 text-slate-300 md:text-base">{info.developmentFocus}</p>
 
                         <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Medal className="h-4 w-4 text-emerald-300" /> Category tone</div>
+                          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Medal className="h-4 w-4 text-emerald-300" /> Training style</div>
                           <p className="mt-2 text-sm leading-6 text-slate-300">{info.categoryTone}</p>
                         </div>
 
@@ -201,9 +201,8 @@ export default function SportsPage() {
                         </div>
 
                         <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
-                          <div className="font-semibold text-white">Media status</div>
-                          <p className="mt-2">{isLiveTrainrImage(visual) ? `Live asset in use — ${visual.tone}.` : `${visual.label} — ${visual.status}.`}</p>
-                          <p className="mt-2 text-slate-400">{info.trustNote}</p>
+                          <div className="font-semibold text-white">Trust &amp; safety</div>
+                          <p className="mt-2">{info.trustNote}</p>
                         </div>
                       </div>
 

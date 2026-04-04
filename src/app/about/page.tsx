@@ -27,8 +27,8 @@ export default function AboutPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
               <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-5 backdrop-blur">
-                <p className="text-sm font-semibold text-white">A premium marketplace for real youth development.</p>
-                <p className="mt-2 text-sm text-slate-300">Discovery, safety, and booking are designed to feel intentional instead of improvised.</p>
+                <p className="text-sm font-semibold text-white">The marketplace for youth sports coaching.</p>
+                <p className="mt-2 text-sm text-slate-300">Find trusted coaches, book sessions, and give your athlete the training they deserve.</p>
               </div>
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function AboutPage() {
               <p>The goal is simple: make better coaching easier to find and easier to trust.</p>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {['Trust signals surfaced earlier', 'Cleaner cross-sport discovery for families', 'Consistent premium shell across public + private flows', 'Sport imagery now intentionally distributed across the site'].map((item) => (
+              {['Verified coaches with real reviews', 'Covers 5 major youth sports', 'Secure booking and payments', 'Built for parents and athletes'].map((item) => (
                 <div key={item} className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700 shadow-sm">
                   <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-600" />
                   {item}
@@ -88,9 +88,9 @@ export default function AboutPage() {
 
       <section className="gradient-hero py-16 text-white">
         <div className="container text-center">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.2em]"><Sparkles className="h-4 w-4" /> Premium brand direction</div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.2em]"><Sparkles className="h-4 w-4" /> Get started today</div>
           <h2 className="mb-4 text-3xl font-bold">Join the Trainr community</h2>
-          <p className="mb-8 text-green-100">Whether you&apos;re a parent or a trainer, there&apos;s a cleaner path waiting.</p>
+          <p className="mb-8 text-green-100">Whether you&apos;re a parent looking for coaching or a trainer ready to grow, we&apos;re here for you.</p>
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Link href="/browse">
               <Button size="lg" className="bg-white px-8 font-semibold text-green-800 hover:bg-green-50">
