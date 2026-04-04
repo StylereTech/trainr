@@ -192,7 +192,7 @@ export default function BookingPage() {
     <div className="min-h-screen bg-slate-950 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.24),_transparent_38%),linear-gradient(180deg,_#04130b_0%,_#08131f_100%)]">
         <div className="container py-8 md:py-10">
-          <Link href={`/trainer/${trainer.slug}`} className="text-sm text-slate-300 transition hover:text-white">
+          <Link href={`/trainers/${trainer.slug}`} className="text-sm text-slate-300 transition hover:text-white">
             ← Back to {trainer.firstName}&apos;s profile
           </Link>
 

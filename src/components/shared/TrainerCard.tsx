@@ -40,7 +40,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
   const primarySport = trainer.sports[0]?.sport
 
   return (
-    <Link href={`/trainer/${trainer.slug}`} className="block h-full">
+    <Link href={`/trainers/${trainer.slug}`} className="block h-full">
       <Card className="group h-full overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] text-white transition duration-300 hover:-translate-y-1 hover:border-emerald-400/30 hover:shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
         <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-emerald-500/20 via-slate-900 to-slate-950">
           {photoUrl ? (

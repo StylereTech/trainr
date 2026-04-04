@@ -24,20 +24,11 @@ const PUBLIC_PATHS = [
   '/images',
   '/brand',
   '/review',
+  '/trainers',
+  '/book',
 ]
 
-// Trainer profile pages (/trainer/[slug]) are public, but these trainer routes are protected
-const TRAINER_PROTECTED = ['/trainer/dashboard', '/trainer/profile', '/trainer/onboarding']
-
 function isPublicPath(pathname: string): boolean {
-  // /trainer/[slug] is public (profile view), but /trainer/dashboard etc. need auth
-  if (pathname.startsWith('/trainer/')) {
-    return !TRAINER_PROTECTED.some((p) => pathname.startsWith(p))
-  }
-  // /book/[slug] is viewable by anyone (auth checked at API level when submitting)
-  if (pathname.startsWith('/book/')) {
-    return true
-  }
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 

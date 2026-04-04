@@ -141,7 +141,7 @@ export default function AdminTrainers() {
                     <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => { setSelectedTrainer(trainer); setDialogMode('view') }}>
                       <Eye className="mr-1 h-3 w-3" />View
                     </Button>
-                    <Link href={`/trainer/${trainer.slug}`}>
+                    <Link href={`/trainers/${trainer.slug}`}>
                       <Button size="sm" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white">
                         Public page <ArrowUpRight className="ml-1 h-3 w-3" />
                       </Button>
