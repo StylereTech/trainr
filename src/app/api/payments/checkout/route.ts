@@ -68,9 +68,10 @@ export async function POST(req: NextRequest) {
     const hasConnect = booking.trainerProfile.stripeAccountId && booking.trainerProfile.stripeOnboardingComplete
 
     // Build Stripe Checkout Session options
+    // Use automatic_payment_methods to enable all eligible methods:
+    // Cards, Apple Pay, Google Pay, Cash App, Afterpay/Clearpay, Link, etc.
     const checkoutParams: any = {
       mode: 'payment',
-      payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
