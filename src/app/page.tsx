@@ -347,8 +347,8 @@ export default function HomePage() {
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
             <Image
-              src="/images/trainr/custom/trainer-cta.jpg"
-              alt="Youth basketball player training with coach"
+              src="/images/trainr/custom/pushups-coaching.jpg"
+              alt="Young athlete and coach doing pushups together in gym"
               fill
               className="object-cover"
             />
