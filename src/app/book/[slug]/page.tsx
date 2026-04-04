@@ -20,11 +20,13 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  PlusCircle,
   ShieldCheck,
   Sparkles,
   Star,
   CheckCircle2,
   User,
+  X,
 } from 'lucide-react'
 import { formatCurrency, SPORTS } from '@/lib/utils'
 import { formatDateForInput, generateAvailableTimeSlots, parseDateInputAsLocalDate } from '@/lib/trainer'
@@ -67,6 +69,9 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(true)
+  const [showAddAthlete, setShowAddAthlete] = useState(false)
+  const [addingAthlete, setAddingAthlete] = useState(false)
+  const [newAthlete, setNewAthlete] = useState({ firstName: '', lastName: '', dateOfBirth: '', sports: [] as string[] })
 
   const [selectedService, setSelectedService] = useState('')
   const [selectedAthlete, setSelectedAthlete] = useState('')
@@ -122,6 +127,43 @@ export default function BookingPage() {
     : 'Choose a date'
 
   const completedSteps = [selectedService, selectedAthlete, selectedDate && selectedTime].filter(Boolean).length
+
+  const handleAddAthlete = async () => {
+    if (!newAthlete.firstName || !newAthlete.lastName || !newAthlete.dateOfBirth || newAthlete.sports.length === 0) {
+      toast({ title: 'Missing fields', description: 'Fill in name, date of birth, and select at least one sport.', variant: 'destructive' })
+      return
+    }
+    setAddingAthlete(true)
+    try {
+      const res = await fetch('/api/athletes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newAthlete, skillLevel: 'BEGINNER' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Error', description: data.error || 'Could not add athlete', variant: 'destructive' })
+        return
+      }
+      const created: Athlete = { id: data.id, firstName: data.firstName, lastName: data.lastName, sports: data.sports || [] }
+      setAthletes((prev) => [...prev, created])
+      setSelectedAthlete(created.id)
+      setShowAddAthlete(false)
+      setNewAthlete({ firstName: '', lastName: '', dateOfBirth: '', sports: [] })
+      toast({ title: 'Athlete added!', description: `${created.firstName} is ready for booking.` })
+    } catch {
+      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
+    } finally {
+      setAddingAthlete(false)
+    }
+  }
+
+  const toggleNewAthleteSport = (slug: string) => {
+    setNewAthlete((prev) => ({
+      ...prev,
+      sports: prev.sports.includes(slug) ? prev.sports.filter((s) => s !== slug) : [...prev.sports, slug],
+    }))
+  }
 
   const handleSubmit = async () => {
     if (!selectedService || !selectedAthlete || !selectedDate || !selectedTime) {
@@ -319,35 +361,91 @@ export default function BookingPage() {
                       <Link href={`/auth/signup?callbackUrl=/book/${slug}`}><Button variant="outline" size="sm">Sign Up</Button></Link>
                     </div>
                   </div>
-                ) : athletes.length > 0 ? (
+                ) : (
                   <div className="space-y-4">
-                    <Select value={selectedAthlete} onValueChange={setSelectedAthlete}>
-                      <SelectTrigger className="h-12"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
-                      <SelectContent>
-                        {athletes.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.firstName} {a.lastName} {a.sports.length > 0 ? `(${a.sports.map((s) => s.sport.name).join(', ')})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {athlete && (
-                      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100">
-                        <div className="font-semibold text-slate-900">Selected athlete</div>
-                        <div className="mt-1">{athlete.firstName} {athlete.lastName}</div>
-                        <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">Sports</div>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          {athlete.sports.length > 0 ? athlete.sports.map((sport) => (
-                            <span key={sport.sport.name} className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-slate-200">{sport.sport.name}</span>
-                          )) : <span className="text-xs text-slate-500">No sports added yet</span>}
+                    {athletes.length > 0 && (
+                      <>
+                        <Select value={selectedAthlete} onValueChange={setSelectedAthlete}>
+                          <SelectTrigger className="h-12"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
+                          <SelectContent>
+                            {athletes.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.firstName} {a.lastName} {a.sports.length > 0 ? `(${a.sports.map((s) => s.sport.name).join(', ')})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {athlete && (
+                          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100">
+                            <div className="font-semibold text-slate-900">Selected athlete</div>
+                            <div className="mt-1">{athlete.firstName} {athlete.lastName}</div>
+                            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">Sports</div>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                              {athlete.sports.length > 0 ? athlete.sports.map((sport) => (
+                                <span key={sport.sport.name} className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-slate-200">{sport.sport.name}</span>
+                              )) : <span className="text-xs text-slate-500">No sports added yet</span>}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {!showAddAthlete ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddAthlete(true)}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700"
+                      >
+                        <PlusCircle className="h-4 w-4" /> {athletes.length > 0 ? 'Add another athlete' : 'Add your athlete to continue'}
+                      </button>
+                    ) : (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 ring-1 ring-emerald-100">
+                        <div className="mb-4 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-slate-900">Quick add athlete</h3>
+                          <button type="button" onClick={() => setShowAddAthlete(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-4 w-4" /></button>
                         </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <Label className="text-xs text-slate-700">First name</Label>
+                            <Input value={newAthlete.firstName} onChange={(e) => setNewAthlete({ ...newAthlete, firstName: e.target.value })} placeholder="First name" className="mt-1 h-10" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-700">Last name</Label>
+                            <Input value={newAthlete.lastName} onChange={(e) => setNewAthlete({ ...newAthlete, lastName: e.target.value })} placeholder="Last name" className="mt-1 h-10" />
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <Label className="text-xs text-slate-700">Date of birth</Label>
+                          <Input type="date" value={newAthlete.dateOfBirth} onChange={(e) => setNewAthlete({ ...newAthlete, dateOfBirth: e.target.value })} className="mt-1 h-10 w-full sm:w-48" />
+                        </div>
+                        <div className="mt-3">
+                          <Label className="text-xs text-slate-700">Sport(s)</Label>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {SPORTS.map((sport) => {
+                              const active = newAthlete.sports.includes(sport.slug)
+                              return (
+                                <button
+                                  key={sport.slug}
+                                  type="button"
+                                  onClick={() => toggleNewAthleteSport(sport.slug)}
+                                  className={`rounded-full border px-3 py-1.5 text-xs transition ${active ? 'border-emerald-500 bg-emerald-100 font-medium text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                                >
+                                  {sport.icon} {sport.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="mt-4 gradient-primary border-0 text-white"
+                          disabled={addingAthlete}
+                          onClick={handleAddAthlete}
+                        >
+                          {addingAthlete ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Saving...</> : 'Save & select'}
+                        </Button>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center">
-                    <p className="mb-4 text-sm text-slate-600">Add an athlete profile before booking your first session.</p>
-                    <Link href="/parent/athletes/new"><Button variant="outline" size="sm">Add Athlete</Button></Link>
                   </div>
                 )}
               </CardContent>
