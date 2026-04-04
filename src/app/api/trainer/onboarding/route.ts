@@ -5,6 +5,76 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { normalizeSpecialtySelections } from '@/lib/trainer'
 
+// GET /api/trainer/onboarding — Fetch existing trainer profile data for editing
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const userId = (session.user as any).id
+    const role = (session.user as any).role
+    if (role !== 'TRAINER') return NextResponse.json({ error: 'Only trainers' }, { status: 403 })
+
+    const trainer = await prisma.trainerProfile.findUnique({
+      where: { userId },
+      include: {
+        sports: { include: { sport: true } },
+        specialties: { include: { specialty: true } },
+        certifications: true,
+        serviceOfferings: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+        availabilitySlots: { where: { isAvailable: true }, orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] },
+        user: { select: { email: true } },
+      },
+    })
+
+    if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+    return NextResponse.json({
+      profile: {
+        firstName: trainer.firstName,
+        lastName: trainer.lastName,
+        headline: trainer.headline || '',
+        bio: trainer.bio || '',
+        phone: trainer.phone || '',
+        yearsExperience: trainer.yearsExperience,
+        locationType: trainer.locationType,
+        address: trainer.address || '',
+        city: trainer.city || '',
+        state: trainer.state || '',
+        zipCode: trainer.zipCode || '',
+        travelRadius: trainer.travelRadius,
+        slug: trainer.slug,
+        email: trainer.user.email,
+        approvalStatus: trainer.approvalStatus,
+        stripeOnboardingComplete: trainer.stripeOnboardingComplete,
+      },
+      sports: trainer.sports.map((s: any) => s.sport.slug),
+      specialties: trainer.specialties.map((s: any) => s.specialty.slug),
+      certifications: trainer.certifications.map((c: any) => ({
+        name: c.name,
+        issuingOrg: c.issuingOrg || '',
+      })),
+      services: trainer.serviceOfferings.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        description: s.description || '',
+        durationMinutes: s.durationMinutes,
+        priceInCents: s.priceInCents,
+        type: s.type,
+        maxParticipants: s.maxParticipants,
+      })),
+      availability: trainer.availabilitySlots.map((a: any) => ({
+        dayOfWeek: a.dayOfWeek,
+        startTime: a.startTime,
+        endTime: a.endTime,
+      })),
+    })
+  } catch (error) {
+    console.error('Get trainer profile error:', error)
+    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+  }
+}
+
 const trainerOnboardingSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),

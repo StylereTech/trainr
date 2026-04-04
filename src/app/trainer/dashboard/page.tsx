@@ -74,7 +74,10 @@ export default function TrainerDashboard() {
               <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Manage requests, earnings, and delivery with less friction.</h1>
               <p className="mt-3 text-sm leading-7 text-slate-300 md:text-base">The trainer dashboard now mirrors the premium public surfaces so your operating view feels as polished as your profile.</p>
             </div>
-            <Link href="/trainer/profile"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Settings className="mr-1 h-4 w-4" />Edit Profile</Button></Link>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link href="/trainer/profile?tab=payouts"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><DollarSign className="mr-1 h-4 w-4" />Payouts</Button></Link>
+              <Link href="/trainer/profile"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Settings className="mr-1 h-4 w-4" />Edit Profile</Button></Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
