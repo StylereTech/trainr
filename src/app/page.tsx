@@ -221,8 +221,8 @@ export default function HomePage() {
             <div className="premium-shell p-0">
               <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[520px]">
                 <Image
-                  src={TRAINR_IMAGE_CATALOG.basketball.hero.src}
-                  alt={TRAINR_IMAGE_CATALOG.basketball.hero.alt}
+                  src="/images/trainr/custom/basketball-coaching.jpg"
+                  alt="Youth basketball player practicing shooting form with coach"
                   fill
                   className="object-cover"
                 />
