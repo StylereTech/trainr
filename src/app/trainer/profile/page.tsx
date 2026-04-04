@@ -447,7 +447,7 @@ function TrainerProfileContent() {
                               : 'border-white/10 text-slate-400 hover:border-white/20'
                           }`}
                         >
-                          {spec.label}
+                          {spec.name}
                         </button>
                       ))}
                     </div>
