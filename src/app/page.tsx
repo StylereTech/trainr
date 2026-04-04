@@ -119,11 +119,11 @@ export default function HomePage() {
               </div>
 
               <h1 className="mt-6 max-w-[11.5ch] text-[2.6rem] font-bold leading-[0.95] tracking-[-0.06em] sm:max-w-4xl sm:text-5xl md:text-6xl xl:text-7xl">
-                Find a coach your athlete connects with,
-                <span className="mt-2 block text-gradient">and a booking flow parents actually enjoy using.</span>
+                Your kid deserves a great coach.
+                <span className="mt-2 block text-gradient">Finding one shouldn&apos;t be hard.</span>
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-200 md:max-w-2xl md:text-xl">
-                Discover trusted trainers across football, baseball, basketball, soccer, and track & field through a warmer, clearer homepage built to help families move from search to booking with confidence.
+                Browse vetted trainers in football, baseball, basketball, soccer, and track & field. Pick a time that works. Book and pay in under two minutes.
               </p>
 
               <div className="mt-8 flex max-w-full flex-col gap-3 sm:flex-row">
@@ -143,9 +143,9 @@ export default function HomePage() {
 
               <div className="mt-8 mobile-scroll-row sm:grid-cols-3">
                 {[
-                  'Families can spot trust faster',
-                  'New hero gives the brand more personality',
-                  'Cleaner path from shortlist to booking',
+                  'Background-checked coaches',
+                  'Real reviews from real parents',
+                  'Book and pay in minutes',
                 ].map((signal) => (
                   <div key={signal} className="mobile-scroll-card rounded-[1.4rem] border border-white/10 bg-black/25 px-4 py-4 text-sm text-slate-200 backdrop-blur-xl">
                     <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-300" />
