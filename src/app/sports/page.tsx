@@ -156,8 +156,10 @@ export default function SportsPage() {
             const visual = getSportVisual(sport.slug)
             const isFootball = sport.slug === 'football'
             const isBaseball = sport.slug === 'baseball'
+            const isBasketball = sport.slug === 'basketball'
             const isSoccer = sport.slug === 'soccer'
-            const hasSectionBg = isFootball || isBaseball || isSoccer
+            const isTrackField = sport.slug === 'track-field'
+            const hasSectionBg = isFootball || isBaseball || isBasketball || isSoccer || isTrackField
 
             return (
               <div key={sport.slug} className={hasSectionBg ? 'relative overflow-hidden rounded-[2rem]' : ''}>
@@ -180,7 +182,18 @@ export default function SportsPage() {
                       fill
                       className="object-cover object-center"
                     />
-                    <div className="absolute inset-0 bg-slate-950/70" />
+                    <div className="absolute inset-0 bg-slate-950/40" />
+                  </>
+                )}
+                {isBasketball && (
+                  <>
+                    <Image
+                      src="/images/trainr/basketball-bg.jpg"
+                      alt="Basketball section background"
+                      fill
+                      className="object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40" />
                   </>
                 )}
                 {isSoccer && (
@@ -191,7 +204,18 @@ export default function SportsPage() {
                       fill
                       className="object-cover object-center"
                     />
-                    <div className="absolute inset-0 bg-slate-950/70" />
+                    <div className="absolute inset-0 bg-slate-950/40" />
+                  </>
+                )}
+                {isTrackField && (
+                  <>
+                    <Image
+                      src="/images/trainr/track-field-bg.jpg"
+                      alt="Track and field section background"
+                      fill
+                      className="object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40" />
                   </>
                 )}
               <Card className={`overflow-hidden rounded-[2rem] border-white/10 text-white shadow-xl ${hasSectionBg ? 'relative bg-transparent' : 'bg-white/[0.04]'}`}>
