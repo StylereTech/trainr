@@ -197,9 +197,7 @@ export default function ForTrainersPage() {
               </CardContent>
             </Card>
 
-            <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10">
-              <Image src="/images/trainr/custom/basketball-group.jpg" alt="Group of kids training together during basketball coaching session" fill className="object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/20" />
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/60">
               <div className="relative p-6">
                 <p className="text-sm font-semibold text-white">Join 500+ coaches already on the platform</p>
                 <p className="mt-2 text-sm text-slate-300">Trainers across all five sports are building real businesses through Trainr.</p>
