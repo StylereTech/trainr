@@ -221,9 +221,9 @@ export default function HomePage() {
 
             <div className="grid gap-4">
               <div className="premium-shell p-0">
-                <div className="relative h-[280px] overflow-hidden rounded-[2rem] md:h-[340px]">
+                <div className="relative h-[420px] overflow-hidden rounded-[2rem] md:h-[500px]">
                   <Image
-                    src="/images/trainr/custom/coaching-clean.jpg"
+                    src="/images/trainr/custom/basketball-coaching.jpg"
                     alt="Youth athlete working with a private coach during training"
                     fill
                     className="object-cover object-top"
@@ -235,18 +235,6 @@ export default function HomePage() {
                       <p className="mt-2 text-sm leading-6 text-slate-300">Parents book trainers who specialize in their kid&apos;s sport and build lasting relationships.</p>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="relative h-[160px] overflow-hidden rounded-[1.5rem] border border-white/10">
-                  <Image src="/images/trainr/custom/basketball-coaching.jpg" alt="Basketball coaching session" fill className="object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-                  <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white backdrop-blur">🏀 Basketball</div>
-                </div>
-                <div className="relative h-[160px] overflow-hidden rounded-[1.5rem] border border-white/10">
-                  <Image src="/images/trainr/custom/pushups-coaching.jpg" alt="Coach guiding athlete through fitness training" fill className="object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-                  <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white backdrop-blur">💪 Training</div>
                 </div>
               </div>
             </div>
