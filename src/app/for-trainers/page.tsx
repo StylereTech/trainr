@@ -120,8 +120,8 @@ export default function ForTrainersPage() {
       <section className="section-flow py-16 md:py-20">
         <div className="container grid items-center gap-10 lg:grid-cols-[.92fr_1.08fr]">
           <div className="premium-shell p-0">
-            <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[420px]">
-              <Image src="/images/trainr/custom/for-trainers-left.jpg" alt="Coach leading youth athletes through training" fill className="object-cover" />
+            <div className="relative min-h-[420px] overflow-hidden rounded-[2rem] md:min-h-[520px]">
+              <Image src="/images/trainr/custom/for-trainers-left.jpg" alt="Coach leading youth athletes through training" fill className="object-cover" style={{ objectPosition: 'center top' }} />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                 <div className="premium-panel p-4">
