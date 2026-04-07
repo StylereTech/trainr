@@ -209,9 +209,7 @@ export default function ForTrainersPage() {
 
       <section className="section-flow pb-16 pt-10 md:pb-20">
         <div className="container">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src="/images/trainr/custom/multi-sport-group.jpg" alt="Multi-sport youth athletes training together" fill className="object-cover object-top" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/60">
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to coach on Trainr?</h2>
               <p className="mx-auto mb-8 max-w-2xl text-slate-200">Create your free profile, publish offers, and start attracting families who are already looking for trusted youth coaching.</p>
