@@ -23,8 +23,8 @@ const steps = [
       'Compare coaching style and price point',
       'Review credentials and training background',
     ],
-    image: '/images/trainr/custom/football-stretching.jpg',
-    imageAlt: 'Coach leading youth athletes through warm-up and training drills',
+    image: '/images/trainr/custom/sports-right.jpg',
+    imageAlt: 'Coach leading youth athletes through training drills',
   },
   {
     number: '2',
