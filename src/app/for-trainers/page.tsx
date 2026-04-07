@@ -121,7 +121,7 @@ export default function ForTrainersPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.92fr_1.08fr]">
           <div className="premium-shell p-0">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[420px]">
-              <Image src="/images/trainr/custom/football-stretching-branded.jpg" alt="Coach leading athletes through training drills with Trainr branding" fill className="object-cover" />
+              <Image src="/images/trainr/custom/football-stretching.jpg" alt="Coach leading youth athletes through stretching and warm-up drills" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                 <div className="premium-panel p-4">
@@ -198,7 +198,7 @@ export default function ForTrainersPage() {
             </Card>
 
             <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10">
-              <Image src="/images/trainr/custom/basketball-group-branded.jpg" alt="Basketball coaching session with group of young athletes" fill className="object-cover" />
+              <Image src="/images/trainr/custom/basketball-group.jpg" alt="Group of kids training together during basketball coaching session" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/20" />
               <div className="relative p-6">
                 <p className="text-sm font-semibold text-white">Join 500+ coaches already on the platform</p>

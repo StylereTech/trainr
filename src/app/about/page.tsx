@@ -26,7 +26,7 @@ export default function AboutPage() {
             </div>
             <div className="premium-shell p-0">
               <div className="relative h-[360px] overflow-hidden rounded-[2rem] md:h-[440px]">
-                <Image src="/images/trainr/custom/coaching-branded.jpg" alt="Trainr branded coaching session" fill className="object-cover" />
+                <Image src="/images/trainr/custom/coaching-clean.jpg" alt="Youth athlete working with a private coach during training" fill className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6">
                   <div className="premium-panel p-5">
@@ -99,7 +99,7 @@ export default function AboutPage() {
       <section className="section-flow py-16">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src="/images/trainr/custom/football-stretching-branded.jpg" alt="Trainr branded football training warm-up" fill className="object-cover" />
+            <Image src="/images/trainr/custom/football-stretching.jpg" alt="Coach leading youth athletes through stretching and warm-up drills" fill className="object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.2em] backdrop-blur"><Sparkles className="h-4 w-4" /> Get started today</div>

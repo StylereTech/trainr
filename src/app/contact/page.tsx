@@ -10,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Mail, MapPin, MessageSquare, Send, ShieldCheck } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 export default function ContactPage() {
   const { toast } = useToast()
@@ -38,7 +37,7 @@ export default function ContactPage() {
             <p className="mt-5 text-lg text-slate-300">Questions about bookings, trainer approvals, safety, payments, or partnerships? Send us the details and we’ll route it cleanly.</p>
           </div>
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 shadow-2xl">
-            <Image src={TRAINR_IMAGE_CATALOG.baseball.brand.src} alt={TRAINR_IMAGE_CATALOG.baseball.brand.alt} width={1200} height={1200} className="h-[320px] w-full object-cover md:h-[420px]" />
+            <Image src="/images/trainr/custom/coaching-clean.jpg" alt="Youth athlete working with a private coach during training" width={1200} height={1200} className="h-[320px] w-full object-cover md:h-[420px]" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
               <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur">

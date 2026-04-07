@@ -408,8 +408,8 @@ export default function HomePage() {
 
             <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
               <Image
-                src="/images/trainr/custom/coaching-branded.jpg"
-                alt="Trainr branded coaching session with youth athlete"
+                src="/images/trainr/custom/coaching-clean.jpg"
+                alt="Youth athlete working with a private coach during training"
                 fill
                 className="object-cover"
               />

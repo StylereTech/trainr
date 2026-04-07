@@ -116,11 +116,41 @@ export const TRAINR_IMAGE_CATALOG = {
 export type TrainrVisual = LiveImage | PlaceholderImage
 
 const SPORT_VISUALS: Record<string, TrainrVisual> = {
-  football: TRAINR_IMAGE_CATALOG.football.hero,
-  baseball: TRAINR_IMAGE_CATALOG.baseball.hero,
-  basketball: TRAINR_IMAGE_CATALOG.basketball.hero,
-  soccer: TRAINR_IMAGE_CATALOG.soccer.hero,
-  'track-field': TRAINR_IMAGE_CATALOG['track-field'].hero,
+  football: {
+    kind: 'image',
+    src: '/images/trainr/football-bg.jpg',
+    alt: 'Youth football coaching session on the field',
+    tone: 'clean, action-focused, no text overlay',
+    usage: ['sport sections', 'browse page', 'sport cards'],
+  },
+  baseball: {
+    kind: 'image',
+    src: '/images/trainr/baseball-bg.jpg',
+    alt: 'Youth baseball training session',
+    tone: 'clean, action-focused, no text overlay',
+    usage: ['sport sections', 'browse page', 'sport cards'],
+  },
+  basketball: {
+    kind: 'image',
+    src: '/images/trainr/basketball-bg.jpg',
+    alt: 'Youth basketball coaching session',
+    tone: 'clean, action-focused, no text overlay',
+    usage: ['sport sections', 'browse page', 'sport cards'],
+  },
+  soccer: {
+    kind: 'image',
+    src: '/images/trainr/soccer-bg.jpg',
+    alt: 'Youth soccer training drill on the pitch',
+    tone: 'clean, action-focused, no text overlay',
+    usage: ['sport sections', 'browse page', 'sport cards'],
+  },
+  'track-field': {
+    kind: 'image',
+    src: '/images/trainr/track-field-bg.jpg',
+    alt: 'Youth track and field training',
+    tone: 'clean, action-focused, no text overlay',
+    usage: ['sport sections', 'browse page', 'sport cards'],
+  },
 }
 
 export function getSportVisual(slug: string): TrainrVisual {
