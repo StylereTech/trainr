@@ -67,42 +67,46 @@ const consistencySignals = ['5 youth sports covered', 'Coaches across the countr
 export default function SportsPage() {
   return (
     <div className="bg-slate-950 text-white">
-      <section className="site-hero border-b border-white/10">
-        <Image
-          src="/images/trainr/custom/multi-sport-group.jpg"
-          alt="Multi-sport youth athletes training together"
-          fill
-          priority
-          className="object-cover object-top"
-        />
-        <div className="hero-overlay" />
+      <section className="site-hero border-b border-white/10 bg-gradient-to-br from-slate-950 via-emerald-950/40 to-slate-950">
         <div className="hero-mesh" />
         <div className="container relative py-12 md:py-20">
-          <div className="max-w-3xl">
-            <div className="premium-kicker mb-5">
-              <Layers3 className="h-4 w-4" /> Browse by sport
-            </div>
-            <h1 className="text-4xl font-semibold tracking-[-0.04em] md:text-6xl">Pick a sport. Find a coach your kid will love.</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 md:text-lg">
-              Football, baseball, basketball, soccer, and track &amp; field. Each sport has coaches who specialize in youth development at every level.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-200">
-              <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">5 youth sports</span>
-              <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">Coaches at every skill level</span>
-              <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">Book in minutes</span>
-            </div>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/browse">
-                <Button size="lg" className="w-full rounded-2xl border-0 bg-white text-emerald-900 hover:bg-emerald-50 sm:w-auto">
-                  Browse all trainers
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+          <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-center lg:gap-12">
+            <div className="max-w-2xl flex-1">
+              <div className="premium-kicker mb-5">
+                <Layers3 className="h-4 w-4" /> Browse by sport
+              </div>
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] md:text-6xl">Pick a sport. Find a coach your kid will love.</h1>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 md:text-lg">
+                Football, baseball, basketball, soccer, and track &amp; field. Each sport has coaches who specialize in youth development at every level.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-200">
+                <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">5 youth sports</span>
+                <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">Coaches at every skill level</span>
+                <span className="rounded-full border border-white/10 bg-black/25 px-4 py-2 backdrop-blur-xl">Book in minutes</span>
+              </div>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link href="/browse">
+                  <Button size="lg" className="w-full rounded-2xl border-0 bg-white text-emerald-900 hover:bg-emerald-50 sm:w-auto">
+                    Browse all trainers
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
               <Link href="/how-it-works">
                 <Button size="lg" variant="outline" className="w-full rounded-2xl border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
                   How discovery works
                 </Button>
               </Link>
+              </div>
+            </div>
+            <div className="hidden flex-shrink-0 lg:block">
+              <Image
+                src="/images/trainr/custom/trainr-shield-logo.png"
+                alt="Trainr multi-sport shield logo"
+                width={380}
+                height={380}
+                priority
+                className="drop-shadow-2xl"
+              />
             </div>
           </div>
         </div>
