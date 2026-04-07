@@ -46,10 +46,7 @@ export function Navbar() {
               priority
             />
           </div>
-          <div>
-            <span className="block text-xl font-bold text-white">Trainr</span>
-            <span className="hidden text-xs font-medium uppercase tracking-[0.2em] text-emerald-200 sm:block">Youth sports coaching</span>
-          </div>
+
         </Link>
 
         <nav className="hidden items-center gap-2 md:flex">
