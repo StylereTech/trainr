@@ -132,8 +132,8 @@ const SPORT_VISUALS: Record<string, TrainrVisual> = {
   },
   basketball: {
     kind: 'image',
-    src: '/images/trainr/basketball-bg.jpg',
-    alt: 'Youth basketball coaching session',
+    src: '/images/trainr/custom/basketball-kids-shooting.jpg',
+    alt: 'Group of kids shooting basketballs during coaching session',
     tone: 'clean, action-focused, no text overlay',
     usage: ['sport sections', 'browse page', 'sport cards'],
   },

@@ -86,7 +86,7 @@ const testimonials = [
 const sportCardImages: Record<string, { src: string; alt: string; position: string }> = {
   football: { src: '/images/trainr/football-bg.jpg', alt: 'Youth football coaching session', position: 'object-center' },
   baseball: { src: '/images/trainr/baseball-bg.jpg', alt: 'Youth baseball training session', position: 'object-center' },
-  basketball: { src: '/images/trainr/custom/basketball-group.jpg', alt: 'Group of kids shooting basketballs during coaching session', position: 'object-center' },
+  basketball: { src: '/images/trainr/custom/basketball-kids-shooting.jpg', alt: 'Group of kids shooting basketballs during coaching session', position: 'object-center' },
   soccer: { src: '/images/trainr/soccer-bg.jpg', alt: 'Youth soccer training drill', position: 'object-center' },
   'track-field': { src: '/images/trainr/track-field-bg.jpg', alt: 'Youth track and field training', position: 'object-top' },
 }
