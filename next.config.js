@@ -7,6 +7,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '**' },
     ],
   },
+  allowedDevOrigins: ['*.replit.dev', '*.replit.app', '*.picard.replit.dev'],
   experimental: {
     serverActions: {
       bodySizeLimit: '5mb',

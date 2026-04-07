@@ -1,0 +1,45 @@
+modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+NEXTAUTH_URL = "https://f224d231-f907-499d-915e-d24e2c05e1f6-00-2v8rorxnr5ahy.picard.replit.dev"
+NEXT_PUBLIC_APP_NAME = "Trainr"
+STRIPE_PLATFORM_FEE_PERCENT = "15"
+EMAIL_FROM = "noreply@trainr.app"
+
+[userenv.development]
+NEXTAUTH_SECRET = "/VZR/b/usdCaCftKc5qyRg0zVGn2IdO1vx6Z/qwbAh8="
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
