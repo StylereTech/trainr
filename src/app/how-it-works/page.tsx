@@ -51,7 +51,7 @@ const steps = [
       'Leave detailed parent feedback after training',
       'Rebook for consistency and measurable progress',
     ],
-    image: '/images/trainr/custom/pushups-coaching.jpg',
+    image: null,
     imageAlt: 'Coach guiding youth athlete through strength and conditioning',
   },
 ]
