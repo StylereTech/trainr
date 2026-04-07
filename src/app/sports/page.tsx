@@ -169,7 +169,7 @@ export default function SportsPage() {
                       fill
                       className="object-cover object-center"
                     />
-                    <div className="absolute inset-0 bg-slate-950/70" />
+                    <div className="absolute inset-0 bg-slate-950/40" />
                   </>
                 )}
                 {isBaseball && (
