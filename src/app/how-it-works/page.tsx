@@ -171,7 +171,7 @@ export default function HowItWorksPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.95fr_1.05fr]">
           <div className="premium-shell order-2 p-0 lg:order-1">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[440px]">
-              <Image src="/images/trainr/custom/basketball-group.jpg" alt="Group of kids training together during basketball coaching session" fill className="object-cover" />
+              <Image src="/images/trainr/custom/howitworks-mid.jpg" alt="Youth athletes training together" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                 <div className="premium-panel p-4">
