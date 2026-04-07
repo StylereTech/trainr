@@ -155,9 +155,11 @@ export default function SportsPage() {
             const specialties = SPECIALTIES[sport.slug] || []
             const visual = getSportVisual(sport.slug)
             const isFootball = sport.slug === 'football'
+            const isBaseball = sport.slug === 'baseball'
+            const hasSectionBg = isFootball || isBaseball
 
             return (
-              <div key={sport.slug} className={isFootball ? 'relative overflow-hidden rounded-[2rem]' : ''}>
+              <div key={sport.slug} className={hasSectionBg ? 'relative overflow-hidden rounded-[2rem]' : ''}>
                 {isFootball && (
                   <>
                     <Image
@@ -169,7 +171,18 @@ export default function SportsPage() {
                     <div className="absolute inset-0 bg-slate-950/70" />
                   </>
                 )}
-              <Card className={`overflow-hidden rounded-[2rem] border-white/10 text-white shadow-xl ${isFootball ? 'relative bg-transparent' : 'bg-white/[0.04]'}`}>
+                {isBaseball && (
+                  <>
+                    <Image
+                      src="/images/trainr/baseball-bg.jpg"
+                      alt="Baseball section background"
+                      fill
+                      className="object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/70" />
+                  </>
+                )}
+              <Card className={`overflow-hidden rounded-[2rem] border-white/10 text-white shadow-xl ${hasSectionBg ? 'relative bg-transparent' : 'bg-white/[0.04]'}`}>
                 <div className={`grid lg:grid-cols-[.95fr_1.05fr] ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1' : ''}`}>
                   <div className="relative min-h-[300px] border-b border-white/10 lg:min-h-full lg:border-b-0 lg:border-r lg:[&.order-2]:border-l lg:[&.order-2]:border-r-0">
                     {isLiveTrainrImage(visual) ? (
