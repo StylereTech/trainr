@@ -406,17 +406,17 @@ export default function BookingPage() {
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
-                            <Label className="text-xs text-slate-700">First name</Label>
-                            <Input value={newAthlete.firstName} onChange={(e) => setNewAthlete({ ...newAthlete, firstName: e.target.value })} placeholder="First name" className="mt-1 h-10" />
+                            <Label className="text-xs text-slate-300">First name</Label>
+                            <Input value={newAthlete.firstName} onChange={(e) => setNewAthlete({ ...newAthlete, firstName: e.target.value })} placeholder="First name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
                           </div>
                           <div>
-                            <Label className="text-xs text-slate-700">Last name</Label>
-                            <Input value={newAthlete.lastName} onChange={(e) => setNewAthlete({ ...newAthlete, lastName: e.target.value })} placeholder="Last name" className="mt-1 h-10" />
+                            <Label className="text-xs text-slate-300">Last name</Label>
+                            <Input value={newAthlete.lastName} onChange={(e) => setNewAthlete({ ...newAthlete, lastName: e.target.value })} placeholder="Last name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
                           </div>
                         </div>
                         <div className="mt-3">
-                          <Label className="text-xs text-slate-700">Date of birth</Label>
-                          <Input type="date" value={newAthlete.dateOfBirth} onChange={(e) => setNewAthlete({ ...newAthlete, dateOfBirth: e.target.value })} className="mt-1 h-10 w-full sm:w-48" />
+                          <Label className="text-xs text-slate-300">Date of birth</Label>
+                          <Input type="date" value={newAthlete.dateOfBirth} onChange={(e) => setNewAthlete({ ...newAthlete, dateOfBirth: e.target.value })} className="mt-1 h-10 w-full border-white/10 bg-slate-950/60 text-white sm:w-48" />
                         </div>
                         <div className="mt-3">
                           <Label className="text-xs text-slate-700">Sport(s)</Label>
@@ -520,8 +520,8 @@ export default function BookingPage() {
                   />
                 </div>
                 <div className="md:col-span-2 lg:col-span-1">
-                  <Label htmlFor="coupon">Promo code</Label>
-                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12" />
+                  <Label htmlFor="coupon" className="text-slate-300">Promo code</Label>
+                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100 md:col-span-2 lg:col-span-1">
                   <div className="font-semibold text-slate-900">Helpful note ideas</div>
