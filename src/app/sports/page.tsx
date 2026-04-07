@@ -134,7 +134,7 @@ export default function SportsPage() {
             <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
               <div className="relative h-[360px] md:h-[420px]">
                 <Image
-                  src="/images/trainr/custom/football-stretching.jpg"
+                  src="/images/trainr/custom/sports-right.jpg"
                   alt="Coach leading youth athletes through stretching and warm-up drills"
                   fill
                   className="object-cover object-center"
