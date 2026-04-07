@@ -24,6 +24,8 @@ const steps = [
       'Compare coaching style and price point',
       'Review credentials and training background',
     ],
+    image: '/images/trainr/custom/coaching-clean.jpg',
+    imageAlt: 'Coach working with young athlete during a training session',
   },
   {
     number: '2',
@@ -36,6 +38,8 @@ const steps = [
       'Athlete goals included at booking',
       'Streamlined checkout and confirmations',
     ],
+    image: null,
+    imageAlt: '',
   },
   {
     number: '3',
@@ -48,6 +52,8 @@ const steps = [
       'Leave detailed parent feedback after training',
       'Rebook for consistency and measurable progress',
     ],
+    image: '/images/trainr/custom/basketball-coaching.jpg',
+    imageAlt: 'Youth basketball player working on shooting form with coach',
   },
 ]
 
@@ -86,7 +92,7 @@ export default function HowItWorksPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
-        <Image src={TRAINR_IMAGE_CATALOG.football.brand.src} alt={TRAINR_IMAGE_CATALOG.football.brand.alt} fill priority className="object-cover" />
+        <Image src="/images/trainr/custom/football-stretching.jpg" alt="Youth athletes stretching and warming up with their coach" fill priority className="object-cover object-center" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
@@ -123,32 +129,40 @@ export default function HowItWorksPage() {
       </section>
 
       <section className="section-flow py-14 md:py-20">
-        <div className="container max-w-5xl space-y-6">
-          {steps.map((step) => (
+        <div className="container max-w-6xl space-y-8">
+          {steps.map((step, index) => (
             <Card key={step.number} className="overflow-hidden border-white/10 bg-white/[0.04] text-white shadow-sm">
-              <CardContent className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:p-8">
-                <div className="flex items-center gap-4 md:block">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
-                    <step.icon className="h-8 w-8 text-white" />
+              <div className={`grid ${step.image ? 'lg:grid-cols-[1fr_.45fr]' : ''} ${index % 2 === 1 && step.image ? 'lg:[&>*:first-child]:order-2' : ''}`}>
+                <CardContent className="p-6 md:p-8">
+                  <div className="flex items-center gap-4 md:block">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
+                      <step.icon className="h-8 w-8 text-white" />
+                    </div>
+                    <span className="mt-4 hidden text-5xl font-bold text-white/10 md:block">0{step.number}</span>
                   </div>
-                  <span className="mt-4 hidden text-5xl font-bold text-white/10 md:block">0{step.number}</span>
-                </div>
-                <div>
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Step {step.number}
+                  <div className="mt-4">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Step {step.number}
+                    </div>
+                    <h2 className="mb-2 text-2xl font-bold">{step.title}</h2>
+                    <p className="mb-5 text-slate-300">{step.description}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {step.details.map((detail) => (
+                        <div key={detail} className="flex items-start gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
+                          <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                          {detail}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <h2 className="mb-2 text-2xl font-bold">{step.title}</h2>
-                  <p className="mb-5 text-slate-300">{step.description}</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {step.details.map((detail) => (
-                      <div key={detail} className="flex items-start gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
-                        <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                        {detail}
-                      </div>
-                    ))}
+                </CardContent>
+                {step.image && (
+                  <div className="relative hidden min-h-[300px] lg:block">
+                    <Image src={step.image} alt={step.imageAlt} fill className="object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-slate-950/40 to-transparent" />
                   </div>
-                </div>
-              </CardContent>
+                )}
+              </div>
             </Card>
           ))}
         </div>
@@ -158,8 +172,14 @@ export default function HowItWorksPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.95fr_1.05fr]">
           <div className="premium-shell order-2 p-0 lg:order-1">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[440px]">
-              <Image src={TRAINR_IMAGE_CATALOG['track-field'].hero.src} alt={TRAINR_IMAGE_CATALOG['track-field'].hero.alt} fill className="object-cover" />
-              <div className="hero-overlay" />
+              <Image src="/images/trainr/custom/pushups-coaching.jpg" alt="Coach guiding athlete through fitness training" fill className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
+                <div className="premium-panel p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white"><Trophy className="h-4 w-4 text-emerald-300" /> Coaching that sticks</div>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">Great coaching builds confidence. Rebook the coaches that click and watch your athlete grow session after session.</p>
+                </div>
+              </div>
             </div>
           </div>
           <div className="order-1 lg:order-2">
@@ -204,8 +224,8 @@ export default function HowItWorksPage() {
       <section className="section-flow pb-16 pt-10">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src={TRAINR_IMAGE_CATALOG.baseball.hero.src} alt={TRAINR_IMAGE_CATALOG.baseball.hero.alt} fill className="object-cover" />
-            <div className="hero-overlay" />
+            <Image src={TRAINR_IMAGE_CATALOG.soccer.hero.src} alt={TRAINR_IMAGE_CATALOG.soccer.hero.alt} fill className="object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to find your trainer?</h2>
               <p className="mx-auto mb-8 max-w-lg text-slate-200">Browse trusted coaches, compare the right fit, and book that first session with more confidence.</p>

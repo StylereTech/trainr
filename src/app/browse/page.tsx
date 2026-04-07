@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Image from 'next/image'
 import { SlidersHorizontal, X, MapPin, Loader2, Trophy, Sparkles, ShieldCheck, ArrowRight, Search, Star, CheckCircle2, LayoutGrid } from 'lucide-react'
 import { SPORTS } from '@/lib/utils'
-import { getSportVisual, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
+import { getSportImageSrc, getSportImageAlt, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 interface Trainer {
   id: string
@@ -110,7 +110,7 @@ function BrowsePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="site-hero border-b border-white/10">
-        <Image src={getSportVisual(filters.sport || 'football').src} alt={getSportVisual(filters.sport || 'football').alt} fill priority className="object-cover" />
+        <Image src={getSportImageSrc(filters.sport || 'football')} alt={getSportImageAlt(filters.sport || 'football')} fill priority className="object-cover" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative py-10 md:py-14">
@@ -141,8 +141,8 @@ function BrowsePage() {
             <div className="premium-shell p-0">
               <div className="relative overflow-hidden rounded-[2rem]">
                 <Image
-                  src={getSportVisual(filters.sport || 'football').src}
-                  alt={getSportVisual(filters.sport || 'football').alt}
+                  src={getSportImageSrc(filters.sport || 'football')}
+                  alt={getSportImageAlt(filters.sport || 'football')}
                   width={1200}
                   height={1200}
                   className="h-[300px] w-full object-contain"

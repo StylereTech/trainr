@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Star, Calendar, DollarSign, Users, Zap, ShieldCheck, Sparkles, CheckCircle2, Clock3, LayoutDashboard, HandCoins } from 'lucide-react'
 import type { Metadata } from 'next'
-import { TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 export const metadata: Metadata = {
   title: 'For Trainers',
@@ -53,7 +52,7 @@ export default function ForTrainersPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
-        <Image src={TRAINR_IMAGE_CATALOG.basketball.brand.src} alt={TRAINR_IMAGE_CATALOG.basketball.brand.alt} fill priority className="object-cover" />
+        <Image src="/images/trainr/custom/indoor-training.jpg" alt="Indoor youth sports training facility" fill priority className="object-cover" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
@@ -122,8 +121,14 @@ export default function ForTrainersPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.92fr_1.08fr]">
           <div className="premium-shell p-0">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[420px]">
-              <Image src={TRAINR_IMAGE_CATALOG.football.hero.src} alt={TRAINR_IMAGE_CATALOG.football.hero.alt} fill className="object-cover" />
-              <div className="hero-overlay" />
+              <Image src="/images/trainr/custom/coaching-branded.jpg" alt="Trainr branded coaching session" fill className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
+                <div className="premium-panel p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white"><Star className="h-4 w-4 text-emerald-300" /> Build your reputation</div>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">Every great session earns a review. Reviews build trust. Trust fills your calendar.</p>
+                </div>
+              </div>
             </div>
           </div>
           <div>
@@ -173,31 +178,42 @@ export default function ForTrainersPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-white/10 bg-white/[0.04] text-white shadow-sm">
-            <CardContent className="p-6 md:p-8">
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">What makes the platform feel trustworthy</div>
-              <div className="mt-6 space-y-4">
-                {growthSignals.map((signal) => (
-                  <div key={signal} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                    <span className="text-sm text-slate-200">{signal}</span>
-                  </div>
-                ))}
+          <div className="grid gap-6">
+            <Card className="border-white/10 bg-white/[0.04] text-white shadow-sm">
+              <CardContent className="p-6 md:p-8">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">What makes the platform feel trustworthy</div>
+                <div className="mt-6 space-y-4">
+                  {growthSignals.map((signal) => (
+                    <div key={signal} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      <span className="text-sm text-slate-200">{signal}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 rounded-[1.5rem] bg-slate-950 p-5 text-white">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Getting started is free</div>
+                  <p className="mt-2 text-sm text-slate-300">Create your profile, publish your services, and start accepting bookings. You only pay the platform fee when you get paid.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10">
+              <Image src="/images/trainr/custom/trainer-cta.jpg" alt="Sports trainer working with young athlete" fill className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/20" />
+              <div className="relative p-6">
+                <p className="text-sm font-semibold text-white">Join 500+ coaches already on the platform</p>
+                <p className="mt-2 text-sm text-slate-300">Trainers across all five sports are building real businesses through Trainr.</p>
               </div>
-              <div className="mt-6 rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Getting started is free</div>
-                <p className="mt-2 text-sm text-slate-300">Create your profile, publish your services, and start accepting bookings. You only pay the platform fee when you get paid.</p>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </section>
 
       <section className="section-flow pb-16 pt-10 md:pb-20">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src={TRAINR_IMAGE_CATALOG.basketball.hero.src} alt={TRAINR_IMAGE_CATALOG.basketball.hero.alt} fill className="object-cover" />
-            <div className="hero-overlay" />
+            <Image src="/images/trainr/custom/football-camp.jpg" alt="Youth football training camp session" fill className="object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to coach on Trainr?</h2>
               <p className="mx-auto mb-8 max-w-2xl text-slate-200">Create your free profile, publish offers, and start attracting families who are already looking for trusted youth coaching.</p>

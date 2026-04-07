@@ -16,8 +16,20 @@ A Next.js sports trainer marketplace app where parents can find and book sports 
 - `src/app/` — Next.js App Router pages and API routes
 - `src/components/` — Reusable UI components
 - `src/lib/` — Utility functions, auth config, Prisma client
+- `src/lib/trainr-media.ts` — Image catalog mapping sport slugs to hero/brand image paths
 - `src/types/` — TypeScript type definitions
 - `prisma/` — Prisma schema and seed data
+- `public/images/trainr/` — Sport images (hero, bg, brand variants per sport)
+- `public/images/trainr/custom/` — Additional custom sport images (coaching, groups, training)
+
+## Image System
+
+Each sport has paired images:
+- **Hero** (`*-hero.jpg`) — Full editorial photo for content sections
+- **Brand** (`*-brand.jpg`) — Branded Trainr promotional variant
+- **Background** (`*-bg.jpg`) — Full scene photo for section backgrounds at 40% dark overlay
+
+Custom images in `public/images/trainr/custom/` include multi-sport groups, coaching scenes, indoor training, and sport-specific branded variants. All images require `chmod 644` after copying. Clear `.next/cache/images` and restart after any image replacement.
 
 ## Running the App
 

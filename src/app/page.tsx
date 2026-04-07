@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SPORTS } from '@/lib/utils'
-import { getSportVisual, isLiveTrainrImage, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 const stats = [
   { value: '500+', label: 'Vetted Trainers' },
@@ -84,6 +83,14 @@ const testimonials = [
   },
 ]
 
+const sportCardImages: Record<string, { src: string; alt: string; position: string }> = {
+  football: { src: '/images/trainr/football-bg.jpg', alt: 'Youth football coaching session', position: 'object-center' },
+  baseball: { src: '/images/trainr/baseball-bg.jpg', alt: 'Youth baseball training session', position: 'object-center' },
+  basketball: { src: '/images/trainr/basketball-bg.jpg', alt: 'Youth basketball coaching', position: 'object-top' },
+  soccer: { src: '/images/trainr/soccer-bg.jpg', alt: 'Youth soccer training drill', position: 'object-center' },
+  'track-field': { src: '/images/trainr/track-field-bg.jpg', alt: 'Youth track and field training', position: 'object-top' },
+}
+
 const homepageSignals = [
   'Coaches across 5 youth sports',
   'Verified reviews from real parents',
@@ -95,8 +102,8 @@ export default function HomePage() {
     <>
       <section className="site-hero min-h-[80vh] md:min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
         <Image
-          src="/images/trainr/custom/home-hero-logo.jpg"
-          alt="Trainr youth sports hero featuring athletes and the Trainr logo"
+          src="/images/trainr/custom/multi-sport-group.jpg"
+          alt="Multi-sport youth athletes training together"
           fill
           priority
           className="object-cover object-top"
@@ -110,12 +117,6 @@ export default function HomePage() {
               <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-xl sm:px-4">
                 <HeartHandshake className="h-4 w-4 shrink-0 text-emerald-300" />
                 <span className="min-w-0 text-sm leading-5 text-slate-100">Trusted coaching for growing athletes</span>
-              </div>
-
-              <div className="mt-5 grid max-w-full gap-2 text-[10px] uppercase tracking-[0.16em] text-slate-200 sm:flex sm:flex-wrap sm:text-xs sm:tracking-[0.2em]">
-                <span className="max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center sm:text-left">Family-first experience</span>
-                <span className="max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center sm:text-left">Trusted youth coaches</span>
-                <span className="max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center sm:text-left">Simple path to booking</span>
               </div>
 
               <h1 className="mt-6 max-w-[11.5ch] text-[2.6rem] font-bold leading-[0.95] tracking-[-0.06em] sm:max-w-4xl sm:text-5xl md:text-6xl xl:text-7xl">
@@ -157,7 +158,7 @@ export default function HomePage() {
 
             <div className="grid gap-4 lg:justify-end">
               <div className="premium-shell max-w-xl p-5 md:p-6">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Start with your athlete's sport</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Start with your athlete&apos;s sport</div>
                 <div className="mt-4 mobile-scroll-row sm:grid-cols-2 lg:grid-cols-1">
                   {SPORTS.map((sport) => (
                     <Link key={sport.slug} href={`/browse?sport=${sport.slug}`} className="mobile-scroll-card">
@@ -218,21 +219,34 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="premium-shell p-0">
-              <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[520px]">
-                <Image
-                  src="/images/trainr/custom/basketball-coaching.jpg"
-                  alt="Youth basketball player practicing shooting form with coach"
-                  fill
-                  className="object-cover"
-                />
-                <div className="hero-overlay" />
-                <div className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white backdrop-blur-xl">Basketball</div>
-                <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
-                  <div className="premium-panel p-5">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Real coaches, real results</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Parents book trainers who specialize in their kid&apos;s sport. Coaches build lasting relationships with families who keep coming back.</p>
+            <div className="grid gap-4">
+              <div className="premium-shell p-0">
+                <div className="relative h-[280px] overflow-hidden rounded-[2rem] md:h-[340px]">
+                  <Image
+                    src="/images/trainr/custom/coaching-clean.jpg"
+                    alt="Youth athlete working with a private coach during training"
+                    fill
+                    className="object-cover object-top"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
+                    <div className="premium-panel p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Real coaches, real results</div>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">Parents book trainers who specialize in their kid&apos;s sport and build lasting relationships.</p>
+                    </div>
                   </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative h-[160px] overflow-hidden rounded-[1.5rem] border border-white/10">
+                  <Image src="/images/trainr/custom/basketball-coaching.jpg" alt="Basketball coaching session" fill className="object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
+                  <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white backdrop-blur">🏀 Basketball</div>
+                </div>
+                <div className="relative h-[160px] overflow-hidden rounded-[1.5rem] border border-white/10">
+                  <Image src="/images/trainr/custom/pushups-coaching.jpg" alt="Coach guiding athlete through fitness training" fill className="object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
+                  <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white backdrop-blur">💪 Training</div>
                 </div>
               </div>
             </div>
@@ -254,24 +268,27 @@ export default function HomePage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {SPORTS.map((sport) => {
-              const visual = getSportVisual(sport.slug)
+              const cardImage = sportCardImages[sport.slug]
               return (
                 <Link key={sport.slug} href={`/browse?sport=${sport.slug}`}>
                   <Card className="group h-full overflow-hidden rounded-[1.8rem] border-white/10 bg-white/[0.04] text-white transition duration-300 hover:-translate-y-1 hover:border-emerald-400/30">
-                    <div className="relative h-56">
-                      {isLiveTrainrImage(visual) ? (
-                        <Image src={visual.src} alt={visual.alt} fill className="object-contain transition duration-500 group-hover:scale-105" />
+                    <div className="relative h-52 overflow-hidden">
+                      {cardImage ? (
+                        <Image src={cardImage.src} alt={cardImage.alt} fill className={`object-cover ${cardImage.position} transition duration-500 group-hover:scale-105`} />
                       ) : (
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.28),_transparent_36%),linear-gradient(160deg,_rgba(255,255,255,0.08),_rgba(255,255,255,0.03))]" />
                       )}
-                      <div className="image-wash" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/10" />
                       <div className="absolute inset-x-0 bottom-0 p-4">
-                        <div className="rounded-2xl border border-white/10 bg-slate-950/65 px-3 py-2 text-sm text-slate-100 backdrop-blur">{visual.tone}</div>
+                        <div className="text-2xl font-bold">{sport.icon}</div>
                       </div>
                     </div>
                     <CardContent className="p-5">
-                      <div className="text-lg font-semibold">{sport.icon} {sport.name}</div>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">Find {sport.name.toLowerCase()} coaches near you</p>
+                      <div className="text-lg font-semibold">{sport.name}</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-300">Find {sport.name.toLowerCase()} coaches near you</p>
+                      <div className="mt-3 flex items-center gap-1 text-xs font-medium text-emerald-300">
+                        Browse coaches <ArrowRight className="h-3 w-3" />
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>
@@ -283,30 +300,47 @@ export default function HomePage() {
 
       <section className="section-flow bg-slate-950 py-16 text-white md:py-24">
         <div className="container">
-          <div className="mb-12 flex flex-col gap-4 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
-            <div className="max-w-2xl">
+          <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.1fr]">
+            <div>
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">How it works</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight">Search. Book. Train.</h2>
-              <p className="mt-3 text-slate-300">Three steps from browsing coaches to your kid&apos;s first session.</p>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-200">
-              <HeartHandshake className="h-4 w-4 text-emerald-300" />
-              Built for busy families
-            </div>
-          </div>
-          <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
-            {howItWorks.map((item) => (
-              <Card key={item.step} className="premium-card border-white/10 bg-white/[0.04] text-white">
-                <CardContent className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
-                    <item.icon className="h-7 w-7 text-white" />
+              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Search. Book. Train.</h2>
+              <p className="mt-3 max-w-lg text-slate-300">Three steps from browsing coaches to your kid&apos;s first session.</p>
+              <div className="mt-8 space-y-4">
+                {howItWorks.map((item) => (
+                  <div key={item.step} className="flex gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl gradient-primary">
+                      <item.icon className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs font-bold tracking-[0.24em] text-emerald-300">STEP {item.step}</div>
+                      <h3 className="text-base font-semibold">{item.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-300">{item.description}</p>
+                    </div>
                   </div>
-                  <div className="mb-2 text-xs font-bold tracking-[0.24em] text-emerald-300">STEP {item.step}</div>
-                  <h3 className="text-lg font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+                ))}
+              </div>
+              <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-200">
+                <HeartHandshake className="h-4 w-4 text-emerald-300" />
+                Built for busy families
+              </div>
+            </div>
+            <div className="relative hidden overflow-hidden rounded-[2rem] border border-white/10 lg:block">
+              <div className="relative h-[520px]">
+                <Image
+                  src="/images/trainr/custom/football-stretching.jpg"
+                  alt="Youth athletes stretching and warming up with their coach"
+                  fill
+                  className="object-cover object-center"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6">
+                  <div className="premium-panel p-5">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Every session starts with a plan</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">Share your athlete&apos;s goals at booking. The coach shows up prepared and your kid hits the ground running.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -343,31 +377,55 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-flow bg-slate-950 pb-8 pt-16 text-white md:pb-12 md:pt-24">
+      <section className="section-flow bg-slate-950 py-16 text-white md:py-24">
         <div className="container">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image
-              src="/images/trainr/football-hero.jpg"
-              alt="Youth football athletes running a coached agility drill on turf"
-              fill
-              className="object-cover"
-            />
-            <div className="hero-overlay" />
-            <div className="relative p-8 text-center md:p-12">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">Are you a sports trainer?</h2>
-              <p className="mx-auto mb-8 max-w-2xl text-slate-200 leading-7">
-                Set your own rates, pick your own hours, and get booked by families who are already looking for what you do.
-              </p>
-              <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <Link href="/auth/signup?role=trainer">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
+              <Image
+                src="/images/trainr/custom/indoor-training.jpg"
+                alt="Indoor youth sports training facility session"
+                fill
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/20" />
+              <div className="relative flex min-h-[340px] flex-col justify-end p-8 md:min-h-[380px]">
+                <h2 className="mb-3 text-3xl font-bold tracking-tight md:text-4xl">Are you a sports trainer?</h2>
+                <p className="mb-6 max-w-lg text-slate-200 leading-7">
+                  Set your own rates, pick your own hours, and get booked by families who are already looking for what you do.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link href="/auth/signup?role=trainer">
+                    <Button size="lg" className="w-full bg-white px-8 font-semibold text-green-800 hover:bg-green-50 sm:w-auto">
+                      Apply as a Trainer
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/for-trainers">
+                    <Button size="lg" variant="outline" className="w-full border-white/30 px-8 text-white hover:bg-white/10 sm:w-auto">
+                      Learn More
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
+              <Image
+                src="/images/trainr/custom/coaching-branded.jpg"
+                alt="Trainr branded coaching session with youth athlete"
+                fill
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/20" />
+              <div className="relative flex min-h-[340px] flex-col justify-end p-8 md:min-h-[380px]">
+                <h2 className="mb-3 text-3xl font-bold tracking-tight md:text-4xl">Find your first coach</h2>
+                <p className="mb-6 max-w-lg text-slate-200 leading-7">
+                  Browse by sport, read real reviews, and book a session in minutes. Your athlete&apos;s next breakthrough starts here.
+                </p>
+                <Link href="/browse">
                   <Button size="lg" className="w-full bg-white px-8 font-semibold text-green-800 hover:bg-green-50 sm:w-auto">
-                    Apply as a Trainer
+                    Browse Trainers
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/for-trainers">
-                  <Button size="lg" variant="outline" className="w-full border-white/30 px-8 text-white hover:bg-white/10 sm:w-auto">
-                    Learn More
                   </Button>
                 </Link>
               </div>

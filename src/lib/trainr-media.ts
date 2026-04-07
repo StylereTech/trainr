@@ -130,3 +130,13 @@ export function getSportVisual(slug: string): TrainrVisual {
 export function isLiveTrainrImage(visual: TrainrVisual): visual is LiveImage {
   return visual.kind === 'image'
 }
+
+export function getSportImageSrc(slug: string): string {
+  const visual = getSportVisual(slug)
+  return visual.kind === 'image' ? visual.src : '/brand/trainr-logo-main.jpg'
+}
+
+export function getSportImageAlt(slug: string): string {
+  const visual = getSportVisual(slug)
+  return visual.alt
+}

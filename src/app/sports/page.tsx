@@ -62,6 +62,14 @@ const categoryHighlights = [
   { icon: Trophy, title: 'Clear expectations', description: 'See what each coach offers, what it costs, and what your kid will work on before you book.' },
 ]
 
+const sectionBgImages: Record<string, { src: string; alt: string }> = {
+  football: { src: '/images/trainr/football-bg.jpg', alt: 'Football section background' },
+  baseball: { src: '/images/trainr/baseball-bg.jpg', alt: 'Baseball section background' },
+  basketball: { src: '/images/trainr/basketball-bg.jpg', alt: 'Basketball section background' },
+  soccer: { src: '/images/trainr/soccer-bg.jpg', alt: 'Soccer section background' },
+  'track-field': { src: '/images/trainr/track-field-bg.jpg', alt: 'Track and field section background' },
+}
+
 const consistencySignals = ['5 youth sports covered', 'Coaches across the country', 'Book your first session today']
 
 export default function SportsPage() {
@@ -154,71 +162,22 @@ export default function SportsPage() {
             const info = sportDescriptions[sport.slug]
             const specialties = SPECIALTIES[sport.slug] || []
             const visual = getSportVisual(sport.slug)
-            const isFootball = sport.slug === 'football'
-            const isBaseball = sport.slug === 'baseball'
-            const isBasketball = sport.slug === 'basketball'
-            const isSoccer = sport.slug === 'soccer'
-            const isTrackField = sport.slug === 'track-field'
-            const hasSectionBg = isFootball || isBaseball || isBasketball || isSoccer || isTrackField
+            const bgImage = sectionBgImages[sport.slug]
 
             return (
-              <div key={sport.slug} className={hasSectionBg ? 'relative overflow-hidden rounded-[2rem]' : ''}>
-                {isFootball && (
+              <div key={sport.slug} className={bgImage ? 'relative overflow-hidden rounded-[2rem]' : ''}>
+                {bgImage && (
                   <>
                     <Image
-                      src="/images/trainr/football-bg.jpg"
-                      alt="Football section background"
+                      src={bgImage.src}
+                      alt={bgImage.alt}
                       fill
                       className="object-cover object-center"
                     />
                     <div className="absolute inset-0 bg-slate-950/40" />
                   </>
                 )}
-                {isBaseball && (
-                  <>
-                    <Image
-                      src="/images/trainr/baseball-bg.jpg"
-                      alt="Baseball section background"
-                      fill
-                      className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-slate-950/40" />
-                  </>
-                )}
-                {isBasketball && (
-                  <>
-                    <Image
-                      src="/images/trainr/basketball-bg.jpg"
-                      alt="Basketball section background"
-                      fill
-                      className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-slate-950/40" />
-                  </>
-                )}
-                {isSoccer && (
-                  <>
-                    <Image
-                      src="/images/trainr/soccer-bg.jpg"
-                      alt="Soccer section background"
-                      fill
-                      className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-slate-950/40" />
-                  </>
-                )}
-                {isTrackField && (
-                  <>
-                    <Image
-                      src="/images/trainr/track-field-bg.jpg"
-                      alt="Track and field section background"
-                      fill
-                      className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-slate-950/40" />
-                  </>
-                )}
-              <Card className={`overflow-hidden rounded-[2rem] border-white/10 text-white shadow-xl ${hasSectionBg ? 'relative bg-transparent' : 'bg-white/[0.04]'}`}>
+              <Card className={`overflow-hidden rounded-[2rem] border-white/10 text-white shadow-xl ${bgImage ? 'relative bg-transparent' : 'bg-white/[0.04]'}`}>
                 <div className={`grid lg:grid-cols-[.95fr_1.05fr] ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1' : ''}`}>
                   <div className="relative min-h-[300px] border-b border-white/10 lg:min-h-full lg:border-b-0 lg:border-r lg:[&.order-2]:border-l lg:[&.order-2]:border-r-0">
                     {isLiveTrainrImage(visual) ? (
