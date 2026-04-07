@@ -156,7 +156,8 @@ export default function SportsPage() {
             const visual = getSportVisual(sport.slug)
             const isFootball = sport.slug === 'football'
             const isBaseball = sport.slug === 'baseball'
-            const hasSectionBg = isFootball || isBaseball
+            const isSoccer = sport.slug === 'soccer'
+            const hasSectionBg = isFootball || isBaseball || isSoccer
 
             return (
               <div key={sport.slug} className={hasSectionBg ? 'relative overflow-hidden rounded-[2rem]' : ''}>
@@ -176,6 +177,17 @@ export default function SportsPage() {
                     <Image
                       src="/images/trainr/baseball-bg.jpg"
                       alt="Baseball section background"
+                      fill
+                      className="object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/70" />
+                  </>
+                )}
+                {isSoccer && (
+                  <>
+                    <Image
+                      src="/images/trainr/soccer-bg.jpg"
+                      alt="Soccer section background"
                       fill
                       className="object-cover object-center"
                     />
