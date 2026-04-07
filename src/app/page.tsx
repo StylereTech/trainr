@@ -86,7 +86,7 @@ const testimonials = [
 const sportCardImages: Record<string, { src: string; alt: string; position: string }> = {
   football: { src: '/images/trainr/football-bg.jpg', alt: 'Youth football coaching session', position: 'object-center' },
   baseball: { src: '/images/trainr/baseball-bg.jpg', alt: 'Youth baseball training session', position: 'object-center' },
-  basketball: { src: '/images/trainr/basketball-bg.jpg', alt: 'Youth basketball coaching', position: 'object-top' },
+  basketball: { src: '/images/trainr/custom/basketball-group.jpg', alt: 'Group of kids shooting basketballs during coaching session', position: 'object-center' },
   soccer: { src: '/images/trainr/soccer-bg.jpg', alt: 'Youth soccer training drill', position: 'object-center' },
   'track-field': { src: '/images/trainr/track-field-bg.jpg', alt: 'Youth track and field training', position: 'object-top' },
 }
@@ -279,9 +279,6 @@ export default function HomePage() {
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.28),_transparent_36%),linear-gradient(160deg,_rgba(255,255,255,0.08),_rgba(255,255,255,0.03))]" />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/10" />
-                      <div className="absolute inset-x-0 bottom-0 p-4">
-                        <div className="text-2xl font-bold">{sport.icon}</div>
-                      </div>
                     </div>
                     <CardContent className="p-5">
                       <div className="text-lg font-semibold">{sport.name}</div>

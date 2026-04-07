@@ -52,7 +52,7 @@ export default function ForTrainersPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
-        <Image src="/images/trainr/custom/indoor-training.jpg" alt="Indoor youth sports training facility" fill priority className="object-cover" />
+        <Image src="/images/trainr/custom/football-camp.jpg" alt="Coaches working with young athletes at a football training camp" fill priority className="object-cover" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
@@ -121,7 +121,7 @@ export default function ForTrainersPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.92fr_1.08fr]">
           <div className="premium-shell p-0">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[420px]">
-              <Image src="/images/trainr/custom/coaching-branded.jpg" alt="Trainr branded coaching session" fill className="object-cover" />
+              <Image src="/images/trainr/custom/football-stretching-branded.jpg" alt="Coach leading athletes through training drills with Trainr branding" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                 <div className="premium-panel p-4">
@@ -198,7 +198,7 @@ export default function ForTrainersPage() {
             </Card>
 
             <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10">
-              <Image src="/images/trainr/custom/trainer-cta.jpg" alt="Sports trainer working with young athlete" fill className="object-cover" />
+              <Image src="/images/trainr/custom/basketball-group-branded.jpg" alt="Basketball coaching session with group of young athletes" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-slate-950/20" />
               <div className="relative p-6">
                 <p className="text-sm font-semibold text-white">Join 500+ coaches already on the platform</p>
@@ -212,7 +212,7 @@ export default function ForTrainersPage() {
       <section className="section-flow pb-16 pt-10 md:pb-20">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src="/images/trainr/custom/football-camp.jpg" alt="Youth football training camp session" fill className="object-cover" />
+            <Image src="/images/trainr/custom/multi-sport-group.jpg" alt="Multi-sport youth athletes training together" fill className="object-cover object-top" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to coach on Trainr?</h2>

@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Search, Calendar, Star, CreditCard, MessageSquare, Shield, CheckCircle2, Sparkles, Users, Trophy, ClipboardList } from 'lucide-react'
 import type { Metadata } from 'next'
-import { TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 export const metadata: Metadata = {
   title: 'How It Works',
@@ -24,8 +23,8 @@ const steps = [
       'Compare coaching style and price point',
       'Review credentials and training background',
     ],
-    image: '/images/trainr/custom/coaching-clean.jpg',
-    imageAlt: 'Coach working with young athlete during a training session',
+    image: '/images/trainr/custom/football-stretching.jpg',
+    imageAlt: 'Coach leading youth athletes through warm-up and training drills',
   },
   {
     number: '2',
@@ -52,8 +51,8 @@ const steps = [
       'Leave detailed parent feedback after training',
       'Rebook for consistency and measurable progress',
     ],
-    image: '/images/trainr/custom/basketball-coaching.jpg',
-    imageAlt: 'Youth basketball player working on shooting form with coach',
+    image: '/images/trainr/custom/pushups-coaching.jpg',
+    imageAlt: 'Coach guiding youth athlete through strength and conditioning',
   },
 ]
 
@@ -92,7 +91,7 @@ export default function HowItWorksPage() {
   return (
     <div className="bg-slate-950 text-white">
       <section className="site-hero min-h-[calc(100vh-72px)] border-b border-white/10 text-white">
-        <Image src="/images/trainr/custom/football-stretching.jpg" alt="Youth athletes stretching and warming up with their coach" fill priority className="object-cover object-center" />
+        <Image src="/images/trainr/custom/indoor-training.jpg" alt="Youth athletes training inside a professional sports facility" fill priority className="object-cover object-center" />
         <div className="hero-overlay" />
         <div className="hero-mesh" />
         <div className="container relative flex min-h-[calc(100vh-72px)] items-end py-12 md:py-16 lg:py-20">
@@ -172,7 +171,7 @@ export default function HowItWorksPage() {
         <div className="container grid items-center gap-10 lg:grid-cols-[.95fr_1.05fr]">
           <div className="premium-shell order-2 p-0 lg:order-1">
             <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] md:min-h-[440px]">
-              <Image src="/images/trainr/custom/pushups-coaching.jpg" alt="Coach guiding athlete through fitness training" fill className="object-cover" />
+              <Image src="/images/trainr/custom/basketball-group.jpg" alt="Group of kids training together during basketball coaching session" fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
                 <div className="premium-panel p-4">
@@ -224,7 +223,7 @@ export default function HowItWorksPage() {
       <section className="section-flow pb-16 pt-10">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src={TRAINR_IMAGE_CATALOG.soccer.hero.src} alt={TRAINR_IMAGE_CATALOG.soccer.hero.alt} fill className="object-cover" />
+            <Image src="/images/trainr/custom/football-camp.jpg" alt="Youth football training camp with coaches and young athletes" fill className="object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to find your trainer?</h2>
