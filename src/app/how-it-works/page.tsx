@@ -23,7 +23,7 @@ const steps = [
       'Compare coaching style and price point',
       'Review credentials and training background',
     ],
-    image: '/images/trainr/custom/sports-right.jpg',
+    image: null,
     imageAlt: 'Coach leading youth athletes through training drills',
   },
   {
