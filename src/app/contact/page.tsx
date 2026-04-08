@@ -36,15 +36,8 @@ export default function ContactPage() {
             <h1 className="text-4xl font-bold tracking-tight md:text-6xl">Get in touch with the team behind the platform.</h1>
             <p className="mt-5 text-lg text-slate-300">Questions about bookings, trainer approvals, safety, payments, or partnerships? Send us the details and we’ll route it cleanly.</p>
           </div>
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 shadow-2xl">
-            <Image src="/images/trainr/custom/contact-hero.jpg" alt="Youth athlete working with a private coach during training" width={1200} height={1200} className="h-[320px] w-full object-cover md:h-[420px]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-6">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur">
-                <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Fast routing, clearer support</div>
-                <p className="mt-2 text-sm text-slate-300">Billing, safety, trainer, and partnership questions each have a clean path instead of vanishing into a generic inbox.</p>
-              </div>
-            </div>
+          <div className="flex items-center justify-center rounded-[2rem] border border-white/10 bg-slate-900/80 p-12 shadow-2xl">
+            <Image src="/brand/trainr-shield-logo.jpg" alt="Trainr" width={200} height={200} className="h-32 w-32 rounded-2xl md:h-48 md:w-48" />
           </div>
         </div>
       </section>
