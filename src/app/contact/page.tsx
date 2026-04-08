@@ -36,8 +36,8 @@ export default function ContactPage() {
             <h1 className="text-4xl font-bold tracking-tight md:text-6xl">Get in touch with the team behind the platform.</h1>
             <p className="mt-5 text-lg text-slate-300">Questions about bookings, trainer approvals, safety, payments, or partnerships? Send us the details and we’ll route it cleanly.</p>
           </div>
-          <div className="flex min-h-[300px] items-center justify-center rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 p-8 shadow-2xl md:min-h-[420px]">
-            <Image src="/brand/trainr-logo-badge.jpg" alt="Trainr" width={200} height={200} className="h-40 w-40 rounded-3xl shadow-lg md:h-56 md:w-56" />
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl">
+            <Image src="/images/trainr/custom/contact-hero.jpg" alt="Trainr" width={1200} height={1200} className="h-[320px] w-full object-cover md:h-[420px]" />
           </div>
         </div>
       </section>
