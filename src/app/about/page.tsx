@@ -79,7 +79,7 @@ export default function AboutPage() {
           </div>
           <div className="premium-shell p-0">
             <div className="relative overflow-hidden rounded-[2rem]">
-              <Image src="/images/trainr/custom/basketball-group.jpg" alt="Youth basketball team group training session" width={1200} height={900} className="h-[420px] w-full object-cover" />
+              <Image src="/images/trainr/custom/baseball-coaching-kid.jpg" alt="Baseball coach working one-on-one with a young athlete" width={1200} height={900} className="h-[420px] w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-6">
                 <div className="premium-panel p-5">
