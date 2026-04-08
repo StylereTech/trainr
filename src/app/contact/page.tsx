@@ -37,7 +37,7 @@ export default function ContactPage() {
             <p className="mt-5 text-lg text-slate-300">Questions about bookings, trainer approvals, safety, payments, or partnerships? Send us the details and we’ll route it cleanly.</p>
           </div>
           <div className="flex min-h-[300px] items-center justify-center rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 p-8 shadow-2xl md:min-h-[420px]">
-            <Image src="/brand/trainr-shield-logo.jpg" alt="Trainr" width={200} height={200} className="h-40 w-40 rounded-3xl shadow-lg md:h-56 md:w-56" />
+            <Image src="/brand/trainr-logo-badge.jpg" alt="Trainr" width={200} height={200} className="h-40 w-40 rounded-3xl shadow-lg md:h-56 md:w-56" />
           </div>
         </div>
       </section>
