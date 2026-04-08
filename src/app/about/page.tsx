@@ -25,14 +25,10 @@ export default function AboutPage() {
               <p className="mt-6 text-lg text-slate-300">Trainr exists to make expert youth sports coaching more accessible, more credible, and easier for families to book with confidence.</p>
             </div>
             <div className="premium-shell p-0">
-              <div className="relative h-[360px] overflow-hidden rounded-[2rem] md:h-[440px]">
-                <Image src="/images/trainr/custom/coaching-clean.jpg" alt="Youth athlete working with a private coach during training" fill className="object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-6">
-                  <div className="premium-panel p-5">
-                    <p className="text-sm font-semibold text-white">The marketplace for youth sports coaching.</p>
-                    <p className="mt-2 text-sm text-slate-300">Find trusted coaches, book sessions, and give your athlete the training they deserve.</p>
-                  </div>
+              <div className="overflow-hidden rounded-[2rem] bg-slate-900/60 p-8 md:p-12">
+                <div className="premium-panel p-5">
+                  <p className="text-sm font-semibold text-white">The marketplace for youth sports coaching.</p>
+                  <p className="mt-2 text-sm text-slate-300">Find trusted coaches, book sessions, and give your athlete the training they deserve.</p>
                 </div>
               </div>
             </div>
