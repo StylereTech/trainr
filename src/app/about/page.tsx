@@ -95,7 +95,7 @@ export default function AboutPage() {
       <section className="section-flow py-16">
         <div className="container">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
-            <Image src="/images/trainr/custom/football-stretching.jpg" alt="Coach leading youth athletes through stretching and warm-up drills" fill className="object-cover" />
+            <Image src="/images/trainr/custom/championship-celebration.jpg" alt="Youth athletes celebrating a championship win together" fill className="object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/30" />
             <div className="relative p-8 text-center md:p-12">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.2em] backdrop-blur"><Sparkles className="h-4 w-4" /> Get started today</div>
