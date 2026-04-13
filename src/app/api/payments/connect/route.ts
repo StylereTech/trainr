@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
     )
 
     return NextResponse.json({ url: accountLink.url })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Stripe Connect error:', error)
-    return NextResponse.json({ error: 'Failed to set up payments' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to set up payments', debug: error?.message || String(error) }, { status: 500 })
   }
 }
