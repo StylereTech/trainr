@@ -19,7 +19,7 @@ export function stripeRuntimeStatus() {
 }
 
 export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2024-06-20',
   typescript: true,
   timeout: 30000,
   maxNetworkRetries: 3,
