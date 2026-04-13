@@ -25,7 +25,7 @@ export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
 
 export async function createConnectedAccount(trainerId: string, email: string) {
   const account = await stripe.accounts.create({
-    type: 'standard',
+    type: 'express',
     country: 'US',
     email,
     metadata: { trainerId },
