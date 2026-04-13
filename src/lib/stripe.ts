@@ -21,6 +21,8 @@ export function stripeRuntimeStatus() {
 export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
   apiVersion: '2025-02-24.acacia',
   typescript: true,
+  timeout: 30000,
+  maxNetworkRetries: 3,
 })
 
 export async function createConnectedAccount(trainerId: string, email: string) {
