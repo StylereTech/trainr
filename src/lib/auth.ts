@@ -148,7 +148,36 @@ export async function getRequestUser(req: NextRequest) {
     })
   }
 
-  if (!token?.sub) return null
+  if (!token?.sub) {
+    const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
+    const proto = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
+    const cookieHeader = req.cookies.getAll().map((cookie) => `${cookie.name}=${cookie.value}`).join('; ') || req.headers.get('cookie')
+
+    if (host && cookieHeader) {
+      try {
+        const res = await fetch(`${proto}://${host}/api/auth/session`, {
+          headers: { cookie: cookieHeader },
+          cache: 'no-store',
+        })
+
+        if (res.ok) {
+          const session = await res.json()
+          if (session?.user?.id) {
+            return {
+              id: String(session.user.id),
+              role: session.user.role ? String(session.user.role) : undefined,
+              email: session.user.email ? String(session.user.email) : undefined,
+              profileId: session.user.profileId ? String(session.user.profileId) : null,
+            }
+          }
+        }
+      } catch {
+        // Fall through to null below.
+      }
+    }
+
+    return null
+  }
 
   return {
     id: String(token.sub),
