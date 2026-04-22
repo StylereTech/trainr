@@ -123,14 +123,26 @@ export function getServerSession(_opts?: any): Promise<any> {
 }
 
 export async function getRequestUser(req: NextRequest) {
-  const jwtModule = (await import('next-auth/jwt')) as any
-  const token = await jwtModule.getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-  if (!token?.sub) return null
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
+  const proto = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
+  const cookie = req.headers.get('cookie')
+
+  if (!host || !cookie) return null
+
+  const res = await fetch(`${proto}://${host}/api/auth/session`, {
+    headers: { cookie },
+    cache: 'no-store',
+  })
+
+  if (!res.ok) return null
+
+  const session = await res.json()
+  if (!session?.user?.id) return null
 
   return {
-    id: String(token.sub),
-    role: token.role ? String(token.role) : undefined,
-    email: token.email ? String(token.email) : undefined,
-    profileId: token.profileId ? String(token.profileId) : null,
+    id: String(session.user.id),
+    role: session.user.role ? String(session.user.role) : undefined,
+    email: session.user.email ? String(session.user.email) : undefined,
+    profileId: session.user.profileId ? String(session.user.profileId) : null,
   }
 }
