@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRequestUser } from '@/lib/auth'
+import { getServerSession, authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import {
   createAccountLink,
@@ -50,12 +50,12 @@ async function getTrainerProfileOrResponse(userId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const requestUser = await getRequestUser(request)
-    if (!requestUser?.id) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const trainerState = await getTrainerProfileOrResponse(requestUser.id)
+    const trainerState = await getTrainerProfileOrResponse(session.user.id)
     if ('response' in trainerState) return trainerState.response
 
     const runtimeStatus = stripeRuntimeStatus()
@@ -104,8 +104,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const requestUser = await getRequestUser(request)
-    if (!requestUser?.id) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Stripe is not configured on this runtime' }, { status: 503 })
     }
 
-    const trainerState = await getTrainerProfileOrResponse(requestUser.id)
+    const trainerState = await getTrainerProfileOrResponse(session.user.id)
     if ('response' in trainerState) return trainerState.response
 
     const { user, trainerProfile } = trainerState

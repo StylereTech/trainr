@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRequestUser } from '@/lib/auth'
+import { getServerSession, authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
 
 export async function POST(req: NextRequest) {
   try {
-    const requestUser = await getRequestUser(req)
-    if (!requestUser?.id) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
     }
 
-    if (!booking.parentProfile || booking.parentProfile.userId !== requestUser.id) {
+    if (!booking.parentProfile || booking.parentProfile.userId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      customer_email: requestUser.email || undefined,
+      customer_email: session.user.email || undefined,
       line_items: [
         {
           price_data: {
