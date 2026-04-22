@@ -2,6 +2,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { getServerSession as _gss } from "next-auth/next"
+import type { NextRequest } from 'next/server'
 
 const authDebugEnabled = process.env.AUTH_DEBUG === 'true'
 
@@ -119,4 +120,17 @@ export const authOptions: any = {
 // Accept authOptions param (ignored) so callers don't need to change
 export function getServerSession(_opts?: any): Promise<any> {
   return _gss(authOptions)
+}
+
+export async function getRequestUser(req: NextRequest) {
+  const jwtModule = (await import('next-auth/jwt')) as any
+  const token = await jwtModule.getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  if (!token?.sub) return null
+
+  return {
+    id: String(token.sub),
+    role: token.role ? String(token.role) : undefined,
+    email: token.email ? String(token.email) : undefined,
+    profileId: token.profileId ? String(token.profileId) : null,
+  }
 }
