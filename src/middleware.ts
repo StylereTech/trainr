@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 // @ts-ignore - next-auth/jwt types not resolving in edge middleware
 import { getToken } from 'next-auth/jwt'
 
+async function getAuthToken(req: NextRequest) {
+  let token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: '__Secure-next-auth.session-token',
+  })
+
+  if (!token) {
+    token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: 'next-auth.session-token',
+    })
+  }
+
+  return token
+}
+
 // Routes that require no auth
 const PUBLIC_PATHS = [
   '/',
@@ -59,7 +77,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Decode the NextAuth JWT directly — gives us role without a separate cookie
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  const token = await getAuthToken(req)
 
   // Not authenticated
   if (!token) {
