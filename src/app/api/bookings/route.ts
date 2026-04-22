@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession, authOptions } from '@/lib/auth'
+import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { calculateSplit, calculateDiscount } from '@/lib/fees'
@@ -16,13 +16,13 @@ const bookingCreateSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const requestUser = await getRequestUser(req)
+    if (!requestUser?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = (session.user as any).id
-    const role = (session.user as any).role
+    const userId = requestUser.id
+    const role = requestUser.role
     if (role !== 'PARENT') {
       return NextResponse.json({ error: 'Only parents can create bookings' }, { status: 403 })
     }
@@ -182,13 +182,13 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const requestUser = await getRequestUser(req)
+    if (!requestUser?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = (session.user as any).id
-    const role = (session.user as any).role
+    const userId = requestUser.id
+    const role = requestUser.role
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
