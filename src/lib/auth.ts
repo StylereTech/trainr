@@ -2,6 +2,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { getServerSession as _gss } from "next-auth/next"
+import { headers } from 'next/headers'
 import type { NextRequest } from 'next/server'
 
 const authDebugEnabled = process.env.AUTH_DEBUG === 'true'
@@ -118,7 +119,15 @@ export const authOptions: any = {
 }
 
 // Accept authOptions param (ignored) so callers don't need to change
-export function getServerSession(_opts?: any): Promise<any> {
+export async function getServerSession(_opts?: any): Promise<any> {
+  const headerStore = await headers()
+  const host = headerStore.get('x-forwarded-host') || headerStore.get('host')
+  const proto = headerStore.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
+
+  if (host) {
+    process.env.NEXTAUTH_URL = `${proto}://${host}`
+  }
+
   return _gss(authOptions)
 }
 
