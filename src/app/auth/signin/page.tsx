@@ -36,7 +36,11 @@ export default function SignInPage() {
       if (result?.error) {
         toast({ title: 'Error', description: 'Invalid email or password', variant: 'destructive' })
       } else {
-        router.push('/dashboard')
+        const sessionRes = await fetch('/api/auth/session')
+        const session = sessionRes.ok ? await sessionRes.json() : null
+        const role = session?.user?.role
+        const destination = role === 'TRAINER' ? '/trainer/dashboard' : role === 'ADMIN' ? '/admin' : '/parent/dashboard'
+        router.push(destination)
         router.refresh()
       }
     } catch {

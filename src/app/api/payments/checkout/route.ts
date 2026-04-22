@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { stripe, stripeRuntimeStatus } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
-import { calculateSplit } from '@/lib/fees'
+import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
 
-// POST /api/payments/checkout — Create a Stripe checkout session for a booking
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
-
-    if (!stripeRuntimeStatus().secretConfigured) {
+    const runtime = stripeRuntimeStatus()
+    if (!runtime.secretConfigured) {
       return NextResponse.json({ error: 'Stripe is not configured on this runtime' }, { status: 503 })
     }
 
@@ -30,10 +26,11 @@ export async function POST(req: NextRequest) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
+        parentProfile: true,
         trainerProfile: true,
         serviceOffering: true,
-        parentProfile: { include: { user: true } },
         athleteProfile: true,
+        payment: true,
       },
     })
 
@@ -41,107 +38,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
     }
 
-    // Verify the booking belongs to this parent
-    if (booking.parentProfile.userId !== userId) {
-      return NextResponse.json({ error: 'Not your booking' }, { status: 403 })
+    if (!booking.parentProfile || booking.parentProfile.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (booking.status !== 'PENDING' && booking.status !== 'CONFIRMED') {
-      return NextResponse.json({ error: 'Booking is not in a payable state' }, { status: 400 })
+    if (booking.status !== 'CONFIRMED') {
+      return NextResponse.json({ error: 'Booking must be confirmed before payment' }, { status: 400 })
     }
 
-    // Check if payment already exists
-    const existingPayment = await prisma.payment.findUnique({ where: { bookingId } })
-    if (existingPayment?.stripePaymentIntentId) {
+    if (booking.payment) {
       return NextResponse.json({ error: 'Payment already initiated' }, { status: 400 })
     }
 
-    // Get current fee config
-    const feeConfig = await prisma.feeConfig.findFirst({
-      where: { isActive: true },
-      orderBy: { effectiveDate: 'desc' },
-    })
-    const commissionPercent = feeConfig?.platformCommissionPercent ?? 15
-    const { platformFee: platformFeeInCents, trainerShare: trainerPayoutInCents } = calculateSplit(booking.totalAmountInCents, commissionPercent)
+    if (!booking.trainerProfile) {
+      return NextResponse.json({ error: 'Trainer profile is missing for this booking' }, { status: 409 })
+    }
 
-    // Determine if trainer has Stripe Connect (marketplace split) or direct charge (platform collects)
-    const hasConnect = booking.trainerProfile.stripeAccountId && booking.trainerProfile.stripeOnboardingComplete
+    if (!booking.serviceOffering) {
+      return NextResponse.json({ error: 'Service offering is missing for this booking' }, { status: 409 })
+    }
 
-    // Build Stripe Checkout Session options
-    // Use automatic_payment_methods to enable all eligible methods:
-    // Cards, Apple Pay, Google Pay, Cash App, Afterpay/Clearpay, Link, etc.
-    const checkoutParams: any = {
+    if (!booking.athleteProfile) {
+      return NextResponse.json({ error: 'Athlete profile is missing for this booking' }, { status: 409 })
+    }
+
+    if (!booking.trainerProfile.stripeAccountId || !booking.trainerProfile.stripeOnboardingComplete) {
+      return NextResponse.json(
+        { error: 'Trainer payment account is not ready yet. Ask the trainer to finish Stripe setup first.' },
+        { status: 400 },
+      )
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
       mode: 'payment',
+      customer_email: session.user.email || undefined,
       line_items: [
         {
           price_data: {
             currency: 'usd',
-            unit_amount: booking.totalAmountInCents,
             product_data: {
               name: `${booking.serviceOffering.title} with ${booking.trainerProfile.firstName} ${booking.trainerProfile.lastName}`,
-              description: `${new Date(booking.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at ${booking.startTime} — ${booking.athleteProfile.firstName} ${booking.athleteProfile.lastName}`,
+              description: `${booking.date.toISOString().split('T')[0]} at ${booking.startTime}`,
+              metadata: {
+                bookingId: booking.id,
+                athleteId: booking.athleteProfile.id,
+                trainerId: booking.trainerProfile.id,
+              },
             },
+            unit_amount: booking.totalAmountInCents,
           },
           quantity: 1,
         },
       ],
-      metadata: {
-        bookingId: booking.id,
-      },
-      success_url: toAbsoluteAppUrl(`/dashboard?payment=success&booking=${bookingId}`),
-      cancel_url: toAbsoluteAppUrl(`/parent/dashboard?payment=cancelled&booking=${bookingId}`),
-      customer_email: booking.parentProfile.user.email,
-    }
-
-    // If trainer has Connect, use marketplace split (application_fee + transfer)
-    // Otherwise, direct charge to platform — trainer share tracked in wallet for manual payout
-    if (hasConnect) {
-      checkoutParams.payment_intent_data = {
-        application_fee_amount: platformFeeInCents,
+      payment_intent_data: {
+        application_fee_amount: booking.platformFeeInCents,
         transfer_data: {
           destination: booking.trainerProfile.stripeAccountId,
         },
         metadata: {
           bookingId: booking.id,
-          trainerId: booking.trainerProfileId,
-          parentId: booking.parentProfileId,
+          parentId: booking.parentProfile.id,
+          trainerId: booking.trainerProfile.id,
+          athleteId: booking.athleteProfile.id,
+          serviceOfferingId: booking.serviceOffering.id,
+          platformFeeInCents: String(booking.platformFeeInCents),
+          trainerPayoutInCents: String(booking.trainerPayoutInCents),
         },
-      }
-    } else {
-      checkoutParams.payment_intent_data = {
-        metadata: {
-          bookingId: booking.id,
-          trainerId: booking.trainerProfileId,
-          parentId: booking.parentProfileId,
-          directCharge: 'true', // Flag for webhook to track trainer payout manually
-        },
-      }
-    }
-
-    const checkoutSession = await stripe.checkout.sessions.create(checkoutParams)
-
-    // Create or update payment record
-    await prisma.payment.upsert({
-      where: { bookingId: booking.id },
-      update: {
-        amountInCents: booking.totalAmountInCents,
-        platformFeeInCents,
-        trainerPayoutInCents,
-        status: 'PENDING',
       },
-      create: {
+      metadata: {
+        bookingId: booking.id,
+        parentId: booking.parentProfile.id,
+      },
+      success_url: toAbsoluteAppUrl('/parent/dashboard?payment=success'),
+      cancel_url: toAbsoluteAppUrl('/parent/dashboard?payment=cancelled'),
+    })
+
+    const payment = await prisma.payment.create({
+      data: {
         bookingId: booking.id,
         amountInCents: booking.totalAmountInCents,
-        platformFeeInCents,
-        trainerPayoutInCents,
-        processingFeeInCents: 0,
+        platformFeeInCents: booking.platformFeeInCents,
+        trainerPayoutInCents: booking.trainerPayoutInCents,
         status: 'PENDING',
       },
     })
 
-    return NextResponse.json({ checkoutUrl: checkoutSession.url, sessionId: checkoutSession.id })
+    return NextResponse.json({
+      checkoutUrl: checkoutSession.url,
+      paymentId: payment.id,
+    })
   } catch (error) {
-    console.error('Checkout error:', error)
-    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 })
+    const normalized = mapStripeError(error, 'Failed to create checkout session')
+    return NextResponse.json({ error: normalized.message, detail: normalized.detail }, { status: normalized.status })
   }
 }

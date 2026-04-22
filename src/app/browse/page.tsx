@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Image from 'next/image'
 import { SlidersHorizontal, X, MapPin, Loader2, Trophy, Sparkles, ShieldCheck, ArrowRight, Search, Star, CheckCircle2, LayoutGrid } from 'lucide-react'
 import { SPORTS } from '@/lib/utils'
-import { getSportImageSrc, getSportImageAlt, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
+import { getSportImageAlt, getSportImageSrc } from '@/lib/trainr-media'
 
 interface Trainer {
   id: string

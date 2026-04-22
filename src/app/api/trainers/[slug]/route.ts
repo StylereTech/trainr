@@ -1,35 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { getPublicTrainerBySlug } from '@/lib/trainer-detail'
 
 export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  _request: Request,
+  { params }: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await params
-    const trainer = await prisma.trainerProfile.findUnique({
-      where: { slug },
-      include: {
-        sports: { include: { sport: true } },
-        specialties: { include: { specialty: true } },
-        certifications: true,
-        serviceOfferings: { where: { isActive: true }, orderBy: { priceInCents: 'asc' } },
-        packages: { where: { isActive: true }, include: { items: { include: { serviceOffering: true } } } },
-        availabilitySlots: { where: { isAvailable: true }, orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] },
-        assets: { where: { type: { in: ['PHOTO', 'GALLERY'] } }, orderBy: { order: 'asc' } },
-        reviews: {
-          where: { isPublished: true },
-          include: {
-            parentProfile: { include: { user: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        _count: { select: { reviews: { where: { isPublished: true } } } },
-      },
-    })
+    const trainer = await getPublicTrainerBySlug(slug)
 
-    if (!trainer || trainer.approvalStatus !== 'APPROVED') {
+    if (!trainer) {
       return NextResponse.json({ error: 'Trainer not found' }, { status: 404 })
     }
 

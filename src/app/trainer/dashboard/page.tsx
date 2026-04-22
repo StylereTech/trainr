@@ -1,12 +1,26 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, DollarSign, TrendingUp, CheckCircle2, XCircle, Settings, Loader2, Sparkles, Clock } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Loader2,
+  Settings,
+  Sparkles,
+  TrendingUp,
+  Wallet,
+  XCircle,
+} from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -24,16 +38,88 @@ interface Booking {
   athleteProfile: { firstName: string; lastName: string }
 }
 
+interface StripeConnectStatus {
+  providerConfigured: boolean
+  publishableKeyConfigured: boolean
+  stripeAccountId: string | null
+  stripeOnboardingComplete: boolean
+  chargesEnabled: boolean | null
+  payoutsEnabled: boolean | null
+  providerError: string
+  dashboardSupported: boolean
+  onboardingSupported: boolean
+}
+
 export default function TrainerDashboard() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [stripeStatus, setStripeStatus] = useState<StripeConnectStatus | null>(null)
+  const [stripeStatusLoading, setStripeStatusLoading] = useState(true)
+  const [stripeStatusError, setStripeStatusError] = useState('')
+  const [launchingStripe, setLaunchingStripe] = useState(false)
+
+  const loadStripeStatus = useCallback(async () => {
+    try {
+      setStripeStatusLoading(true)
+      setStripeStatusError('')
+
+      const res = await fetch('/api/payments/connect', { cache: 'no-store' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setStripeStatus(null)
+        setStripeStatusError(data.error || 'Unable to load Stripe payout status right now.')
+        return
+      }
+
+      setStripeStatus(data)
+    } catch {
+      setStripeStatus(null)
+      setStripeStatusError('Unable to load Stripe payout status right now.')
+    } finally {
+      setStripeStatusLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    fetch('/api/bookings').then(r => r.json()).then(data => {
-      setBookings(data.bookings || [])
-    }).catch(console.error).finally(() => setLoading(false))
+    fetch('/api/bookings')
+      .then((r) => r.json())
+      .then((data) => {
+        setBookings(data.bookings || [])
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    void loadStripeStatus()
+  }, [loadStripeStatus])
+
+  useEffect(() => {
+    const stripeState = searchParams.get('stripe')
+    if (!stripeState) return
+
+    if (stripeState === 'complete') {
+      toast({
+        title: 'Back from Stripe',
+        description: 'Refreshing your payout status now.',
+      })
+    }
+
+    if (stripeState === 'refresh') {
+      toast({
+        title: 'Finish Stripe setup',
+        description: 'There are still a few Stripe steps left before parents can pay you.',
+        variant: 'destructive',
+      })
+    }
+
+    void loadStripeStatus()
+    router.replace('/trainer/dashboard')
+  }, [searchParams, router, loadStripeStatus, toast])
 
   const handleAction = async (bookingId: string, action: string) => {
     try {
@@ -42,15 +128,75 @@ export default function TrainerDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       })
-      if (!res.ok) { const d = await res.json(); toast({ title: 'Error', description: d.error, variant: 'destructive' }); return }
+      if (!res.ok) {
+        const d = await res.json()
+        toast({ title: 'Error', description: d.error, variant: 'destructive' })
+        return
+      }
       toast({ title: `Booking ${action === 'confirm' ? 'confirmed' : action === 'complete' ? 'completed' : 'updated'}` })
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: action === 'confirm' ? 'CONFIRMED' : action === 'complete' ? 'COMPLETED' : action === 'cancel' ? 'CANCELLED' : 'NO_SHOW' } : b))
-    } catch { toast({ title: 'Error', variant: 'destructive' }) }
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === bookingId
+            ? {
+                ...b,
+                status:
+                  action === 'confirm'
+                    ? 'CONFIRMED'
+                    : action === 'complete'
+                      ? 'COMPLETED'
+                      : action === 'cancel'
+                        ? 'CANCELLED'
+                        : 'NO_SHOW',
+              }
+            : b,
+        ),
+      )
+    } catch {
+      toast({ title: 'Error', variant: 'destructive' })
+    }
   }
 
-  const pendingBookings = bookings.filter(b => b.status === 'PENDING')
-  const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED')
-  const completedBookings = bookings.filter(b => b.status === 'COMPLETED')
+  const handleStripeConnect = async () => {
+    try {
+      setLaunchingStripe(true)
+      const res = await fetch('/api/payments/connect', { method: 'POST' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast({
+          title: 'Stripe setup unavailable',
+          description: data.error || 'Unable to open Stripe setup right now.',
+          variant: 'destructive',
+        })
+        void loadStripeStatus()
+        return
+      }
+
+      const redirectUrl = data.dashboardUrl || data.onboardingUrl
+      if (!redirectUrl) {
+        toast({
+          title: 'Stripe setup unavailable',
+          description: 'Trainr did not receive a Stripe redirect URL.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      window.location.href = redirectUrl
+    } catch {
+      toast({
+        title: 'Stripe setup unavailable',
+        description: 'Unable to reach Stripe right now. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLaunchingStripe(false)
+    }
+  }
+
+  const pendingBookings = bookings.filter((b) => b.status === 'PENDING')
+  const confirmedBookings = bookings.filter((b) => b.status === 'CONFIRMED')
+  const completedBookings = bookings.filter((b) => b.status === 'COMPLETED')
 
   const totalEarnings = completedBookings.reduce((sum, b) => sum + b.trainerPayoutInCents, 0)
   const upcomingCount = pendingBookings.length + confirmedBookings.length
@@ -63,6 +209,9 @@ export default function TrainerDashboard() {
     completed: completedBookings,
     all: bookings,
   }
+
+  const stripeReady = Boolean(stripeStatus?.stripeOnboardingComplete)
+  const stripeStarted = Boolean(stripeStatus?.stripeAccountId)
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -95,6 +244,75 @@ export default function TrainerDashboard() {
           </div>
         </div>
 
+        <Card className="mt-6 border-white/10 bg-white/[0.04] text-white">
+          <CardContent className="p-5 md:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-3xl">
+                <div className="inline-flex items-center gap-2 font-semibold text-white"><Wallet className="h-4 w-4 text-emerald-300" /> Stripe payout setup</div>
+                <p className="mt-2 text-sm leading-6 text-slate-300">Parents cannot complete checkout until your Stripe payout setup is live. This gives trainers a self-serve path instead of leaving payment blocked.</p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {stripeStatusLoading ? (
+                    <Badge className="border border-white/10 bg-white/5 text-slate-200"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Checking Stripe</Badge>
+                  ) : stripeReady ? (
+                    <Badge className="border border-emerald-400/30 bg-emerald-400/10 text-emerald-100"><CheckCircle2 className="mr-1 h-3 w-3" />Payments ready</Badge>
+                  ) : stripeStarted ? (
+                    <Badge className="border border-amber-400/30 bg-amber-400/10 text-amber-100"><AlertTriangle className="mr-1 h-3 w-3" />Setup in progress</Badge>
+                  ) : (
+                    <Badge className="border border-rose-400/30 bg-rose-400/10 text-rose-100"><AlertTriangle className="mr-1 h-3 w-3" />Stripe not started</Badge>
+                  )}
+
+                  {!stripeStatusLoading && stripeStatus?.chargesEnabled != null && (
+                    <Badge className={stripeStatus.chargesEnabled ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-100' : 'border border-amber-400/30 bg-amber-400/10 text-amber-100'}>
+                      Charges {stripeStatus.chargesEnabled ? 'enabled' : 'pending'}
+                    </Badge>
+                  )}
+
+                  {!stripeStatusLoading && stripeStatus?.payoutsEnabled != null && (
+                    <Badge className={stripeStatus.payoutsEnabled ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-100' : 'border border-amber-400/30 bg-amber-400/10 text-amber-100'}>
+                      Payouts {stripeStatus.payoutsEnabled ? 'enabled' : 'pending'}
+                    </Badge>
+                  )}
+                </div>
+
+                {stripeStatusError && <p className="mt-3 text-sm text-rose-300">{stripeStatusError}</p>}
+                {!stripeStatusError && stripeStatus && !stripeStatus.providerConfigured && (
+                  <p className="mt-3 text-sm text-rose-300">Stripe is not configured on this runtime yet, so trainer onboarding cannot finish here until the env is repaired.</p>
+                )}
+                {!stripeStatusError && stripeStatus?.providerError && (
+                  <p className="mt-3 text-sm text-amber-200">{stripeStatus.providerError}</p>
+                )}
+                {!stripeStatusError && stripeStatus?.providerConfigured && !stripeReady && (
+                  <p className="mt-3 text-sm text-slate-300">Start or resume Stripe onboarding here, then come back. Once charges and payouts are enabled, parents can pay normally.</p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:min-w-[240px]">
+                <Button
+                  className="gradient-primary border-0 text-white"
+                  onClick={handleStripeConnect}
+                  disabled={launchingStripe || stripeStatusLoading || !stripeStatus?.providerConfigured}
+                >
+                  {launchingStripe ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening Stripe...</>
+                  ) : stripeReady ? (
+                    <><Wallet className="mr-2 h-4 w-4" />Open Stripe dashboard</>
+                  ) : stripeStarted ? (
+                    <><ArrowRight className="mr-2 h-4 w-4" />Resume Stripe setup</>
+                  ) : (
+                    <><ArrowRight className="mr-2 h-4 w-4" />Start Stripe setup</>
+                  )}
+                </Button>
+                <Link href="/trainer/profile">
+                  <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                    <Settings className="mr-2 h-4 w-4" />Review trainer profile
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="pending" className="mt-6">
           <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
             <TabsTrigger value="pending">Pending ({pendingBookings.length})</TabsTrigger>
@@ -103,13 +321,13 @@ export default function TrainerDashboard() {
             <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
           </TabsList>
 
-          {(['pending', 'confirmed', 'completed', 'all'] as const).map(tab => (
+          {(['pending', 'confirmed', 'completed', 'all'] as const).map((tab) => (
             <TabsContent key={tab} value={tab} className="mt-4">
               <div className="space-y-3">
                 {tabItems[tab].length === 0 ? (
                   <Card className="border-white/10 bg-white/[0.04] text-white"><CardContent className="py-10 text-center text-slate-400">No bookings in this view.</CardContent></Card>
                 ) : (
-                  tabItems[tab].map(b => (
+                  tabItems[tab].map((b) => (
                     <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
                       <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
                         <div className="flex-1">

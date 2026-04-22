@@ -25,6 +25,57 @@ export const stripe = new Stripe(stripeSecretKey || 'sk_test_placeholder', {
   maxNetworkRetries: 3,
 })
 
+export function mapStripeError(error: unknown, fallbackMessage = 'Stripe request failed') {
+  const detail = error instanceof Error ? error.message : fallbackMessage
+  const type = typeof error === 'object' && error && 'type' in error ? String((error as { type?: unknown }).type || '') : ''
+
+  if (type === 'StripeAuthenticationError') {
+    return {
+      status: 503,
+      message: 'Stripe is not configured on this runtime',
+      detail,
+    }
+  }
+
+  if (type === 'StripePermissionError' || type === 'StripeRateLimitError') {
+    return {
+      status: 503,
+      message: 'Stripe is temporarily unavailable. Try again shortly.',
+      detail,
+    }
+  }
+
+  if (type === 'StripeAPIError' || type === 'StripeConnectionError' || /connection to stripe/i.test(detail)) {
+    return {
+      status: 503,
+      message: 'Stripe is temporarily unavailable. Try again shortly.',
+      detail,
+    }
+  }
+
+  if (type === 'StripeInvalidRequestError') {
+    if (/no such account|destination|connected account|account.*invalid/i.test(detail)) {
+      return {
+        status: 400,
+        message: 'Trainer payment account needs reconnection before checkout can continue',
+        detail,
+      }
+    }
+
+    return {
+      status: 400,
+      message: fallbackMessage,
+      detail,
+    }
+  }
+
+  return {
+    status: 502,
+    message: fallbackMessage,
+    detail,
+  }
+}
+
 export async function createConnectedAccount(trainerId: string, email: string) {
   const account = await stripe.accounts.create({
     type: 'express',
@@ -42,6 +93,11 @@ export async function createAccountLink(accountId: string, returnUrl: string, re
     refresh_url: refreshUrl,
     type: 'account_onboarding',
   })
+  return link
+}
+
+export async function createDashboardLink(accountId: string) {
+  const link = await stripe.accounts.createLoginLink(accountId)
   return link
 }
 

@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
+import { toAbsoluteAppUrl } from '@/lib/app-url'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getServerSession(authOptions)
-  const getRedirectUrl = (path: string) => new URL(path, req.url)
 
   if (!session) {
-    return NextResponse.redirect(getRedirectUrl('/auth/signin'))
+    return NextResponse.redirect(toAbsoluteAppUrl('/auth/signin'))
   }
 
   const role = (session.user as any)?.role
   if (role === 'TRAINER') {
-    return NextResponse.redirect(getRedirectUrl('/trainer/dashboard'))
+    return NextResponse.redirect(toAbsoluteAppUrl('/trainer/dashboard'))
   }
   if (role === 'ADMIN') {
-    return NextResponse.redirect(getRedirectUrl('/admin'))
+    return NextResponse.redirect(toAbsoluteAppUrl('/admin'))
   }
-  return NextResponse.redirect(getRedirectUrl('/parent/dashboard'))
+  return NextResponse.redirect(toAbsoluteAppUrl('/parent/dashboard'))
 }

@@ -21,7 +21,13 @@ interface Booking {
   notes: string | null
   payment?: { status: string } | null
   serviceOffering: { title: string; durationMinutes: number }
-  trainerProfile: { firstName: string; lastName: string; sports: { sport: { name: string; icon: string | null } }[] }
+  trainerProfile: {
+    firstName: string
+    lastName: string
+    stripeAccountId: string | null
+    stripeOnboardingComplete: boolean
+    sports: { sport: { name: string; icon: string | null } }[]
+  }
   athleteProfile: { firstName: string; lastName: string }
   review: { id: string } | null
 }
@@ -31,6 +37,10 @@ interface Athlete {
   firstName: string
   lastName: string
   sports: { sport: { name: string } }[]
+}
+
+function isTrainerPaymentReady(booking: Booking) {
+  return Boolean(booking.trainerProfile.stripeAccountId) && booking.trainerProfile.stripeOnboardingComplete
 }
 
 export default function ParentDashboard() {
@@ -191,9 +201,20 @@ export default function ParentDashboard() {
                         <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
                         {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">Awaiting trainer confirmation</div>}
                         {b.status === 'CONFIRMED' && b.payment?.status !== 'SUCCEEDED' && (
-                          <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={startingCheckoutId === b.id}>
-                            {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
-                          </Button>
+                          isTrainerPaymentReady(b) ? (
+                            <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={startingCheckoutId === b.id}>
+                              {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
+                            </Button>
+                          ) : (
+                            <div className="mt-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                              Trainer payment setup pending
+                            </div>
+                          )
+                        )}
+                        {b.status === 'CONFIRMED' && b.payment?.status !== 'SUCCEEDED' && !isTrainerPaymentReady(b) && (
+                          <div className="mt-2 text-xs text-amber-200">
+                            This trainer must finish Stripe setup before payment can be collected.
+                          </div>
                         )}
                         {b.payment?.status === 'SUCCEEDED' && <div className="mt-1 text-xs font-medium text-emerald-300">Paid</div>}
                       </div>

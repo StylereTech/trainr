@@ -2,17 +2,35 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { getServerSession as _gss } from "next-auth/next"
+import { headers } from 'next/headers'
+
+const authDebugEnabled = process.env.AUTH_DEBUG === 'true'
+
+function authDebug(event: string, meta: Record<string, unknown>) {
+  if (!authDebugEnabled) return
+  console.log('[auth-debug]', JSON.stringify({ event, ...meta }))
+}
 
 export const authOptions: any = {
   providers: [
     CredentialsProvider({
+      id: 'credentials',
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials: any) {
-        if (!credentials?.email || !credentials?.password) return null
+        authDebug('authorize:start', {
+          provider: 'credentials',
+          hasEmail: !!credentials?.email,
+          hasPassword: !!credentials?.password,
+        })
+
+        if (!credentials?.email || !credentials?.password) {
+          authDebug('authorize:missing-credentials', { provider: 'credentials' })
+          return null
+        }
 
         const user: any = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
@@ -22,10 +40,18 @@ export const authOptions: any = {
           },
         })
 
-        if (!user?.passwordHash) return null
+        if (!user?.passwordHash) {
+          authDebug('authorize:user-not-found-or-no-password', { provider: 'credentials' })
+          return null
+        }
 
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash)
-        if (!isValid) return null
+        if (!isValid) {
+          authDebug('authorize:invalid-password', { provider: 'credentials', userId: user.id, role: user.role })
+          return null
+        }
+
+        authDebug('authorize:success', { provider: 'credentials', userId: user.id, role: user.role })
 
         return {
           id: user.id,
@@ -37,12 +63,27 @@ export const authOptions: any = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
+    async signIn({ user, account }: any) {
+      authDebug('callback:signIn', {
+        provider: account?.provider,
+        userId: user?.id ?? null,
+        role: user?.role ?? null,
+        allowed: !!user,
+      })
+      return true
+    },
+    async jwt({ token, user, account }: any) {
       if (user) {
         token.sub = user.id
         token.role = user.role
         token.profileId = user.profileId ?? null
       }
+      authDebug('callback:jwt', {
+        provider: account?.provider ?? null,
+        tokenSub: token?.sub ?? null,
+        role: token?.role ?? null,
+        hasProfileId: token?.profileId != null,
+      })
       return token
     },
     async session({ session, token }: any) {
@@ -51,15 +92,26 @@ export const authOptions: any = {
         ;(session.user as any).role = token.role
         ;(session.user as any).profileId = token.profileId ?? null
       }
+      authDebug('callback:session', {
+        sessionUserId: session?.user?.id ?? null,
+        role: (session?.user as any)?.role ?? null,
+        hasProfileId: (session?.user as any)?.profileId != null,
+      })
       return session
     },
-  },
-  events: {
-    async signIn({ user }: any) {
-      // Role cookie is set via the session callback response headers
-      // This is handled by the middleware reading the JWT
+    async redirect({ url, baseUrl }: any) {
+      const safeTarget = url?.startsWith('/') ? `${baseUrl}${url}` : url
+      authDebug('callback:redirect', {
+        url,
+        baseUrl,
+        safeTarget,
+      })
+      if (url?.startsWith('/')) return `${baseUrl}${url}`
+      if (url?.startsWith(baseUrl)) return url
+      return baseUrl
     },
   },
+  debug: authDebugEnabled,
   pages: { signIn: "/auth/signin" },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   secret: process.env.NEXTAUTH_SECRET,
@@ -67,5 +119,13 @@ export const authOptions: any = {
 
 // Accept authOptions param (ignored) so callers don't need to change
 export async function getServerSession(_opts?: any): Promise<any> {
+  const headerStore = await headers()
+  const host = headerStore.get('x-forwarded-host') || headerStore.get('host')
+  const proto = headerStore.get('x-forwarded-proto') || 'http'
+
+  if (host) {
+    process.env.NEXTAUTH_URL = `${proto}://${host}`
+  }
+
   return _gss(authOptions)
 }
