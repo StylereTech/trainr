@@ -133,7 +133,6 @@ export async function getServerSession(_opts?: any): Promise<any> {
 
 export async function getRequestUser(req: NextRequest) {
   const jwtModule = await import('next-auth/jwt') as any
-  const cookieNames = req.cookies.getAll().map((cookie) => cookie.name)
 
   let token = await jwtModule.getToken({
     req,
@@ -153,8 +152,6 @@ export async function getRequestUser(req: NextRequest) {
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
     const proto = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
     const cookieHeader = req.cookies.getAll().map((cookie) => `${cookie.name}=${cookie.value}`).join('; ') || req.headers.get('cookie')
-    let fallbackStatus: number | null = null
-    let fallbackUser = false
 
     if (host && cookieHeader) {
       try {
@@ -162,12 +159,10 @@ export async function getRequestUser(req: NextRequest) {
           headers: { cookie: cookieHeader },
           cache: 'no-store',
         })
-        fallbackStatus = res.status
 
         if (res.ok) {
           const session = await res.json()
           if (session?.user?.id) {
-            fallbackUser = true
             return {
               id: String(session.user.id),
               role: session.user.role ? String(session.user.role) : undefined,
@@ -181,27 +176,8 @@ export async function getRequestUser(req: NextRequest) {
       }
     }
 
-    console.log('[auth-route-debug]', JSON.stringify({
-      path: req.nextUrl.pathname,
-      host,
-      hasSecret: Boolean(process.env.NEXTAUTH_SECRET),
-      cookieNames,
-      secureToken: false,
-      plainToken: false,
-      fallbackStatus,
-      fallbackUser,
-    }))
-
     return null
   }
-
-  console.log('[auth-route-debug]', JSON.stringify({
-    path: req.nextUrl.pathname,
-    hasSecret: Boolean(process.env.NEXTAUTH_SECRET),
-    cookieNames,
-    secureToken: true,
-    plainToken: false,
-  }))
 
   return {
     id: String(token.sub),

@@ -33,7 +33,6 @@ const PUBLIC_PATHS = [
   '/legal',
   '/auth',
   '/api/auth',
-  '/api/debug',
   '/api/bookings',
   '/api/payments/connect',
   '/api/payments/checkout',
