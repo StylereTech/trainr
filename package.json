@@ -7,14 +7,17 @@
     "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "BASE_URL=https://trainr.cc playwright test e2e/role-boundaries.spec.ts --project=chromium",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "db:check": "node scripts/db-check.mjs",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio",
-    "test": "vitest",
-    "test:e2e": "playwright test"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

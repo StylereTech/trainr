@@ -1,29 +1,26 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test'
 
-const BASE_URL = process.env.BASE_URL || 'https://trainr-seven.vercel.app';
+const BASE_URL = process.env.BASE_URL || 'https://trainr.cc'
 
 export default defineConfig({
   testDir: './e2e',
+  timeout: 30_000,
+  expect: {
+    timeout: 10_000,
+  },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
-    ['html', { open: 'never', outputFolder: 'e2e-report' }],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
-  timeout: 30000,
-  expect: { timeout: 10000 },
   use: {
     baseURL: BASE_URL,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 10000,
-    launchOptions: {
-      executablePath: '/usr/bin/google-chrome',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-    },
   },
   projects: [
     {
@@ -31,4 +28,4 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-});
+})

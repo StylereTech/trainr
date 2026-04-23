@@ -27,27 +27,18 @@ export const TEST_ACCOUNTS = {
  * Uses the signin page form, not API calls, to test real browser flow.
  */
 export async function loginAs(page: Page, role: 'parent' | 'trainer' | 'admin') {
-  const account = TEST_ACCOUNTS[role];
-  await page.goto('/auth/signin');
-  await page.waitForLoadState('networkidle');
+  const account = TEST_ACCOUNTS[role]
+  await page.goto('/auth/signin')
+  await page.waitForLoadState('networkidle')
 
-  // Find and fill email
-  const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="mail"]').first();
-  await emailInput.fill(account.email);
+  await page.getByLabel(/email/i).fill(account.email)
+  await page.getByLabel(/password/i).fill(account.password)
 
-  // Find and fill password
-  const passwordInput = page.locator('input[type="password"]').first();
-  await passwordInput.fill(account.password);
-
-  // Submit
-  const submitBtn = page.locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")').first();
-  await submitBtn.click();
-
-  // Wait for redirect after login (dashboard or home)
-  await page.waitForURL(/\/(dashboard|parent|trainer|admin)/, { timeout: 15000 }).catch(() => {
-    // Some roles redirect elsewhere — just wait for navigation away from signin
-    return page.waitForURL(/^(?!.*\/auth\/signin).+$/, { timeout: 5000 });
-  });
+  const submitBtn = page.locator('main button[type="submit"]').first()
+  await Promise.all([
+    page.waitForURL(/^(?!.*\/auth\/signin).+$/, { timeout: 20000 }),
+    submitBtn.click(),
+  ])
 }
 
 /**

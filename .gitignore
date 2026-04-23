@@ -5,10 +5,20 @@
 
 # testing
 /coverage
+/playwright-report/
+/e2e-report/
+/test-results/
 
 # next.js
 /.next/
 /out/
+/tsconfig.tsbuildinfo
+
+# local temp probes
+/tmp_*.js
+
+# vercel
+/.vercel/
 
 # production
 /build

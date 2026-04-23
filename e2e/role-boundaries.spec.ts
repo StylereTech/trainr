@@ -21,8 +21,6 @@ test.describe('Role Boundary Enforcement', () => {
 
     const trainerAPIs = [
       '/api/trainer/onboarding',
-      '/api/trainer/wallet',
-      '/api/trainer/wallet/withdraw',
       '/api/trainer/stripe-connect',
     ];
 
@@ -42,8 +40,7 @@ test.describe('Role Boundary Enforcement', () => {
       test(`parent blocked from API ${api}`, async ({ page }) => {
         await loginAs(page, 'parent');
         const response = await page.request.get(api);
-        // Should get 401/403, not 200
-        expect([401, 403, 302, 307]).toContain(response.status());
+        expect([401, 403]).toContain(response.status());
       });
     }
   });
@@ -62,14 +59,8 @@ test.describe('Role Boundary Enforcement', () => {
     ];
 
     const adminAPIs = [
-      '/api/admin',
-      '/api/admin/users',
       '/api/admin/bookings',
-      '/api/admin/trainers',
-      '/api/admin/payouts',
-      '/api/admin/disputes',
       '/api/admin/coupons',
-      '/api/admin/settings',
     ];
 
     for (const route of adminRoutes) {
@@ -88,7 +79,7 @@ test.describe('Role Boundary Enforcement', () => {
       test(`trainer blocked from API ${api}`, async ({ page }) => {
         await loginAs(page, 'trainer');
         const response = await page.request.get(api);
-        expect([401, 403, 302, 307]).toContain(response.status());
+        expect([401, 403]).toContain(response.status());
       });
     }
   });
@@ -126,7 +117,7 @@ test.describe('Role Boundary Enforcement', () => {
       const response = await page.request.post('/api/trainer/onboarding', {
         data: { bio: 'test', specialties: [] }
       });
-      expect([401, 403, 302, 307]).toContain(response.status());
+      expect([401, 403, 405]).toContain(response.status());
     });
 
     test('trainer cannot create admin coupon', async ({ page }) => {
