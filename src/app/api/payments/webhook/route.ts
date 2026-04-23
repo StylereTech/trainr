@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
         await prisma.payment.upsert({
           where: { bookingId },
           update: {
+            stripeCheckoutSessionId: session.id,
             stripePaymentIntentId: paymentIntentId,
             status: 'SUCCEEDED',
             platformFeeInCents: platformFee,
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
           },
           create: {
             bookingId,
+            stripeCheckoutSessionId: session.id,
             stripePaymentIntentId: paymentIntentId,
             amountInCents: booking.totalAmountInCents,
             platformFeeInCents: platformFee,

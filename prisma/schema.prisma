@@ -366,20 +366,21 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                  String   @id @default(cuid())
-  bookingId           String   @unique
+  id                    String        @id @default(cuid())
+  bookingId             String        @unique
+  stripeCheckoutSessionId String?     @unique
   stripePaymentIntentId String?
-  stripeChargeId      String?
-  stripeTransferId    String?
-  amountInCents       Int
-  platformFeeInCents  Int
-  trainerPayoutInCents Int
-  processingFeeInCents Int    @default(0)
-  status              PaymentStatus @default(PENDING)
-  refundAmountInCents Int      @default(0)
-  refundReason        String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  stripeChargeId        String?
+  stripeTransferId      String?
+  amountInCents         Int
+  platformFeeInCents    Int
+  trainerPayoutInCents  Int
+  processingFeeInCents  Int           @default(0)
+  status                PaymentStatus @default(PENDING)
+  refundAmountInCents   Int           @default(0)
+  refundReason          String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
