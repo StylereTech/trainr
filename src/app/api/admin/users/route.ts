@@ -34,14 +34,31 @@ export async function GET(req: NextRequest) {
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        image: true,
+        createdAt: true,
+        updatedAt: true,
+        emailVerified: true,
         parentProfile: {
-          include: {
+          select: {
+            id: true,
+            phone: true,
+            city: true,
+            state: true,
+            zipCode: true,
             _count: { select: { athletes: true, bookings: true } },
           },
         },
         trainerProfile: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            approvalStatus: true,
+            isActive: true,
             sports: { include: { sport: true } },
             _count: { select: { bookings: true, reviews: true } },
           },
@@ -81,7 +98,19 @@ export async function PATCH(req: NextRequest) {
       const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } })
       if (adminCount <= 1) return NextResponse.json({ error: 'Cannot remove the last admin' }, { status: 400 })
     }
-    const updated = await prisma.user.update({ where: { id: userId }, data: { role } })
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { role },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        image: true,
+        createdAt: true,
+        updatedAt: true,
+        emailVerified: true,
+      },
+    })
     await prisma.adminAction.create({
       data: {
         adminUserId,

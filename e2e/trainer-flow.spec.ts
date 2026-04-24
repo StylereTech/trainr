@@ -39,10 +39,9 @@ test.describe('Trainer (Owner) Flow', () => {
       await page.goto('/trainer/onboarding');
       await page.waitForLoadState('networkidle');
       
-      // Look for typical trainer onboarding fields
-      const formElements = page.locator('input, select, textarea, form');
-      const count = await formElements.count();
-      expect(count).toBeGreaterThan(0);
+      // Step 1 is button-based sport selection, then later steps expose text inputs.
+      await expect(page.locator('main').getByRole('heading', { name: /sports/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /football/i })).toBeVisible();
     });
   });
 

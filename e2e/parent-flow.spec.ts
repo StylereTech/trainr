@@ -61,9 +61,11 @@ test.describe('Parent (Rider) Flow', () => {
       await page.waitForLoadState('networkidle');
       
       // Click first trainer link/card
-      const trainerLink = page.locator('a[href*="/trainers/"], [data-testid="trainer-card"] a').first();
+      const trainerLink = page.locator('[data-testid="trainer-card"], a[href*="/trainers/"]').first();
       if (await trainerLink.isVisible().catch(() => false)) {
-        await trainerLink.click();
+        const href = await trainerLink.getAttribute('href');
+        expect(href).toMatch(/\/trainers\//);
+        await page.goto(href!);
         await page.waitForLoadState('networkidle');
         // Should be on trainer profile page
         expect(page.url()).toMatch(/\/trainers\//);

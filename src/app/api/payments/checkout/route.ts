@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (booking.status !== 'CONFIRMED') {
-      return NextResponse.json({ error: 'Booking must be confirmed before payment' }, { status: 400 })
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      return NextResponse.json({ error: 'Booking cannot be paid in its current state' }, { status: 400 })
     }
 
     if (!booking.trainerProfile) {
