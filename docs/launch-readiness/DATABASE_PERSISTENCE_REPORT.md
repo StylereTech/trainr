@@ -2,7 +2,7 @@
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles
 - Environment tested: live production `https://trainr.cc`, local shell
-- Commit SHA tested: baseline `c2fafe98bd28cd72abcb88bab9b0b5202eeb494a`; post-audit fixes pending publish
+- Commit SHA tested: final pushed commit `71edba76ac7070856ab5a1cffed0b40c9ea8a652`
 - Accounts used: parent `jennifer.davis@email.com`, admin `admin@trainr.app`
 
 ## Routes And Endpoints Tested

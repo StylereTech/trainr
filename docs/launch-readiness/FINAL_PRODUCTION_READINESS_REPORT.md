@@ -3,6 +3,7 @@
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles
 - Environment tested: live production `https://trainr.cc`, local post-fix build
 - Baseline commit SHA: `c2fafe98bd28cd72abcb88bab9b0b5202eeb494a`
+- Final pushed commit SHA: `71edba76ac7070856ab5a1cffed0b40c9ea8a652`
 - Accounts used: parent `jennifer.davis@email.com`, trainer `marcus.johnson@email.com`, admin `admin@trainr.app`
 
 ## Baseline Truth
