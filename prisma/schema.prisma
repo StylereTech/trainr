@@ -120,8 +120,35 @@ model TrainerProfile {
   assets          UploadedAsset[]
   favorites       Favorite[]
   wallet          TrainerWallet?
+  phoneLeads      TrainerPhoneLead[]
 
   @@map("trainer_profiles")
+}
+
+model TrainerPhoneLead {
+  id                 String   @id @default(cuid())
+  twilioCallSid      String?  @unique
+  callerPhone        String?
+  status             String   @default("in_progress")
+  trainerProfileId   String?
+  recordingConsent   Boolean  @default(true)
+  aiDisclosureGiven  Boolean  @default(true)
+  smsConsent         Boolean  @default(true)
+  trainerIdentity    Json     @default("{}")
+  trainingProfile    Json     @default("{}")
+  businessOperations Json     @default("{}")
+  salesStatus        Json     @default("{}")
+  callMetadata       Json     @default("{}")
+  transcript         Json?
+  summary            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  trainerProfile TrainerProfile? @relation(fields: [trainerProfileId], references: [id], onDelete: SetNull)
+
+  @@index([callerPhone])
+  @@index([status])
+  @@map("trainer_phone_leads")
 }
 
 model AthleteProfile {

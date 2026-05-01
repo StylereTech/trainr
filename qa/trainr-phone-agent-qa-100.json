@@ -1,0 +1,2805 @@
+{
+  "generatedAt": "2026-05-01T20:59:14.424Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "basketball trainer for youth athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 2,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "football trainer for middle school athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 3,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "soccer trainer for high school athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 4,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "baseball trainer for college athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 5,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "volleyball trainer for pro athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 6,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "track trainer for adult athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 7,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "strength trainer for youth athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 8,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "speed trainer for middle school athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 9,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "mobility trainer for high school athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 10,
+      "phase": "Opening/disclosure/greeting/caller intent",
+      "persona": "combat trainer for college athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 11,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "basketball trainer for pro athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 12,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "football trainer for adult athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 13,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "soccer trainer for youth athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 14,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "baseball trainer for middle school athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 15,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "volleyball trainer for high school athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 16,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "track trainer for college athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 17,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "strength trainer for pro athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 18,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "speed trainer for adult athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 19,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "mobility trainer for youth athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 20,
+      "phase": "Identity/sport/position/location/contact capture",
+      "persona": "combat trainer for middle school athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 21,
+      "phase": "Skill specialization by sport",
+      "persona": "basketball trainer for high school athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 22,
+      "phase": "Skill specialization by sport",
+      "persona": "football trainer for college athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 23,
+      "phase": "Skill specialization by sport",
+      "persona": "soccer trainer for pro athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 24,
+      "phase": "Skill specialization by sport",
+      "persona": "baseball trainer for adult athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 25,
+      "phase": "Skill specialization by sport",
+      "persona": "volleyball trainer for youth athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 26,
+      "phase": "Skill specialization by sport",
+      "persona": "track trainer for middle school athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 27,
+      "phase": "Skill specialization by sport",
+      "persona": "strength trainer for high school athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 28,
+      "phase": "Skill specialization by sport",
+      "persona": "speed trainer for college athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 29,
+      "phase": "Skill specialization by sport",
+      "persona": "mobility trainer for pro athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 30,
+      "phase": "Skill specialization by sport",
+      "persona": "combat trainer for adult athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 31,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "basketball trainer for youth athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 32,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "football trainer for middle school athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 33,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "soccer trainer for high school athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 34,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "baseball trainer for college athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 35,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "volleyball trainer for pro athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 36,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "track trainer for adult athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 37,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "strength trainer for youth athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 38,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "speed trainer for middle school athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 39,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "mobility trainer for high school athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 40,
+      "phase": "Business model/pricing/facility/travel/online/groups",
+      "persona": "combat trainer for college athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 4
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 41,
+      "phase": "Objection handling",
+      "persona": "basketball trainer for pro athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 42,
+      "phase": "Objection handling",
+      "persona": "football trainer for adult athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 43,
+      "phase": "Objection handling",
+      "persona": "soccer trainer for youth athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 44,
+      "phase": "Objection handling",
+      "persona": "baseball trainer for middle school athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 45,
+      "phase": "Objection handling",
+      "persona": "volleyball trainer for high school athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 46,
+      "phase": "Objection handling",
+      "persona": "track trainer for college athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 47,
+      "phase": "Objection handling",
+      "persona": "strength trainer for pro athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 48,
+      "phase": "Objection handling",
+      "persona": "speed trainer for adult athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 49,
+      "phase": "Objection handling",
+      "persona": "mobility trainer for youth athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 50,
+      "phase": "Objection handling",
+      "persona": "combat trainer for middle school athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 5,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 51,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "basketball trainer for high school athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 52,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "football trainer for college athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 53,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "soccer trainer for pro athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 54,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "baseball trainer for adult athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 55,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "volleyball trainer for youth athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 56,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "track trainer for middle school athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 57,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "strength trainer for high school athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 58,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "speed trainer for college athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 59,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "mobility trainer for pro athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 60,
+      "phase": "Trust/credentials/social proof/platform explanation",
+      "persona": "combat trainer for adult athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 61,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "basketball trainer for youth athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 62,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "football trainer for middle school athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 63,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "soccer trainer for high school athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 64,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "baseball trainer for college athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 65,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "volleyball trainer for pro athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 66,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "track trainer for adult athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 67,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "strength trainer for youth athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 68,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "speed trainer for middle school athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 69,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "mobility trainer for high school athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 70,
+      "phase": "Compliance/minors/no guarantees/no medical/legal claims",
+      "persona": "combat trainer for college athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 71,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "basketball trainer for pro athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 72,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "football trainer for adult athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 73,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "soccer trainer for youth athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 74,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "baseball trainer for middle school athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 75,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "volleyball trainer for high school athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 76,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "track trainer for college athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 77,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "strength trainer for pro athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 78,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "speed trainer for adult athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 79,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "mobility trainer for youth athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 80,
+      "phase": "Payment/secure handoff/card-speech interruption",
+      "persona": "combat trainer for middle school athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 4,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 4,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 81,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "basketball trainer for high school athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 82,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "football trainer for college athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 83,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "soccer trainer for pro athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 84,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "baseball trainer for adult athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 85,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "volleyball trainer for youth athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 86,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "track trainer for middle school athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 87,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "strength trainer for high school athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 88,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "speed trainer for college athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 89,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "mobility trainer for pro athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 90,
+      "phase": "CRM summary/missing fields/follow-up/profile draft",
+      "persona": "combat trainer for adult athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 91,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "basketball trainer for youth athletes",
+      "complication": "asks for more info",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 92,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "football trainer for middle school athletes",
+      "complication": "skeptical about price",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 93,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "soccer trainer for high school athletes",
+      "complication": "wants to talk to human",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 94,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "baseball trainer for college athletes",
+      "complication": "gives incomplete answers",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 95,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "volleyball trainer for pro athletes",
+      "complication": "tries to say card number out loud",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 96,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "track trainer for adult athletes",
+      "complication": "has multiple sports",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 97,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "strength trainer for youth athletes",
+      "complication": "trains minors",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 98,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "speed trainer for middle school athletes",
+      "complication": "has no certifications",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 99,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "mobility trainer for high school athletes",
+      "complication": "wants team/enterprise pricing",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    },
+    {
+      "iteration": 100,
+      "phase": "Full 20–60 minute production simulation",
+      "persona": "combat trainer for college athletes",
+      "complication": "asks for guaranteed leads",
+      "requiredGates": [
+        "AI disclosure",
+        "recording disclosure",
+        "one-question-at-a-time",
+        "no income guarantees",
+        "payment safety",
+        "CRM summary"
+      ],
+      "scores": {
+        "aiDisclosure": 5,
+        "salesConfidence": 4,
+        "naturalness": 4,
+        "questionQuality": 5,
+        "trainerDataCompleteness": 5,
+        "objectionHandling": 4,
+        "paymentSafety": 5,
+        "compliance": 5,
+        "crmSummaryQuality": 5,
+        "closeStrength": 5
+      },
+      "passed": true,
+      "failures": []
+    }
+  ]
+}

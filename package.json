@@ -18,7 +18,9 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "verify:prod": "node scripts/verify-prod-env.mjs && npm run db:check"
+    "verify:prod": "node scripts/verify-prod-env.mjs && npm run db:check",
+    "trainr:phone:qa": "node scripts/trainr-phone-agent-qa.mjs",
+    "trainr:phone:number": "node scripts/trainr-buy-number.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
