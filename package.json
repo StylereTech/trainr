@@ -20,7 +20,9 @@
     "db:studio": "prisma studio",
     "verify:prod": "node scripts/verify-prod-env.mjs && npm run db:check",
     "trainr:phone:qa": "node scripts/trainr-phone-agent-qa.mjs",
-    "trainr:phone:number": "node scripts/trainr-buy-number.mjs"
+    "trainr:phone:number": "node scripts/trainr-buy-number.mjs",
+    "trainr:voice-service:check": "npm --prefix services/trainr-jordan-voice-service run check",
+    "trainr:voice-service:start": "npm --prefix services/trainr-jordan-voice-service start"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

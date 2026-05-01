@@ -1,0 +1,21 @@
+name: Deploy Trainr Jordan Voice Service to Fly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-trainr-jordan-voice
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: services/trainr-jordan-voice-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy Trainr Jordan voice service
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only

@@ -1,0 +1,23 @@
+{
+  "name": "trainr-jordan-voice-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Persistent Twilio/OpenAI Realtime WebSocket voice service for Trainr's Jordan sales onboarding agent.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node --check src/server.js && node --test test/*.test.js",
+    "smoke:prompt": "node scripts/print-jordan-prompt.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "twilio": "^5.4.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {}
+}

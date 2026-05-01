@@ -45,3 +45,26 @@ TRAINR_AREA_CODE=214 node scripts/trainr-buy-number.mjs --buy
 
 ## Next production step
 Vercel/Next routes can return TwiML and handle tools, but production real-time WebSocket voice should run on a long-lived Node service if ConversationRelay/OpenAI Realtime requires persistent sockets. Point `TRAINR_VOICE_WS_URL` to that service.
+
+## Persistent WebSocket service package
+Ry provided a Trainr Jordan voice-service package on May 1. It has been integrated under:
+
+```text
+services/trainr-jordan-voice-service/
+```
+
+Local verification:
+
+```bash
+cd services/trainr-jordan-voice-service
+npm install
+npm run check
+```
+
+The service exposes:
+- `POST /voice/trainr/twiml` — Twilio Media Streams TwiML.
+- `WS /voice/trainr/realtime` — persistent Twilio Media Streams ↔ OpenAI Realtime bridge.
+- `POST /voice/trainr/payment-twiml` — Twilio Pay handoff.
+- `WS /voice/trainr/conversation-relay` — optional ConversationRelay fallback.
+
+Deployment is intentionally manual via `.github/workflows/deploy-trainr-jordan-voice-service.yml` so we do not overwrite the existing Clawtronics/Las Palmas phone app by accident.

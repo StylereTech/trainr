@@ -1,0 +1,27 @@
+app = "trainr-jordan-voice-service"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  OPENAI_REALTIME_MODEL = "gpt-realtime"
+  OPENAI_REALTIME_VOICE = "marin"
+  TRAINR_DEFAULT_PLAN_ID = "trainr_onboarding"
+  TRAINR_DEFAULT_PLAN_AMOUNT = "149.00"
+  TRAINR_CURRENCY = "USD"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
