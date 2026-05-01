@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { log } from '../lib/logger.js';
 import { buildJordanPrompt } from '../agent/jordanPrompt.js';
 import { appendTranscript, persistSession, upsertSession } from '../agent/sessionStore.js';
+import { socketClosed, socketOpened } from '../lib/metrics.js';
 
 function parseJson(raw) {
   try { return JSON.parse(raw.toString()); } catch { return null; }
@@ -64,7 +65,9 @@ export function attachConversationRelaySocket(ws, req) {
     history: [],
   };
 
+  const connectedAt = Date.now();
   log.info('ConversationRelay socket connected', { ip: req.socket.remoteAddress });
+  socketOpened('twilio_conversation_relay');
 
   ws.on('message', async (raw) => {
     const msg = parseJson(raw);
@@ -115,6 +118,7 @@ export function attachConversationRelaySocket(ws, req) {
   });
 
   ws.on('close', async () => {
+    socketClosed('twilio_conversation_relay', 'close', Date.now() - connectedAt);
     if (context.callSid) await persistSession(context.callSid, 'conversation_relay_close').catch(() => null);
   });
 

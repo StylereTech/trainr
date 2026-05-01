@@ -1,9 +1,12 @@
 import http from 'node:http';
 import express from 'express';
+import helmet from 'helmet';
 import { WebSocketServer } from 'ws';
 import { config, assertRuntimeConfig } from './config.js';
 import { log } from './lib/logger.js';
 import { validateTwilioSignature, validateTwilioUpgrade } from './lib/twilioSecurity.js';
+import { trainrVoiceRateLimit } from './lib/rateLimit.js';
+import { metricsContentType, metricsText } from './lib/metrics.js';
 import { registerTwimlRoutes } from './routes/twiml.js';
 import { registerPaymentRoutes } from './routes/payment.js';
 import { attachTwilioRealtimeSocket } from './ws/openaiRealtimeBridge.js';
@@ -15,8 +18,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 const app = express();
 app.set('trust proxy', true);
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ limit: '1mb' }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.urlencoded({ extended: false, limit: '64kb' }));
+app.use(express.json({ limit: '64kb' }));
 
 app.get('/', (_req, res) => {
   res.json({
@@ -31,7 +35,28 @@ app.get('/healthz', (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
 
+app.get('/health/live', (_req, res) => {
+  res.json({ ok: true, live: true, ts: new Date().toISOString() });
+});
+
+app.get('/health/ready', (_req, res) => {
+  const checks = {
+    publicBaseUrl: Boolean(config.publicBaseUrl),
+    openai: Boolean(config.openaiApiKey),
+    twilioAuth: Boolean(config.twilioAuthToken || !config.twilioValidateSignatures),
+    crmTool: Boolean(config.trainrCrmToolUrl || config.trainrCrmBaseUrl),
+  };
+  const ready = Object.values(checks).every(Boolean);
+  res.status(ready ? 200 : 503).json({ ok: ready, ready, checks, ts: new Date().toISOString() });
+});
+
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', metricsContentType());
+  res.send(await metricsText());
+});
+
 app.use('/voice/trainr', validateTwilioSignature);
+app.use('/voice/trainr', trainrVoiceRateLimit);
 registerTwimlRoutes(app);
 registerPaymentRoutes(app);
 
@@ -68,6 +93,17 @@ server.on('upgrade', (req, socket, head) => {
 
   socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
   socket.destroy();
+});
+
+app.use((err, req, res, next) => {
+  log.error('Unhandled HTTP error', {
+    path: req.path,
+    method: req.method,
+    error: err?.message || String(err),
+    stack: config.nodeEnv === 'development' ? err?.stack : undefined,
+  });
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 server.listen(config.port, () => {

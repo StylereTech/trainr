@@ -3,6 +3,7 @@ import { config, urls } from '../config.js';
 import { postJson } from '../lib/httpJson.js';
 import { log } from '../lib/logger.js';
 import { appendToolEvent, persistSession, upsertSession, getSession, deepMerge } from './sessionStore.js';
+import { recordToolCall } from '../lib/metrics.js';
 
 function crmHeaders() {
   const headers = {};
@@ -84,6 +85,7 @@ export async function executeTrainrTool(name, rawArgs = {}, context = {}) {
     log.error('Tool execution failed', { name, callSid, args, error: error.message });
   }
 
+  recordToolCall(name, Boolean(result?.ok));
   appendToolEvent(callSid, name, args, result);
   return result;
 }

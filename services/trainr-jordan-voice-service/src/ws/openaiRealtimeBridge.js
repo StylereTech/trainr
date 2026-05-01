@@ -6,6 +6,7 @@ import { trainrToolSchemas } from '../agent/toolSchemas.js';
 import { executeTrainrTool } from '../agent/tools.js';
 import { appendTranscript, persistSession, upsertSession } from '../agent/sessionStore.js';
 import { ensureFinalSummary } from '../agent/summary.js';
+import { socketClosed, socketOpened } from '../lib/metrics.js';
 
 function parseJson(raw) {
   try {
@@ -120,9 +121,11 @@ export function attachTwilioRealtimeSocket(twilioWs, req) {
     connectedAt: Date.now(),
     openaiReady: false,
     openaiWs: null,
+    cleanedUp: false,
   };
 
   log.info('Twilio realtime socket connected', { ip: req.socket.remoteAddress });
+  socketOpened(context.transport);
 
   const heartbeat = setInterval(() => {
     try {
@@ -401,8 +404,11 @@ export function attachTwilioRealtimeSocket(twilioWs, req) {
   }
 
   async function cleanup(reason) {
+    if (context.cleanedUp) return;
+    context.cleanedUp = true;
     clearInterval(heartbeat);
     clearTimeout(maxCallTimer);
+    socketClosed(context.transport, reason, Date.now() - context.connectedAt);
     if (context.callSid) {
       upsertSession(context.callSid, { closed_at: new Date().toISOString(), close_reason: reason });
       await ensureFinalSummary(context.callSid, reason).catch((error) => log.warn('summary on cleanup failed', { error: error.message }));

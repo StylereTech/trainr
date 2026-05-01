@@ -1,5 +1,6 @@
 import { config, urls } from '../config.js';
 import { escapeXml, twiml } from '../lib/xml.js';
+import { restoreCachedTwilioXml, sendAndCacheTwilioXml } from '../lib/requestStore.js';
 import { upsertSession } from '../agent/sessionStore.js';
 
 function streamParameter(name, value) {
@@ -8,8 +9,11 @@ function streamParameter(name, value) {
 }
 
 export function registerTwimlRoutes(app) {
-  app.post('/voice/trainr/twiml', (req, res) => {
+  app.post('/voice/trainr/twiml', async (req, res) => {
     const callSid = req.body?.CallSid || req.query?.CallSid || '';
+    const cached = await restoreCachedTwilioXml(req, res, 'trainr_twiml', callSid);
+    if (cached.restored) return;
+
     const from = req.body?.From || req.query?.From || '';
     const to = req.body?.To || req.query?.To || '';
     const resumeReason = req.query?.resume || req.body?.resume || 'new_call';
@@ -37,11 +41,14 @@ export function registerTwimlRoutes(app) {
       <Redirect method="POST">${escapeXml(urls().twiml)}?resume=stream_ended</Redirect>
     `);
 
-    res.type('text/xml').send(xml);
+    await sendAndCacheTwilioXml(req, res, 'trainr_twiml', callSid, xml);
   });
 
-  app.post('/voice/trainr/conversation-relay-twiml', (req, res) => {
+  app.post('/voice/trainr/conversation-relay-twiml', async (req, res) => {
     const callSid = req.body?.CallSid || '';
+    const cached = await restoreCachedTwilioXml(req, res, 'trainr_conversation_relay_twiml', callSid);
+    if (cached.restored) return;
+
     const from = req.body?.From || '';
     if (callSid) upsertSession(callSid, { call_sid: callSid, from, transport: 'conversation_relay' });
 
@@ -60,7 +67,7 @@ export function registerTwimlRoutes(app) {
       </Connect>
     `);
 
-    res.type('text/xml').send(xml);
+    await sendAndCacheTwilioXml(req, res, 'trainr_conversation_relay_twiml', callSid, xml);
   });
 
   app.post('/voice/trainr/stream-status', (req, res) => {

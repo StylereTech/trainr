@@ -1,5 +1,6 @@
 import { config, urls } from '../config.js';
 import { escapeXml, twiml } from '../lib/xml.js';
+import { restoreCachedTwilioXml, sendAndCacheTwilioXml } from '../lib/requestStore.js';
 import { persistSession, upsertSession } from '../agent/sessionStore.js';
 
 function amountFromRequest(req) {
@@ -8,8 +9,11 @@ function amountFromRequest(req) {
 }
 
 export function registerPaymentRoutes(app) {
-  app.post('/voice/trainr/payment-twiml', (req, res) => {
+  app.post('/voice/trainr/payment-twiml', async (req, res) => {
     const callSid = req.body?.CallSid || req.query?.callSid || '';
+    const cached = await restoreCachedTwilioXml(req, res, 'trainr_payment_twiml', callSid);
+    if (cached.restored) return;
+
     const planId = req.query?.planId || req.body?.planId || config.defaultPlanId;
     const amount = amountFromRequest(req);
     const currency = req.query?.currency || req.body?.currency || config.currency;
@@ -36,7 +40,7 @@ export function registerPaymentRoutes(app) {
       <Redirect method="POST">${escapeXml(urls().twiml)}?resume=payment_complete</Redirect>
     `);
 
-    res.type('text/xml').send(xml);
+    await sendAndCacheTwilioXml(req, res, 'trainr_payment_twiml', callSid, xml);
   });
 
   app.post('/voice/trainr/payment-complete', async (req, res) => {
