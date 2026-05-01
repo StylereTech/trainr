@@ -11,8 +11,10 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { TRAINR_LOGO } from '@/lib/trainr-media'
+import { TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 
 function SignUpPage() {
   const router = useRouter()
@@ -27,6 +29,7 @@ function SignUpPage() {
     firstName: '',
     lastName: '',
     phone: '',
+    state: TRAINR_LAUNCH_STATE,
     role: defaultRole as 'PARENT' | 'TRAINER',
     agreeToTerms: false,
   })
@@ -121,6 +124,18 @@ function SignUpPage() {
 
               <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required className="h-12 border-white/10 bg-white text-slate-900" /></div>
               <div className="space-y-2"><Label htmlFor="phone">Phone (optional)</Label><Input id="phone" type="tel" placeholder="(555) 123-4567" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-12 border-white/10 bg-white text-slate-900" /></div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Select value={form.state} onValueChange={(state) => setForm({ ...form, state })}>
+                  <SelectTrigger className="h-12 border-white/10 bg-white text-slate-900"><SelectValue placeholder="Select your state" /></SelectTrigger>
+                  <SelectContent>
+                    {US_STATES.map((state) => (
+                      <SelectItem key={state.code} value={state.code}>{state.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400">We launch in Dallas, Texas first — but every state can join the waitlist/marketplace.</p>
+              </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" type="password" placeholder="Min. 8 characters" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} className="h-12 border-white/10 bg-white text-slate-900" /></div>

@@ -12,6 +12,7 @@ const registerSchema = z.object({
   firstName: z.string().min(1).max(50),
   lastName: z.string().min(1).max(50),
   phone: z.string().optional(),
+  state: z.string().length(2).optional(),
   role: z.enum(['PARENT', 'TRAINER']),
 })
 
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
         parentProfile: data.role === 'PARENT' ? {
           create: {
             phone: data.phone || null,
+            state: data.state || null,
           }
         } : undefined,
         trainerProfile: data.role === 'TRAINER' ? {
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
             lastName: data.lastName,
             slug: slugify(`${data.firstName}-${data.lastName}-${Date.now()}`),
             phone: data.phone || null,
+            state: data.state || null,
           }
         } : undefined,
       },

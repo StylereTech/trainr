@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Image from 'next/image'
 import { SlidersHorizontal, X, MapPin, Loader2, Trophy, Sparkles, ShieldCheck, ArrowRight, Search, Star, CheckCircle2, LayoutGrid } from 'lucide-react'
-import { SPORTS } from '@/lib/utils'
+import { SPORTS, TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 import { getSportImageAlt, getSportImageSrc } from '@/lib/trainr-media'
 
 interface Trainer {
@@ -35,6 +35,7 @@ interface Trainer {
 type FilterState = {
   sport: string
   location: string
+  state: string
   sort: string
   rating: string
   locationType: string
@@ -43,6 +44,7 @@ type FilterState = {
 const initialFilters = (searchParams: URLSearchParams): FilterState => ({
   sport: searchParams.get('sport') || '',
   location: searchParams.get('location') || '',
+  state: searchParams.get('state') || TRAINR_LAUNCH_STATE,
   sort: searchParams.get('sort') || 'rating',
   rating: searchParams.get('rating') || '',
   locationType: searchParams.get('locationType') || '',
@@ -69,6 +71,7 @@ function BrowsePage() {
       const params = new URLSearchParams()
       if (filters.sport) params.set('sport', filters.sport)
       if (filters.location.trim()) params.set('location', filters.location.trim())
+      if (filters.state) params.set('state', filters.state)
       if (filters.sort) params.set('sort', filters.sort)
       if (filters.rating) params.set('rating', filters.rating)
       if (filters.locationType) params.set('locationType', filters.locationType)
@@ -99,11 +102,11 @@ function BrowsePage() {
   }
 
   const clearFilters = () => {
-    setFilters({ sport: '', location: '', sort: 'rating', rating: '', locationType: '' })
+    setFilters({ sport: '', location: '', state: TRAINR_LAUNCH_STATE, sort: 'rating', rating: '', locationType: '' })
     setPage(1)
   }
 
-  const activeFilterCount = [filters.sport, filters.location.trim(), filters.rating, filters.locationType].filter(Boolean).length
+  const activeFilterCount = [filters.sport, filters.location.trim(), filters.state, filters.rating, filters.locationType].filter(Boolean).length
   const featuredCount = trainers.filter((trainer) => trainer.featured).length
   const averageRating = trainers.length > 0 ? (trainers.reduce((sum, trainer) => sum + trainer.avgRating, 0) / trainers.length).toFixed(1) : '0.0'
 
@@ -212,6 +215,20 @@ function BrowsePage() {
             {showFilters && (
               <div className="mt-4 grid grid-cols-1 gap-4 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4 md:grid-cols-2 xl:grid-cols-4">
                 <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-200">State</label>
+                  <Select value={filters.state || 'all'} onValueChange={(v) => updateFilter('state', v)}>
+                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All States" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All States</SelectItem>
+                      {US_STATES.map((state) => (
+                        <SelectItem key={state.code} value={state.code}>{state.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-slate-400">Launch focus: Dallas, Texas. Other states can still be selected.</p>
+                </div>
+
+                <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">Sport</label>
                   <Select value={filters.sport || 'all'} onValueChange={(v) => updateFilter('sport', v)}>
                     <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All Sports" /></SelectTrigger>
@@ -294,7 +311,7 @@ function BrowsePage() {
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400">
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><Sparkles className="h-3.5 w-3.5" /> {featuredCount} featured profiles on this page</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><MapPin className="h-3.5 w-3.5" /> Search by city, state, or zip</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><MapPin className="h-3.5 w-3.5" /> Filter by state, city, or zip</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><Star className="h-3.5 w-3.5" /> Sort defaults to highest rated</span>
             </div>
           </div>
@@ -311,6 +328,12 @@ function BrowsePage() {
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {filters.location}
                   <button onClick={() => updateFilter('location', '')}><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {filters.state && (
+                <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
+                  {US_STATES.find((state) => state.code === filters.state)?.name || filters.state}
+                  <button onClick={() => updateFilter('state', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
               {filters.locationType && (

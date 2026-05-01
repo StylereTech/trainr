@@ -48,6 +48,30 @@ const growthSignals = [
   'No subscription required to apply',
 ]
 
+const trainerPricingPackages = [
+  {
+    name: 'Starter Coach',
+    price: '$0 first month',
+    after: 'Then $29/mo or 15% per booking while beta pricing is active',
+    description: 'Best for trainers who want a polished profile, local discovery, and simple booking without upfront risk.',
+    features: ['Public trainer profile', 'Unlimited service listings', 'Parent inquiries + booking requests', 'Stripe-powered checkout'],
+  },
+  {
+    name: 'Growth Coach',
+    price: '$49/mo',
+    after: 'First month free for launch trainers',
+    description: 'For coaches ready to push packages, reviews, and repeat families harder.',
+    features: ['Everything in Starter', 'Featured placement eligibility', 'Package/session bundle support', 'Priority trainer support'],
+  },
+  {
+    name: 'Team / Academy',
+    price: 'Custom',
+    after: 'Built for multi-coach programs',
+    description: 'For clubs, camps, and training groups that need multiple coaches and higher booking volume.',
+    features: ['Multi-coach setup', 'Camp/package strategy', 'Custom onboarding', 'Launch-market promotion'],
+  },
+]
+
 export default function ForTrainersPage() {
   return (
     <div className="bg-slate-950 text-white">
@@ -61,12 +85,12 @@ export default function ForTrainersPage() {
               <Badge className="mb-4 border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">For Trainers</Badge>
               <h1 className="text-4xl font-bold tracking-[-0.05em] md:text-6xl">A better home for coaches who want serious families.</h1>
               <p className="mt-5 max-w-2xl text-lg text-slate-200 md:text-xl">
-                Set your rates, control your schedule, and let families find you. Trainr handles the booking, payments, and reviews so you can focus on coaching.
+                Set your rates, control your schedule, and let families find you. Trainr handles the booking, payments, and reviews so you can focus on coaching — with your first month free during launch.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <Link href="/auth/signup?role=trainer">
                   <Button size="lg" className="w-full bg-white px-8 font-semibold text-green-800 hover:bg-green-50 sm:w-auto">
-                    Apply Now — It&apos;s Free <ArrowRight className="ml-2 h-4 w-4" />
+                    Claim Your First Free Month <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
                 <Link href="/browse">
@@ -110,6 +134,41 @@ export default function ForTrainersPage() {
                   </div>
                   <h3 className="mb-2 font-semibold">{benefit.title}</h3>
                   <p className="text-sm text-slate-300">{benefit.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-flow py-16 md:py-20">
+        <div className="container">
+          <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-2xl">
+              <Badge className="mb-4 border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">Launch offer</Badge>
+              <h2 className="text-3xl font-bold md:text-4xl">First month free for trainers joining the Dallas launch.</h2>
+              <p className="mt-3 text-slate-300">Start with no upfront subscription pressure. Build your profile, publish your services, and test demand from parents before paying monthly.</p>
+            </div>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-3">
+            {trainerPricingPackages.map((pkg) => (
+              <Card key={pkg.name} className="h-full border-white/10 bg-white/[0.04] text-white shadow-lg">
+                <CardContent className="flex h-full flex-col p-6 md:p-7">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">{pkg.name}</div>
+                  <div className="mt-4 text-3xl font-bold">{pkg.price}</div>
+                  <p className="mt-2 text-sm text-slate-400">{pkg.after}</p>
+                  <p className="mt-5 text-sm leading-6 text-slate-300">{pkg.description}</p>
+                  <div className="mt-6 grid gap-3">
+                    {pkg.features.map((feature) => (
+                      <div key={feature} className="flex items-start gap-3 text-sm text-slate-200">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link href="/auth/signup?role=trainer" className="mt-7">
+                    <Button className="w-full gradient-primary border-0 text-white">Claim first free month <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                  </Link>
                 </CardContent>
               </Card>
             ))}

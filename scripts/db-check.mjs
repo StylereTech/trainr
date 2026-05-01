@@ -54,8 +54,13 @@ function tcpCheck(host, port, timeoutMs = 3000) {
 }
 
 const cwd = process.cwd();
-loadDotEnv(path.join(cwd, '.env'));
-loadDotEnv(path.join(cwd, '.env.local'));
+const productionEnvPath = path.join(cwd, '.env.production.local');
+if (fs.existsSync(productionEnvPath)) {
+  loadDotEnv(productionEnvPath);
+} else {
+  loadDotEnv(path.join(cwd, '.env'));
+  loadDotEnv(path.join(cwd, '.env.local'));
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {

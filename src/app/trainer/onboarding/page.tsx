@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { SPORTS } from '@/lib/utils'
+import { SPORTS, TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { getSpecialtyOptionsForSports, normalizeSpecialtySelections } from '@/lib/trainer'
 import { Loader2, ChevronLeft, ChevronRight, Check, Plus, Trash2 } from 'lucide-react'
@@ -36,7 +36,7 @@ export default function TrainerOnboardingPage() {
   const [profile, setProfile] = useState({
     firstName: '', lastName: '', headline: '', bio: '', phone: '',
     yearsExperience: 0, locationType: 'BOTH',
-    address: '', city: '', state: '', zipCode: '', travelRadius: 25,
+    address: '', city: 'Dallas', state: TRAINR_LAUNCH_STATE, zipCode: '', travelRadius: 25,
   })
 
   const [certifications, setCertifications] = useState<CertForm[]>([{ name: '', issuingOrg: '' }])
@@ -206,7 +206,17 @@ export default function TrainerOnboardingPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>City</Label><Input value={profile.city} onChange={e => setProfile({...profile, city: e.target.value})} /></div>
-                <div><Label>State</Label><Input value={profile.state} onChange={e => setProfile({...profile, state: e.target.value})} /></div>
+                <div>
+                  <Label>State</Label>
+                  <Select value={profile.state} onValueChange={state => setProfile({...profile, state})}>
+                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map(state => (
+                        <SelectItem key={state.code} value={state.code}>{state.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Zip Code</Label><Input value={profile.zipCode} onChange={e => setProfile({...profile, zipCode: e.target.value})} /></div>

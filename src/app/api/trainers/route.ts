@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const minPrice = searchParams.get('minPrice')
     const maxPrice = searchParams.get('maxPrice')
     const location = searchParams.get('location')
+    const state = searchParams.get('state')
     const rating = searchParams.get('rating')
     const locationType = searchParams.get('locationType')
     const sort = searchParams.get('sort') || 'rating'
@@ -48,6 +49,10 @@ export async function GET(req: NextRequest) {
         { state: { contains: location, mode: 'insensitive' } },
         { zipCode: { contains: location } },
       ]
+    }
+
+    if (state) {
+      where.state = { equals: state, mode: 'insensitive' }
     }
 
     if (rating) {
