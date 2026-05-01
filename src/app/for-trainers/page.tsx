@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight, Star, Calendar, DollarSign, Users, Zap, ShieldCheck, Sparkles, CheckCircle2, Clock3, LayoutDashboard, HandCoins } from 'lucide-react'
+import { ArrowRight, Star, Calendar, DollarSign, Users, Zap, ShieldCheck, Sparkles, CheckCircle2, Clock3, LayoutDashboard, HandCoins, MapPin, QrCode } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -38,7 +38,7 @@ const trainerSteps = [
 const operatingPoints = [
   { icon: LayoutDashboard, title: 'One dashboard', text: 'Your schedule, bookings, messages, and payouts all in one place.' },
   { icon: ShieldCheck, title: 'Look professional', text: 'Your profile shows credentials, reviews, and session options so parents trust you from the start.' },
-  { icon: HandCoins, title: 'Know what you earn', text: 'You keep 85% of every booking. No hidden fees, no surprises.' },
+  { icon: HandCoins, title: 'Launch economics', text: 'Founding Dallas trainers get commission waived for the first 30 days.' },
 ]
 
 const growthSignals = [
@@ -50,26 +50,38 @@ const growthSignals = [
 
 const trainerPricingPackages = [
   {
-    name: 'Starter Coach',
-    price: '$0 first month',
-    after: 'Then $29/mo or 15% per booking while beta pricing is active',
-    description: 'Best for trainers who want a polished profile, local discovery, and simple booking without upfront risk.',
-    features: ['Public trainer profile', 'Unlimited service listings', 'Parent inquiries + booking requests', 'Stripe-powered checkout'],
+    name: 'Founding Dallas Trainer',
+    price: '$49–$99',
+    after: 'Early listing fee • 0% commission for your first 30 days',
+    description: 'Best for independent Dallas coaches who want to get listed early, collect leads, and prove demand before monthly costs.',
+    features: ['Founding Dallas Trainer badge', 'Public profile + booking page', 'Unlimited services and packages', '10–15% commission only after day 30'],
   },
   {
-    name: 'Growth Coach',
-    price: '$49/mo',
-    after: 'First month free for launch trainers',
-    description: 'For coaches ready to push packages, reviews, and repeat families harder.',
-    features: ['Everything in Starter', 'Featured placement eligibility', 'Package/session bundle support', 'Priority trainer support'],
+    name: 'Founding Trainer Package',
+    price: '$199–$499',
+    after: 'Done-with-you launch setup for serious coaches',
+    description: 'For trainers who want Trainr to help polish the offer and make the page look credible before outreach starts.',
+    features: ['Profile setup', 'Photos and bio cleanup', 'Booking page and package strategy', 'Early promotion + lead priority'],
   },
   {
     name: 'Team / Academy',
     price: 'Custom',
-    after: 'Built for multi-coach programs',
-    description: 'For clubs, camps, and training groups that need multiple coaches and higher booking volume.',
-    features: ['Multi-coach setup', 'Camp/package strategy', 'Custom onboarding', 'Launch-market promotion'],
+    after: 'Built for gyms, clubs, camps, and multi-coach programs',
+    description: 'For organizations that need multiple coaches, recurring sessions, camps, and higher-volume parent demand.',
+    features: ['Multi-coach setup', 'Camp and group package planning', 'Custom onboarding', 'Priority Dallas launch placement'],
   },
+]
+
+const revenueModel = [
+  { title: 'Per-booking commission', value: '10–15%', text: 'Simple and aligned: Trainr earns when a parent books through the platform.' },
+  { title: 'Parent match fee', value: '$10–$25', text: 'Parents can pay to get matched with 2–3 trainers, with the fee credited toward their first booking.' },
+  { title: 'First 30 days', value: '0%', text: 'Founding Dallas trainers keep every platform dollar for the first month after joining.' },
+]
+
+const fieldOutreachPoints = [
+  'Gyms, courts, fields, youth games, camps, and private training spots',
+  'QR flyer: “Dallas trainers: get booked by local parents.”',
+  'Pitch: founding profile, first 30 days commission-free, early Dallas lead priority',
 ]
 
 export default function ForTrainersPage() {
@@ -85,12 +97,12 @@ export default function ForTrainersPage() {
               <Badge className="mb-4 border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">For Trainers</Badge>
               <h1 className="text-4xl font-bold tracking-[-0.05em] md:text-6xl">A better home for coaches who want serious families.</h1>
               <p className="mt-5 max-w-2xl text-lg text-slate-200 md:text-xl">
-                Set your rates, control your schedule, and let families find you. Trainr handles the booking, payments, and reviews so you can focus on coaching — with your first month free during launch.
+                Set your rates, control your schedule, and let Dallas families find you. Founding trainers can launch with an early listing, a polished profile, and 0% Trainr commission for the first 30 days.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <Link href="/auth/signup?role=trainer">
                   <Button size="lg" className="w-full bg-white px-8 font-semibold text-green-800 hover:bg-green-50 sm:w-auto">
-                    Claim Your First Free Month <ArrowRight className="ml-2 h-4 w-4" />
+                    Become a Founding Dallas Trainer <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
                 <Link href="/browse">
@@ -146,8 +158,8 @@ export default function ForTrainersPage() {
           <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="max-w-2xl">
               <Badge className="mb-4 border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">Launch offer</Badge>
-              <h2 className="text-3xl font-bold md:text-4xl">First month free for trainers joining the Dallas launch.</h2>
-              <p className="mt-3 text-slate-300">Start with no upfront subscription pressure. Build your profile, publish your services, and test demand from parents before paying monthly.</p>
+              <h2 className="text-3xl font-bold md:text-4xl">Founding Dallas trainers get 30 days commission-free.</h2>
+              <p className="mt-3 text-slate-300">Start with a simple early listing fee, get a credible profile live, and keep 100% of Trainr platform commission during your first month.</p>
             </div>
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
@@ -167,12 +179,55 @@ export default function ForTrainersPage() {
                     ))}
                   </div>
                   <Link href="/auth/signup?role=trainer" className="mt-7">
-                    <Button className="w-full gradient-primary border-0 text-white">Claim first free month <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                    <Button className="w-full gradient-primary border-0 text-white">Apply as a founding trainer <ArrowRight className="ml-2 h-4 w-4" /></Button>
                   </Link>
                 </CardContent>
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="section-flow py-16 md:py-20">
+        <div className="container grid gap-6 lg:grid-cols-[.95fr_1.05fr]">
+          <Card className="border-white/10 bg-white/[0.04] text-white shadow-lg">
+            <CardContent className="p-6 md:p-8">
+              <Badge className="mb-4 border-white/15 bg-white/5 text-white hover:bg-white/5"><DollarSign className="mr-1 h-3.5 w-3.5" /> Revenue model</Badge>
+              <h2 className="text-3xl font-bold">Clear pricing that works for both sides.</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-300">Trainr keeps the offer simple: trainers can pay to get listed and promoted early, then the platform earns from successful bookings and high-intent parent matches.</p>
+              <div className="mt-6 grid gap-4">
+                {revenueModel.map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-white/10 bg-slate-950/50 p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                      <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-bold text-emerald-200">{item.value}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/10 bg-white/[0.04] text-white shadow-lg">
+            <CardContent className="p-6 md:p-8">
+              <Badge className="mb-4 border-white/15 bg-white/5 text-white hover:bg-white/5"><MapPin className="mr-1 h-3.5 w-3.5" /> Field acquisition</Badge>
+              <h2 className="text-3xl font-bold">Door-to-door trainer outreach in Dallas.</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-300">The unfair advantage is local presence: show up where trainers already work, scan the QR, and get them listed before competitors can copy the marketplace.</p>
+              <div className="mt-6 rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-5">
+                <div className="flex items-center gap-3 text-lg font-bold text-emerald-100"><QrCode className="h-6 w-6" /> Dallas trainers: get booked by local parents.</div>
+                <p className="mt-2 text-sm text-emerald-50/80">Scan to claim a Founding Dallas Trainer profile and 30 days commission-free.</p>
+              </div>
+              <div className="mt-6 grid gap-3">
+                {fieldOutreachPoints.map((point) => (
+                  <div key={point} className="flex items-start gap-3 text-sm text-slate-200">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                    <span>{point}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -221,7 +276,7 @@ export default function ForTrainersPage() {
                   <span className="font-semibold">$75.00</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-white/10 py-3">
-                  <span className="text-sm text-rose-300">Platform Fee (15%)</span>
+                  <span className="text-sm text-rose-300">Platform Fee (10–15%)</span>
                   <span className="font-semibold text-rose-300">−$11.25</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-white/10 py-3">
@@ -233,7 +288,7 @@ export default function ForTrainersPage() {
                   <span className="text-xl font-bold text-emerald-300">$61.27</span>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-slate-400">Based on a $75 individual session. Stripe processing fee is 2.9% + $0.30.</p>
+              <p className="mt-4 text-sm text-slate-400">Based on a $75 individual session at the standard 15% platform fee. Founding Dallas trainers get Trainr commission waived for the first 30 days.</p>
             </CardContent>
           </Card>
 
@@ -250,16 +305,16 @@ export default function ForTrainersPage() {
                   ))}
                 </div>
                 <div className="mt-6 rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Getting started is free</div>
-                  <p className="mt-2 text-sm text-slate-300">Create your profile, publish your services, and start accepting bookings. You only pay the platform fee when you get paid.</p>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Clock3 className="h-4 w-4" /> Founding launch terms</div>
+                  <p className="mt-2 text-sm text-slate-300">Early trainers can secure a Founding Dallas Trainer profile, launch with 0% Trainr commission for 30 days, then move to the standard 10–15% booking commission.</p>
                 </div>
               </CardContent>
             </Card>
 
             <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/60">
               <div className="relative p-6">
-                <p className="text-sm font-semibold text-white">Join 500+ coaches already on the platform</p>
-                <p className="mt-2 text-sm text-slate-300">Trainers across all five sports are building real businesses through Trainr.</p>
+                <p className="text-sm font-semibold text-white">Dallas launch focus</p>
+                <p className="mt-2 text-sm text-slate-300">We are recruiting trainers field-by-field, gym-by-gym, and court-by-court so local parents can find real coaches nearby.</p>
               </div>
             </div>
           </div>
@@ -271,10 +326,10 @@ export default function ForTrainersPage() {
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/60">
             <div className="relative p-8 text-center md:p-12">
               <h2 className="mb-4 text-3xl font-bold md:text-4xl">Ready to coach on Trainr?</h2>
-              <p className="mx-auto mb-8 max-w-2xl text-slate-200">Create your free profile, publish offers, and start attracting families who are already looking for trusted youth coaching.</p>
+              <p className="mx-auto mb-8 max-w-2xl text-slate-200">Create your Founding Dallas Trainer profile, publish offers, and start attracting families who are already looking for trusted youth coaching.</p>
               <Link href="/auth/signup?role=trainer">
                 <Button size="lg" className="bg-white px-8 font-semibold text-green-800 hover:bg-green-50">
-                  Create Your Profile <ArrowRight className="ml-2 h-4 w-4" />
+                  Apply as a Founding Trainer <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </div>
