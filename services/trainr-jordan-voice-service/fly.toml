@@ -12,6 +12,8 @@ primary_region = "iad"
   TRAINR_DEFAULT_PLAN_ID = "trainr_onboarding"
   TRAINR_DEFAULT_PLAN_AMOUNT = "149.00"
   TRAINR_CURRENCY = "USD"
+  PUBLIC_BASE_URL = "https://trainr-jordan-voice-service.fly.dev"
+  TRAINR_CRM_TOOL_URL = "https://trainr.cc/api/voice/trainr/tools"
 
 [http_service]
   internal_port = 8080

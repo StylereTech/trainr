@@ -53,7 +53,7 @@ export const config = {
 export function assertRuntimeConfig() {
   requiredEnv('OPENAI_API_KEY');
   if (!config.publicBaseUrl) {
-    throw new Error('Missing PUBLIC_BASE_URL. Example: https://clawtronics-las-palmas-demo.fly.dev');
+    throw new Error('Missing PUBLIC_BASE_URL. Example: https://trainr-jordan-voice-service.fly.dev');
   }
 }
 
