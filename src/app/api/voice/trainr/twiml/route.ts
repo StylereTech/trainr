@@ -25,20 +25,24 @@ export async function POST(req: NextRequest) {
   const from = String(form?.get('From') || '')
 
   if (callSid || from) {
-    await saveOnboardingProgress({
-      twilioCallSid: callSid || undefined,
-      callerPhone: from || undefined,
-      onboarding: {
-        call_metadata: {
-          twilio_call_sid: callSid,
-          recording_consent: true,
-          ai_disclosure_given: true,
-          sms_consent: true,
+    try {
+      await saveOnboardingProgress({
+        twilioCallSid: callSid || undefined,
+        callerPhone: from || undefined,
+        onboarding: {
+          call_metadata: {
+            twilio_call_sid: callSid,
+            recording_consent: true,
+            ai_disclosure_given: true,
+            sms_consent: true,
+          },
+          sales_status: { lead_source: 'phone', payment_status: 'not_started' },
         },
-        sales_status: { lead_source: 'phone', payment_status: 'not_started' },
-      },
-      transcriptEntry: { role: 'system', event: 'call_started', at: new Date().toISOString(), from },
-    })
+        transcriptEntry: { role: 'system', event: 'call_started', at: new Date().toISOString(), from },
+      })
+    } catch (error) {
+      console.error('[TrainrVoice] Failed to persist call start; continuing with TwiML', error)
+    }
   }
 
   const configuredWsUrl = getWsUrl()
