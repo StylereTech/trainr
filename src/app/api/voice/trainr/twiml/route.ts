@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TRAINR_PHONE_AGENT_NAME } from '@/lib/trainr-phone-agent'
-import { saveOnboardingProgress } from '@/lib/trainr-phone-tools'
 
 export const runtime = 'nodejs'
+
+const TRAINR_PHONE_AGENT_NAME = 'Jordan'
 
 function xmlEscape(value: string) {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -20,31 +20,6 @@ function getWsUrl() {
 }
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData().catch(() => null)
-  const callSid = String(form?.get('CallSid') || '')
-  const from = String(form?.get('From') || '')
-
-  if (callSid || from) {
-    try {
-      await saveOnboardingProgress({
-        twilioCallSid: callSid || undefined,
-        callerPhone: from || undefined,
-        onboarding: {
-          call_metadata: {
-            twilio_call_sid: callSid,
-            recording_consent: true,
-            ai_disclosure_given: true,
-            sms_consent: true,
-          },
-          sales_status: { lead_source: 'phone', payment_status: 'not_started' },
-        },
-        transcriptEntry: { role: 'system', event: 'call_started', at: new Date().toISOString(), from },
-      })
-    } catch (error) {
-      console.error('[TrainrVoice] Failed to persist call start; continuing with TwiML', error)
-    }
-  }
-
   const configuredWsUrl = getWsUrl()
   if (!configuredWsUrl) {
     return xml(`<?xml version="1.0" encoding="UTF-8"?>
