@@ -20,6 +20,5 @@ export async function GET() {
     uptimeMs: Date.now() - startTime,
     dbConnected,
     ...(dbError ? { dbError } : {}),
-    dbUrl: (process.env.DATABASE_URL || '').substring(0, 40) + '...',
   }, { status: dbConnected ? 200 : 503 })
 }
