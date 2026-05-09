@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { ArrowRight, Sparkles, ShieldCheck, Trophy, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,8 +64,21 @@ function SignUpPage() {
         return
       }
 
-      toast({ title: 'Success', description: 'Account created! Please sign in.' })
-      router.push('/auth/signin')
+      toast({ title: 'Success', description: 'Account created! Taking you to your dashboard.' })
+
+      const login = await signIn('credentials', {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      })
+
+      if (login?.error) {
+        router.push('/auth/signin')
+        return
+      }
+
+      router.push(form.role === 'TRAINER' ? '/trainer/dashboard' : '/parent/dashboard')
+      router.refresh()
     } catch {
       toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
     } finally {
