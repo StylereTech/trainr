@@ -7,7 +7,7 @@ export default function PrivacyPage() {
     <div className="bg-white py-16">
       <div className="container max-w-3xl">
         <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground mb-8">Last updated: March 1, 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">Last updated: May 12, 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-6">
           <section>
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6 space-y-1">
               <li>Access and download your personal data</li>
               <li>Correct inaccurate information</li>
-              <li>Request deletion of your account and data</li>
+              <li>Delete your account directly in the app from Account Settings → Delete Account</li>
               <li>Opt out of marketing communications</li>
               <li>Data portability (export your data)</li>
             </ul>
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900">7. Data Retention</h2>
-            <p>We retain account data while your account is active. Transaction records are kept for 7 years for tax and legal compliance. You can request account deletion, after which data is removed within 30 days (except where legally required).</p>
+            <p>We retain account data while your account is active. You can delete your account directly in the app from Account Settings → Delete Account. When you delete your account, Trainr removes or anonymizes your login, profile, contact information, uploaded assets, notifications, favorites, and personal message content. Transaction, payment, safety, fraud-prevention, dispute, tax, and legal records may be retained in anonymized form where required.</p>
           </section>
 
           <section>

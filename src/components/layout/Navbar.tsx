@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { Menu, X, LogOut, LayoutDashboard, MessageSquare, Shield, ChevronRight } from 'lucide-react'
+import { Menu, X, LogOut, LayoutDashboard, MessageSquare, Shield, ChevronRight, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TRAINR_LOGO } from '@/lib/trainr-media'
@@ -88,6 +88,12 @@ export function Navbar() {
                   <MessageSquare className="h-4 w-4" />
                 </Button>
               </Link>
+              <Link href="/account/delete">
+                <Button variant="ghost" size="sm" className="text-slate-200 hover:bg-white/10 hover:text-white">
+                  <UserCog className="mr-1.5 h-4 w-4" />
+                  Account
+                </Button>
+              </Link>
               <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: '/' })} className="text-slate-300 hover:bg-white/10 hover:text-white">
                 <LogOut className="mr-1.5 h-4 w-4" />
                 Sign Out
@@ -154,6 +160,11 @@ export function Navbar() {
                   <Link href="/messages" className="block" onClick={() => setMobileMenuOpen(false)}>
                     <Button variant="outline" className="w-full justify-start border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
                       <MessageSquare className="mr-2 h-4 w-4" />Messages
+                    </Button>
+                  </Link>
+                  <Link href="/account/delete" className="block" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full justify-start border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                      <UserCog className="mr-2 h-4 w-4" />Account Settings
                     </Button>
                   </Link>
                   <Button
