@@ -18,6 +18,9 @@ node_modules/
 # local temp probes
 /tmp_*.js
 
+# local Jordan voice service runtime data (call transcripts/phone metadata)
+/services/trainr-jordan-voice-service/data/
+
 # vercel
 /.vercel/
 
