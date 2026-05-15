@@ -5,7 +5,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, openclaw-trainr]
     concurrency:
       group: fly-trainr-jordan-voice
       cancel-in-progress: true
