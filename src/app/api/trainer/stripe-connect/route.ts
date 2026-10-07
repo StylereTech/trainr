@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { stripe, stripeRuntimeStatus, createConnectedAccount, createAccountLink } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
+import { isStripeAccountReady } from '@/lib/stripe-account'
 
 // POST /api/trainer/stripe-connect — Start or resume Stripe Connect onboarding
 export async function POST(req: NextRequest) {
@@ -83,11 +84,11 @@ export async function GET(req: NextRequest) {
       const payoutsEnabled = account.payouts_enabled
       const detailsSubmitted = account.details_submitted
 
-      // Update local flag if onboarding is complete
-      if (detailsSubmitted && !trainer.stripeOnboardingComplete) {
+      const onboardingComplete = isStripeAccountReady(account)
+      if (onboardingComplete !== trainer.stripeOnboardingComplete) {
         await prisma.trainerProfile.update({
           where: { id: trainer.id },
-          data: { stripeOnboardingComplete: true },
+          data: { stripeOnboardingComplete: onboardingComplete },
         })
       }
 
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
         chargesEnabled,
         payoutsEnabled,
         detailsSubmitted,
-        onboardingComplete: detailsSubmitted,
+        onboardingComplete,
       })
     } catch {
       return NextResponse.json({ connected: false, stripeConfigured: true, hasAccount: true, error: 'Could not verify account' })

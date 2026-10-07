@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { stripe, stripeRuntimeStatus, verifyWebhookSignature } from '@/lib/stripe'
+import { stripeRuntimeStatus, verifyWebhookSignature } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { calculateSplit } from '@/lib/fees'
+import { isStripeAccountReady } from '@/lib/stripe-account'
 import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
@@ -67,8 +67,10 @@ export async function POST(req: NextRequest) {
   }
 
   switch (event.type) {
-    case 'checkout.session.completed': {
+    case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded': {
       const session = event.data.object as Stripe.Checkout.Session
+      if (session.payment_status !== 'paid') break
       const bookingId = session.metadata?.bookingId
 
       if (bookingId) {
@@ -82,7 +84,11 @@ export async function POST(req: NextRequest) {
 
         if (!booking) break
 
-        const { platformFee, trainerShare } = calculateSplit(booking.totalAmountInCents)
+        if (session.currency !== 'usd' || session.amount_total !== booking.totalAmountInCents) {
+          return NextResponse.json({ error: 'Payment amount or currency does not match booking' }, { status: 409 })
+        }
+        const platformFee = booking.platformFeeInCents
+        const trainerShare = booking.trainerPayoutInCents
 
         // Update payment status
         await prisma.payment.upsert({
@@ -194,12 +200,10 @@ export async function POST(req: NextRequest) {
 
     case 'account.updated': {
       const account = event.data.object as Stripe.Account
-      if (account.charges_enabled && account.details_submitted) {
-        await prisma.trainerProfile.updateMany({
-          where: { stripeAccountId: account.id },
-          data: { stripeOnboardingComplete: true },
-        })
-      }
+      await prisma.trainerProfile.updateMany({
+        where: { stripeAccountId: account.id },
+        data: { stripeOnboardingComplete: isStripeAccountReady(account) },
+      })
       break
     }
 

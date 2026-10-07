@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+> 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
+
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles
 - Environment tested: live production `https://trainr.cc`
 - Commit SHA tested: final pushed commit `71edba76ac7070856ab5a1cffed0b40c9ea8a652`

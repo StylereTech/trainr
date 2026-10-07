@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCheckoutCreate = vi.fn()
+const mockAccountRetrieve = vi.fn()
 
 const mockPrisma = {
+  trainerProfile: { update: vi.fn() },
   booking: {
     findUnique: vi.fn(),
   },
@@ -37,6 +39,7 @@ vi.mock('@/lib/stripe', () => ({
     status: 500,
   }),
   stripe: {
+    accounts: { retrieve: mockAccountRetrieve },
     checkout: {
       sessions: {
         create: mockCheckoutCreate,
@@ -52,7 +55,8 @@ describe('Payments checkout API', () => {
     vi.clearAllMocks()
   })
 
-  it('creates a Stripe checkout session for a pending booking from the booking flow', async () => {
+  beforeEach(() => {
+    mockAccountRetrieve.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
     mockPrisma.booking.findUnique.mockResolvedValue({
       id: 'booking-1',
       status: 'PENDING',
@@ -85,7 +89,9 @@ describe('Payments checkout API', () => {
       id: 'payment-1',
       stripeCheckoutSessionId: 'cs_test_123',
     })
+  })
 
+  it('creates a Stripe checkout session for a pending booking from the booking flow', async () => {
     const { POST } = await import('@/app/api/payments/checkout/route')
     const response = await POST(
       new Request('http://localhost:3000/api/payments/checkout', {
@@ -108,5 +114,45 @@ describe('Payments checkout API', () => {
         }),
       })
     )
+  })
+
+  it('blocks a restricted Stripe account even when cached onboarding is complete', async () => {
+    mockAccountRetrieve.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    const response = await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(response.status).toBe(400)
+    expect(mockPrisma.trainerProfile.update).toHaveBeenCalledWith({
+      where: { id: 'trainer-profile-1' }, data: { stripeOnboardingComplete: false },
+    })
+    expect(mockCheckoutCreate).not.toHaveBeenCalled()
+    expect(mockPrisma.payment.create).not.toHaveBeenCalled()
+  })
+
+  it('recovers checkout when Stripe is ready but the cached flag is stale', async () => {
+    const booking = await mockPrisma.booking.findUnique()
+    mockPrisma.booking.findUnique.mockResolvedValue({
+      ...booking, trainerProfile: { ...booking.trainerProfile, stripeOnboardingComplete: false },
+    })
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    const response = await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(response.status).toBe(200)
+    expect(mockPrisma.trainerProfile.update).toHaveBeenCalledWith({
+      where: { id: 'trainer-profile-1' }, data: { stripeOnboardingComplete: true },
+    })
+  })
+
+  it('does not create a charge when Stripe status cannot be verified', async () => {
+    mockAccountRetrieve.mockRejectedValue(new Error('Stripe unavailable'))
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    const response = await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(response.status).toBe(500)
+    expect(mockCheckoutCreate).not.toHaveBeenCalled()
+    expect(mockPrisma.payment.create).not.toHaveBeenCalled()
   })
 })

@@ -3,6 +3,7 @@ import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
+import { isStripeAccountReady } from '@/lib/stripe-account'
 
 const RETRYABLE_PAYMENT_STATUSES = new Set(['PENDING', 'FAILED'])
 const BLOCKING_PAYMENT_STATUSES = new Set(['PROCESSING', 'SUCCEEDED', 'REFUNDED', 'PARTIALLY_REFUNDED'])
@@ -104,7 +105,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Athlete profile is missing for this booking' }, { status: 409 })
     }
 
-    if (!booking.trainerProfile.stripeAccountId || !booking.trainerProfile.stripeOnboardingComplete) {
+    if (!booking.trainerProfile.stripeAccountId) {
+      return NextResponse.json(
+        { error: 'Trainer payment account is not ready yet. Ask the trainer to finish Stripe setup first.' },
+        { status: 400 },
+      )
+    }
+
+    // Cached onboarding state can be stale after verification or restrictions.
+    const account = await stripe.accounts.retrieve(booking.trainerProfile.stripeAccountId)
+    const accountReady = isStripeAccountReady(account)
+    if (accountReady !== booking.trainerProfile.stripeOnboardingComplete) {
+      await prisma.trainerProfile.update({
+        where: { id: booking.trainerProfile.id },
+        data: { stripeOnboardingComplete: accountReady },
+      })
+    }
+    if (!accountReady) {
       return NextResponse.json(
         { error: 'Trainer payment account is not ready yet. Ask the trainer to finish Stripe setup first.' },
         { status: 400 },

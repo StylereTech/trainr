@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isStripeAccountReady } from '@/lib/stripe-account'
 import {
   createAccountLink,
   createConnectedAccount,
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
         chargesEnabled = account.charges_enabled
         payoutsEnabled = account.payouts_enabled
 
-        const onboardingComplete = Boolean(account.details_submitted && account.charges_enabled && account.payouts_enabled)
+        const onboardingComplete = isStripeAccountReady(account)
         if (onboardingComplete !== trainerProfile.stripeOnboardingComplete) {
           await prisma.trainerProfile.update({
             where: { id: trainerProfile.id },
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
     if (accountId) {
       try {
         const account = await stripe.accounts.retrieve(accountId)
-        onboardingComplete = Boolean(account.details_submitted && account.charges_enabled && account.payouts_enabled)
+        onboardingComplete = isStripeAccountReady(account)
 
         if (account.type !== 'express' && !onboardingComplete) {
           const replacement = await createConnectedAccount(user.id, user.email)

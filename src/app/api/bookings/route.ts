@@ -190,6 +190,9 @@ export async function GET(req: NextRequest) {
     const userId = requestUser.id
     const role = requestUser.role
     const { searchParams } = new URL(req.url)
+    if (!role || !['PARENT', 'TRAINER', 'ADMIN'].includes(role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -213,7 +216,7 @@ export async function GET(req: NextRequest) {
         include: {
           serviceOffering: true,
           trainerProfile: { include: { sports: { include: { sport: true } } } },
-          parentProfile: { include: { user: true } },
+          parentProfile: { include: { user: { select: { id: true, email: true } } } },
           athleteProfile: true,
           payment: true,
           review: true,
