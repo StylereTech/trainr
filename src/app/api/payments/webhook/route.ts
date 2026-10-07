@@ -7,44 +7,6 @@ import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
 
-async function creditTrainerWallet(bookingId: string, trainerProfileId: string, trainerShareCents: number) {
-  await prisma.$transaction(async (tx: any) => {
-    // Find or create wallet
-    let wallet = await tx.trainerWallet.findUnique({
-      where: { trainerProfileId },
-    })
-
-    if (!wallet) {
-      wallet = await tx.trainerWallet.create({
-        data: { trainerProfileId },
-      })
-    }
-
-    // Check for duplicate credit (idempotency)
-    const existingEntry = await tx.walletEntry.findFirst({
-      where: { walletId: wallet.id, bookingId, type: 'BOOKING_CREDIT' },
-    })
-    if (existingEntry) return // Already credited
-
-    // Create ledger entry
-    await tx.walletEntry.create({
-      data: {
-        walletId: wallet.id,
-        bookingId,
-        type: 'BOOKING_CREDIT',
-        amountInCents: trainerShareCents,
-        description: `Booking payment credit for booking ${bookingId}`,
-      },
-    })
-
-    // Update available balance
-    await tx.trainerWallet.update({
-      where: { id: wallet.id },
-      data: { availableBalance: { increment: trainerShareCents } },
-    })
-  })
-}
-
 export async function POST(req: NextRequest) {
   if (!stripeRuntimeStatus().webhookConfigured || !stripeRuntimeStatus().secretConfigured) {
     return NextResponse.json({ error: 'Stripe webhook is not configured on this runtime' }, { status: 503 })
@@ -117,9 +79,6 @@ export async function POST(req: NextRequest) {
           data: { status: 'CONFIRMED' },
         })
 
-        // Credit trainer wallet
-        await creditTrainerWallet(bookingId, booking.trainerProfileId, trainerShare)
-
         // Notify both parties
         await prisma.notification.createMany({
           data: [
@@ -127,7 +86,7 @@ export async function POST(req: NextRequest) {
               userId: booking.trainerProfile.userId,
               type: 'PAYMENT_RECEIVED',
               title: 'Payment Received!',
-              message: `Payment of $${(booking.totalAmountInCents / 100).toFixed(2)} received. Your share of $${(trainerShare / 100).toFixed(2)} has been credited to your wallet.`,
+              message: `Payment of $${(booking.totalAmountInCents / 100).toFixed(2)} received. Your share of $${(trainerShare / 100).toFixed(2)} is routed to your connected Stripe account. Bank payout timing is available in Stripe.`,
               data: { bookingId },
             },
             {

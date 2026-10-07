@@ -6,12 +6,15 @@ const mocks = vi.hoisted(() => ({
   account: vi.fn(),
   session: vi.fn(),
   trainer: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  booking: { findUnique: vi.fn() },
+  booking: { findUnique: vi.fn(), update: vi.fn() },
   payment: { upsert: vi.fn() },
+  notification: { createMany: vi.fn() },
+  wallet: { update: vi.fn(), create: vi.fn() },
 }))
 vi.mock('@/lib/auth', () => ({ authOptions: {}, getServerSession: mocks.session }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   trainerProfile: mocks.trainer, booking: mocks.booking, payment: mocks.payment,
+  notification: mocks.notification, trainerWallet: mocks.wallet,
 } }))
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'stripe-signature': 'verified-by-mock' }) }))
 vi.mock('@/lib/stripe', () => ({
@@ -76,5 +79,23 @@ describe('Stripe webhook payment guards', () => {
     const response = await send('account.updated', { id: 'acct_test', details_submitted: true, charges_enabled: false, payouts_enabled: true })
     expect(response.status).toBe(200)
     expect(mocks.trainer.updateMany).toHaveBeenCalledWith({ where: { stripeAccountId: 'acct_test' }, data: { stripeOnboardingComplete: false } })
+  })
+
+  it('records the stored booking split without crediting a second withdrawable wallet', async () => {
+    mocks.booking.findUnique.mockResolvedValue({
+      totalAmountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500,
+      trainerProfileId: 'trainer', trainerProfile: { userId: 'trainer-user', firstName: 'Test', lastName: 'Trainer' },
+      parentProfile: { userId: 'parent-user' }, date: new Date('2026-11-01'),
+    })
+    const response = await send('checkout.session.completed', {
+      id: 'cs_test', payment_intent: 'pi_test', payment_status: 'paid', amount_total: 7500,
+      currency: 'usd', metadata: { bookingId: 'booking' },
+    })
+    expect(response.status).toBe(200)
+    expect(mocks.payment.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ platformFeeInCents: 1000, trainerPayoutInCents: 6500, status: 'SUCCEEDED' }),
+    }))
+    expect(mocks.wallet.update).not.toHaveBeenCalled()
+    expect(mocks.wallet.create).not.toHaveBeenCalled()
   })
 })

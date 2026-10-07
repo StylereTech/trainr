@@ -71,3 +71,27 @@ No claim is made that 100 build cycles or 1,000 test iterations were completed. 
 Do not use local wallet balances as proof of money available for an additional trainer payment. Destination transfers may already have moved the same proceeds.
 Do not certify live payouts, refunds, or production readiness based on the historical reports or a successful deployment alone.
 Complete the remaining repository fixes and authenticated verification before requesting final money-flow signoff.
+
+## Follow-Up: Direct Stripe Payouts
+
+- Checkpoint `ea73c55` was pushed to `codex/payment-readiness-20261006`, not `main`.
+- GitHub Actions run `37565908583` failed before any step started: "The job was not started because your account is locked due to a billing issue." This is an external CI blocker, not a test failure or pass.
+- Vercel preview `47vF7GPhMwhgZx4DvPPSYPQPvnmi` failed. Build logs require authentication; root cause remains unverified.
+- Subsequent local changes remove new legacy wallet credits, make trainer/admin legacy withdrawal mutations read-only, retrieve balances and recent bank payouts using the authenticated trainer's connected Stripe account, and show the actual payout schedule. No existing ledger data is erased or reclassified.
+- The payout UI no longer presents legacy balances as withdrawable funds or fabricates zero balances during provider failures.
+- New tests cover connected-account scoping, currency separation, provider errors, missing setup, manual payout schedules, and prevention of duplicate legacy disbursement. Execution results are pending.
+- The Windows dependency install was stopped after proving slow removable-disk I/O (1 MiB write took 4,483 ms). Verification moved to an isolated temporary WSL checkout; this is not a successful build result.
+
+V1 path: parent Checkout creates a destination charge; Stripe routes trainer proceeds to the connected account; Stripe pays the bank according to that account's payout schedule. A manual schedule does not automatically pay the bank and remains an operations readiness blocker until addressed through Stripe. No live schedule was changed by this audit.
+
+Reference: [Stripe destination charges](https://docs.stripe.com/connect/destination-charges) and [Stripe payout schedules](https://docs.stripe.com/connect/manage-payout-schedule).
+
+## Verification Stop: 2026-10-07 04:53 UTC
+
+- The WSL dependency install was stopped when C: reached zero free bytes again. Its Linux filesystem's logical free space did not establish adequate Windows host storage.
+- Cleared only the verified, regenerable Windows npm `_cacache` directory after approval. About 30 MB remained free afterward; repository sources and existing dashboard edits were preserved.
+- WSL subsequently failed to start (`Wsl/Service/CreateInstance/E_FAIL`, distribution startup error 6). No further installer or build is left running.
+- Current patch: NOT VERIFIED. No new unit-test, typecheck, lint, build, browser-render, persistence, or live money-flow pass is claimed. The payout changes remain on the audit branch; production main was not updated.
+- Needed to resume verification: adequate host disk space (at least 4 GB; more is preferable), a functioning WSL or local runtime, Vercel build-log access, and resolution of GitHub's billing lock for hosted CI.
+- Another confirmed source-level defect: the admin payout page expects `payments` and `summary`, while `/api/admin/payouts` returns `withdrawals`. The finance view's API contract needs correction and regression coverage before signoff.
+- Remaining goals are unchanged: finish repository money-flow fixes, verify all parent/trainer flows and persistence, run responsive browser tests, reconcile legacy payout records, obtain controlled Stripe payment/refund/bank-payout evidence, then publish to main and retest production.

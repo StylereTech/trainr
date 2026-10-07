@@ -18,8 +18,8 @@ import { formatCurrency } from '@/lib/utils'
 import { getSpecialtyOptionsForSports } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
-  Building2, CreditCard, CheckCircle2, AlertTriangle, ExternalLink, ArrowLeft,
-  Clock, MapPin, Sparkles, Shield, BanknoteIcon, TrendingUp, XCircle
+  Building2, CreditCard, AlertTriangle, ArrowLeft,
+  Clock, MapPin, Shield
 } from 'lucide-react'
 
 const TABS = [
@@ -56,24 +56,15 @@ interface CertForm {
 interface WalletData {
   availableBalance: number
   pendingBalance: number
-  withdrawnTotal: number
-  totalEarned: number
 }
 
-interface WalletEntry {
-  id: string
-  type: string
-  amountInCents: number
-  description: string
-  createdAt: string
-  booking?: { id: string; date: string; startTime: string; serviceOffering: { title: string } }
-}
-
-interface WithdrawalReq {
+interface StripePayout {
   id: string
   amountInCents: number
+  currency: string
   status: string
-  createdAt: string
+  arrivalDate: number
+  createdAt: number
 }
 
 interface StripeStatus {
@@ -111,10 +102,10 @@ function TrainerProfileContent() {
 
   // Wallet data
   const [wallet, setWallet] = useState<WalletData | null>(null)
-  const [walletEntries, setWalletEntries] = useState<WalletEntry[]>([])
-  const [pendingWithdrawals, setPendingWithdrawals] = useState<WithdrawalReq[]>([])
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [withdrawing, setWithdrawing] = useState(false)
+  const [payouts, setPayouts] = useState<StripePayout[]>([])
+  const [payoutSchedule, setPayoutSchedule] = useState<string | null>(null)
+  const [walletLoading, setWalletLoading] = useState(initialTab === 'payouts')
+  const [walletError, setWalletError] = useState('')
 
   // Stripe Connect
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null)
@@ -122,14 +113,10 @@ function TrainerProfileContent() {
 
   useEffect(() => {
     fetchProfile()
-    if (initialTab === 'payouts') {
-      fetchWallet()
-      fetchStripeStatus()
-    }
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'payouts' && !wallet) {
+    if (activeTab === 'payouts') {
       fetchWallet()
       fetchStripeStatus()
     }
@@ -155,14 +142,22 @@ function TrainerProfileContent() {
   }
 
   const fetchWallet = async () => {
+    setWalletLoading(true)
+    setWalletError('')
     try {
-      const res = await fetch('/api/trainer/wallet')
-      if (!res.ok) return
+      const res = await fetch('/api/trainer/wallet', { cache: 'no-store' })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Unable to load payouts')
       setWallet(data.wallet)
-      setWalletEntries(data.entries || [])
-      setPendingWithdrawals(data.pendingWithdrawals || [])
-    } catch { /* wallet might not exist yet */ }
+      setPayouts(data.payouts || [])
+      setPayoutSchedule(data.schedule?.interval || null)
+    } catch (error) {
+      setWallet(null)
+      setPayouts([])
+      setWalletError(error instanceof Error ? error.message : 'Unable to load payouts')
+    } finally {
+      setWalletLoading(false)
+    }
   }
 
   const fetchStripeStatus = async () => {
@@ -220,38 +215,15 @@ function TrainerProfileContent() {
   const handleStripeConnect = async () => {
     setConnectingStripe(true)
     try {
-      const res = await fetch('/api/trainer/stripe-connect', { method: 'POST' })
+      const res = await fetch('/api/payments/connect', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      window.location.href = data.url
+      const url = data.dashboardUrl || data.onboardingUrl
+      if (!url) throw new Error('Stripe did not return an account link')
+      window.location.href = url
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' })
       setConnectingStripe(false)
-    }
-  }
-
-  const handleWithdraw = async () => {
-    const cents = Math.round(parseFloat(withdrawAmount) * 100)
-    if (isNaN(cents) || cents < 500) {
-      toast({ title: 'Invalid amount', description: 'Minimum withdrawal is $5.00', variant: 'destructive' })
-      return
-    }
-    setWithdrawing(true)
-    try {
-      const res = await fetch('/api/trainer/wallet/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountInCents: cents }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      toast({ title: 'Withdrawal requested', description: data.message })
-      setWithdrawAmount('')
-      fetchWallet()
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' })
-    } finally {
-      setWithdrawing(false)
     }
   }
 
@@ -573,132 +545,69 @@ function TrainerProfileContent() {
         )}
 
         {activeTab === 'payouts' && (
-          <div className="space-y-6">
-            {/* Stripe Connect */}
-            <Card className="border-white/10 bg-white/[0.04] text-white">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 text-lg font-semibold"><BanknoteIcon className="h-5 w-5 text-emerald-300" /> Bank Account & Payouts</h2>
-              </CardHeader>
-              <CardContent>
-                {stripeStatus === null ? (
-                  <div className="flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Checking payout status...</div>
-                ) : stripeStatus.onboardingComplete ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                      <div>
-                        <div className="font-semibold text-emerald-200">Bank account connected</div>
-                        <div className="text-sm text-emerald-300/80">Payouts are enabled. Your earnings will be transferred to your bank.</div>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={handleStripeConnect} disabled={connectingStripe} className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
-                      {connectingStripe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                      Update Bank Details
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
-                      <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-400" />
-                      <div>
-                        <div className="font-semibold text-amber-200">Bank account not connected</div>
-                        <div className="text-sm text-amber-300/80">Connect your bank account through Stripe to receive direct deposits of your earnings. This is required to withdraw funds.</div>
-                      </div>
-                    </div>
-                    <Button className="gradient-primary border-0 text-white" onClick={handleStripeConnect} disabled={connectingStripe}>
-                      {connectingStripe ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...</> : <><CreditCard className="mr-2 h-4 w-4" /> Connect Bank Account</>}
-                    </Button>
-                    <p className="text-xs text-slate-400">You&apos;ll be redirected to Stripe to securely enter your bank details. Trainr never sees your account numbers.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Earnings Overview */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: 'Available', value: wallet?.availableBalance ?? 0, icon: DollarSign, color: 'text-emerald-300' },
-                { label: 'Pending', value: wallet?.pendingBalance ?? 0, icon: Clock, color: 'text-amber-300' },
-                { label: 'Withdrawn', value: wallet?.withdrawnTotal ?? 0, icon: TrendingUp, color: 'text-blue-300' },
-                { label: 'Total Earned', value: wallet?.totalEarned ?? 0, icon: Sparkles, color: 'text-white' },
-              ].map(item => (
-                <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300"><item.icon className={`h-4 w-4 ${item.color}`} /> {item.label}</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">{formatCurrency(item.value)}</div>
-                </div>
-              ))}
+          <section className="space-y-6" aria-label="Stripe earnings and payouts">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
+              <div>
+                <h2 className="text-lg font-semibold">Stripe Balance &amp; Bank Payouts</h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  {payoutSchedule === 'manual'
+                    ? 'Manual payout schedule. Check Stripe for available payout options.'
+                    : payoutSchedule ? `Bank payout schedule: ${payoutSchedule}.` : 'Bank payout schedule not yet verified.'}
+                </p>
+              </div>
+              <Button variant="outline" onClick={handleStripeConnect} disabled={connectingStripe}>
+                {connectingStripe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                {stripeStatus?.onboardingComplete ? 'Open Stripe Dashboard' : 'Continue Stripe Setup'}
+              </Button>
             </div>
 
-            {/* Withdraw */}
-            {(wallet?.availableBalance ?? 0) > 0 && stripeStatus?.onboardingComplete && (
-              <Card className="border-white/10 bg-white/[0.04] text-white">
-                <CardHeader><h2 className="text-lg font-semibold">Request Withdrawal</h2></CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div className="flex-1">
-                      <Label>Amount ($)</Label>
-                      <Input
-                        type="number"
-                        value={withdrawAmount}
-                        onChange={e => setWithdrawAmount(e.target.value)}
-                        placeholder="0.00"
-                        min={5}
-                        step={0.01}
-                        max={(wallet?.availableBalance ?? 0) / 100}
-                        className="mt-1.5 bg-white/5 border-white/10"
-                      />
-                      <p className="mt-1 text-xs text-slate-400">Available: {formatCurrency(wallet?.availableBalance ?? 0)} — Min: $5.00</p>
-                    </div>
-                    <Button className="gradient-primary border-0 text-white" onClick={handleWithdraw} disabled={withdrawing}>
-                      {withdrawing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Request Withdrawal'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Pending Withdrawals */}
-            {pendingWithdrawals.length > 0 && (
-              <Card className="border-white/10 bg-white/[0.04] text-white">
-                <CardHeader><h2 className="text-lg font-semibold">Pending Withdrawals</h2></CardHeader>
-                <CardContent className="space-y-2">
-                  {pendingWithdrawals.map(w => (
-                    <div key={w.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <div>
-                        <div className="font-semibold">{formatCurrency(w.amountInCents)}</div>
-                        <div className="text-xs text-slate-400">{new Date(w.createdAt).toLocaleDateString()}</div>
-                      </div>
-                      <Badge className={w.status === 'PENDING' ? 'bg-amber-500/20 text-amber-200 border-amber-500/30' : 'bg-blue-500/20 text-blue-200 border-blue-500/30'}>{w.status}</Badge>
+            {walletError ? (
+              <div role="alert" className="flex flex-wrap items-center gap-3 text-rose-300">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                <p className="min-w-0 flex-1">{walletError}</p>
+                <Button variant="outline" onClick={fetchWallet}>Retry</Button>
+              </div>
+            ) : walletLoading ? (
+              <p role="status" className="flex items-center gap-2 text-slate-300">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading Stripe balances...
+              </p>
+            ) : wallet ? (
+              <>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  {[
+                    { label: 'Available in Stripe (USD)', value: wallet.availableBalance, icon: DollarSign },
+                    { label: 'Pending in Stripe (USD)', value: wallet.pendingBalance, icon: Clock },
+                  ].map(item => (
+                    <div key={item.label} className="border-b border-white/10 pb-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-300"><item.icon className="h-4 w-4" />{item.label}</div>
+                      <div className="mt-2 text-2xl font-semibold">{formatCurrency(item.value)}</div>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-            )}
+                </div>
 
-            {/* Transaction History */}
-            <Card className="border-white/10 bg-white/[0.04] text-white">
-              <CardHeader><h2 className="text-lg font-semibold">Transaction History</h2></CardHeader>
-              <CardContent>
-                {walletEntries.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-slate-400">No transactions yet. Complete sessions to start earning.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {walletEntries.map(entry => (
-                      <div key={entry.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <div>
-                          <div className="text-sm font-medium">{entry.description || entry.booking?.serviceOffering.title || entry.type}</div>
-                          <div className="text-xs text-slate-400">{new Date(entry.createdAt).toLocaleDateString()}</div>
-                        </div>
-                        <div className={`font-semibold ${entry.amountInCents >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {entry.amountInCents >= 0 ? '+' : ''}{formatCurrency(Math.abs(entry.amountInCents))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                <div>
+                  <h3 className="mb-3 text-base font-semibold">Recent Bank Payouts</h3>
+                  {payouts.length === 0 ? (
+                    <p className="text-sm text-slate-300">No bank payouts reported by Stripe yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-white/10">
+                      {payouts.map(payout => (
+                        <li key={payout.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                          <div className="min-w-0">
+                            <p className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: payout.currency }).format(payout.amountInCents / 100)}</p>
+                            <p className="text-xs text-slate-400">Arrival estimate: {new Date(payout.arrivalDate * 1000).toLocaleDateString()}</p>
+                          </div>
+                          <Badge>{payout.status}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-300">No connected Stripe balance is available yet.</p>
+            )}
+          </section>
         )}
 
         {/* Save button at bottom for mobile */}
