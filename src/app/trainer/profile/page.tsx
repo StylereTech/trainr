@@ -519,9 +519,10 @@ function TrainerProfileContent() {
               {DAY_NAMES.map((name, day) => {
                 const slot = availability.find(a => a.dayOfWeek === day)
                 return (
-                  <div key={day} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center">
+                  <div key={day} data-testid={`availability-day-${day}`} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center">
                     <button
                       onClick={() => toggleDay(day)}
+                      aria-pressed={!!slot}
                       className={`w-28 rounded-lg px-3 py-2 text-sm font-medium transition ${
                         slot ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
                       }`}
@@ -529,10 +530,10 @@ function TrainerProfileContent() {
                       {name}
                     </button>
                     {slot ? (
-                      <div className="flex items-center gap-2">
-                        <Input type="time" value={slot.startTime} onChange={e => updateAvailTime(day, 'startTime', e.target.value)} className="w-32 bg-white/5 border-white/10" />
+                      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                        <Input type="time" aria-label={`${name} start time`} value={slot.startTime} onChange={e => updateAvailTime(day, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
                         <span className="text-slate-400">to</span>
-                        <Input type="time" value={slot.endTime} onChange={e => updateAvailTime(day, 'endTime', e.target.value)} className="w-32 bg-white/5 border-white/10" />
+                        <Input type="time" aria-label={`${name} end time`} value={slot.endTime} onChange={e => updateAvailTime(day, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
                       </div>
                     ) : (
                       <span className="text-sm text-slate-500">Unavailable</span>
