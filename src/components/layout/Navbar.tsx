@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { Menu, X, LogOut, LayoutDashboard, MessageSquare, Shield, ChevronRight, UserCog } from 'lucide-react'
+import { Bell, Menu, X, LogOut, LayoutDashboard, MessageSquare, Shield, ChevronRight, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TRAINR_LOGO } from '@/lib/trainr-media'
@@ -49,7 +49,7 @@ export function Navbar() {
 
         </Link>
 
-        <nav className="hidden items-center gap-2 md:flex">
+        <nav className="hidden items-center gap-2 xl:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -66,7 +66,7 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           {isLoggedIn ? (
             <>
               {role === 'ADMIN' && (
@@ -111,18 +111,26 @@ export function Navbar() {
           )}
         </div>
 
+        <div className="ml-auto flex items-center gap-2 xl:ml-0">
+        {isLoggedIn && <Link href="/notifications" aria-label="Notifications" title="Notifications" onClick={() => setMobileMenuOpen(false)}
+          className="flex h-10 w-10 items-center justify-center rounded-md text-slate-200 hover:bg-white/10 hover:text-white">
+          <Bell className="h-5 w-5" />
+        </Link>}
         <Button
           variant="ghost"
           size="icon"
-          className="text-white hover:bg-white/10 hover:text-white md:hidden"
+          className="text-white hover:bg-white/10 hover:text-white xl:hidden"
+          aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={mobileMenuOpen}
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
           {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
+        </div>
       </div>
 
       {mobileMenuOpen && (
-        <div className="border-t border-white/10 bg-slate-950/90 md:hidden">
+        <div className="border-t border-white/10 bg-slate-950/90 xl:hidden">
           <div className="container space-y-3 py-4">
             <div className="grid gap-2">
               {navLinks.map((link) => (

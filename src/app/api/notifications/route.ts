@@ -1,48 +1,32 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from '@/lib/auth'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from 'next/server'
+import { getRequestUser } from '@/lib/auth'
+import { notificationActionSchema, notificationQuerySchema } from '@/lib/notification-contract'
+import { changeNotifications, NotificationError, readNotifications } from '@/lib/notifications'
 
-export async function GET() {
+const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const userId = session.user.id
-    const notifications = await prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    })
-    const unreadCount = await prisma.notification.count({
-      where: { userId, readAt: null },
-    })
-    return NextResponse.json({ notifications, unreadCount })
+    const actor = await getRequestUser(req)
+    if (!actor) return json({ error: 'Unauthorized' }, 401)
+    const input = notificationQuerySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams))
+    if (!input.success) return json({ error: 'Invalid notification filters' }, 400)
+    return json(await readNotifications(actor, input.data))
   } catch (error) {
-    console.error('Notifications GET error:', error)
-    return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
+    if (error instanceof NotificationError) return json({ error: error.message }, error.status)
+    console.error('Notification inbox query failed')
+    return json({ error: 'Unable to load notifications. Please retry.' }, 503)
   }
 }
-
-export async function PATCH(request: Request) {
+export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const userId = session.user.id
-    const body = await request.json()
-    if (body.markAllRead) {
-      await prisma.notification.updateMany({
-        where: { userId, readAt: null },
-        data: { readAt: new Date() },
-      })
-      return NextResponse.json({ success: true })
-    }
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    const actor = await getRequestUser(req)
+    if (!actor) return json({ error: 'Unauthorized' }, 401)
+    const input = notificationActionSchema.safeParse(await req.json().catch(() => null))
+    if (!input.success) return json({ error: 'Invalid notification action' }, 400)
+    return json(await changeNotifications(actor, input.data))
   } catch (error) {
-    console.error('Notifications PATCH error:', error)
-    return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 })
+    if (error instanceof NotificationError) return json({ error: error.message }, error.status)
+    console.error('Notification inbox update failed')
+    return json({ error: 'Unable to confirm this change. Reload the inbox.' }, 503)
   }
 }

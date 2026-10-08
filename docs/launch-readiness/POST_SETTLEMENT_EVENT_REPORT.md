@@ -1,5 +1,7 @@
 # Post-Settlement Event Audit
 
+2026-10-08 inbox follow-up (baseline `f1411a8b60a550754fcea654ea482400a13bdd7a`): [Notification Inbox And Financial Review Delivery](NOTIFICATION_INBOX_REPORT.md) records the protected inbox, recipient/role controls, explicit read-state actions and exact verification/publication evidence. This supersedes the earlier missing-inbox finding only to the extent tested there; email/push delivery and real Stripe/live payout signoff remain unproven. Overall production status remains **HOLD**.
+
 ## Identity And Status
 
 - Date/time: 2026-10-08; reproduction at 18:06:29 UTC, focused retests 18:09-18:15 UTC, final gates/publication below.

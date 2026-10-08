@@ -7,6 +7,11 @@ vi.mock('next-auth/jwt', () => ({ getToken: mocks.token }))
 beforeEach(() => vi.resetAllMocks())
 
 describe('protected-page token prefilter', () => {
+  it('protects the notification inbox before rendering', async () => {
+    mocks.token.mockResolvedValue(null)
+    const result = await middleware(new NextRequest('https://trainr.cc/notifications'))
+    expect(result.headers.get('location')).toContain('/auth/signin')
+  })
   it.each([null, { sub: 'user', role: 'PARENT' }, { sub: '', role: 'PARENT', sessionVersion: 0 },
     { sub: 'user', role: 'PARENT', sessionVersion: -1 }, { sub: 'user', role: 'PARENT', sessionVersion: 0.5 }])(
     'redirects absent or malformed version claims: %j', async token => {

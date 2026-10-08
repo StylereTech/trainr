@@ -7,6 +7,7 @@ import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
+import { changeNotifications, readNotifications } from '@/lib/notifications'
 
 const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
@@ -88,6 +89,24 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  it('delivers a signed financial change to each authorized inbox without read actions changing money or bookings', async () => {
+    const admin = await prisma.user.create({ data: { email: `inbox-admin-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role: 'ADMIN' } })
+    users.push(admin.id)
+    await webhook()
+    f.transfer.amount_reversed = 600
+    f.disputes = [settlementDispute(f)]
+    expect((await webhook('charge.dispute.created', undefined, financialObject('charge.dispute.created'))).status).toBe(200)
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }, admin]) {
+      const inbox = await readNotifications(actor, { page: 1, limit: 50, view: 'all' })
+      const review = inbox.notifications.find(item => item.type === 'PAYMENT_REVIEW_REQUIRED')!
+      expect(review.financialReview).toMatchObject({ transferReversedInCents: 600, disputes: [{ id: 'du_synthetic', status: 'needs_response' }] })
+      await changeNotifications(actor, { ids: [review.id], read: true })
+      expect((await readNotifications(actor, { page: 1, limit: 50, view: 'unread' })).notifications.some(item => item.id === review.id)).toBe(false)
+    }
+    expect((await booking()).status).toBe('CONFIRMED')
+    expect((await payment()).status).toBe('SUCCEEDED')
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+  })
   it.each(financialTypes)('handles signed %s with current receipt verification and replay-safe notifications', async type => {
     expect((await webhook()).status).toBe(200)
     f.transfer.amount_reversed = 600
