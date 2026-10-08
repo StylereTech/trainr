@@ -28,13 +28,13 @@ export const authOptions: any = {
           hasPassword: !!credentials?.password,
         })
 
-        if (!credentials?.email || !credentials?.password) {
+        if (typeof credentials?.email !== 'string' || typeof credentials?.password !== 'string' || !credentials.email.trim() || !credentials.password) {
           authDebug('authorize:missing-credentials', { provider: 'credentials' })
           return null
         }
 
         const user: any = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: credentials.email.trim().toLowerCase() },
           include: {
             parentProfile: { select: { id: true } },
             trainerProfile: { select: { id: true } },

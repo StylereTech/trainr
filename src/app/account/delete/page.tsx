@@ -61,6 +61,7 @@ export default function DeleteAccountPage() {
       <div className="container mx-auto max-w-3xl space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">Account settings</p>
+          <Link href="/account/verify-email" className="inline-block text-sm text-emerald-300 underline">Email verification</Link>
           <h1 className="mt-3 text-3xl font-bold">Delete your Trainr account</h1>
           <p className="mt-2 text-slate-300">You can permanently delete your account directly in the app. No phone call or email is required.</p>
         </div>

@@ -28,6 +28,7 @@ export default function ForgotPasswordPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
+        signal: AbortSignal.timeout(15000),
       })
 
       if (res.ok) {
@@ -80,7 +81,7 @@ export default function ForgotPasswordPage() {
                   </div>
                   <h2 className="mt-4 text-2xl font-semibold text-white">Check your email</h2>
                   <p className="mt-2 text-sm text-slate-300">
-                    If an account with <span className="font-medium text-white">{email}</span> exists, we&apos;ve sent password reset instructions.
+                    If the account for <span className="font-medium text-white">{email}</span> is eligible, password reset instructions will be emailed.
                   </p>
                   <p className="mt-4 text-xs text-slate-400">
                     Didn&apos;t receive it? Check spam or try again in a few minutes.

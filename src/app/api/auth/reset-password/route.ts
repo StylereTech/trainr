@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const schema = z.object({
-  token: z.string().min(1),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  token: z.string().min(1).max(128),
+  password: z.string().min(8, 'Password must be at least 8 characters').refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password must be at most 72 UTF-8 bytes'),
 })
 
 export async function POST(req: NextRequest) {
@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
     }
-    console.error('Reset password error:', error)
+    if (error instanceof SyntaxError) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    console.error('Password reset failed')
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
 }

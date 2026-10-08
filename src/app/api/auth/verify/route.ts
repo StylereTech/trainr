@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getRequestUser } from '@/lib/auth'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { z } from 'zod'
 
-// GET /api/auth/verify?token=xxx — Verify email address
 export async function GET(req: NextRequest) {
+  const current = await getRequestUser(req)
+  if (!current) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    const token = req.nextUrl.searchParams.get('token')
+    const user = await prisma.user.findUnique({ where: { id: current.id }, select: { emailVerified: true, deletedAt: true } })
+    if (!user || user.deletedAt) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ verified: !!user.emailVerified, role: current.role }, { headers: { 'Cache-Control': 'private, no-store' } })
+  } catch {
+    return NextResponse.json({ error: 'Verification status unavailable' }, { status: 503 })
+  }
+}
 
-    if (!token) {
-      return NextResponse.json({ error: 'Verification token required' }, { status: 400 })
-    }
+export async function POST(req: NextRequest) {
+  try {
+    if (!rateLimit(`verify:${getClientIp(req)}`, 10, 60_000).allowed) return NextResponse.json({ error: 'Try again later' }, { status: 429 })
+    const { token } = z.object({ token: z.string().min(1).max(128) }).parse(await req.json())
 
     const user = await prisma.user.findFirst({
       where: {
         verificationToken: token,
+        deletedAt: null,
+        emailVerified: null,
         verificationExpiry: { gt: new Date() },
       },
     })
@@ -21,18 +34,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired verification token' }, { status: 400 })
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
+    const updated = await prisma.user.updateMany({
+      where: { id: user.id, deletedAt: null, emailVerified: null, verificationToken: token, verificationExpiry: { gt: new Date() } },
       data: {
         emailVerified: new Date(),
         verificationToken: null,
         verificationExpiry: null,
       },
     })
+    if (updated.count !== 1) return NextResponse.json({ error: 'Invalid or expired verification token' }, { status: 400 })
 
     return NextResponse.json({ success: true, message: 'Email verified successfully' })
   } catch (error) {
-    console.error('Verification error:', error)
+    if (error instanceof z.ZodError || error instanceof SyntaxError) return NextResponse.json({ error: 'Verification token required' }, { status: 400 })
+    console.error('Email verification failed')
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
   }
 }

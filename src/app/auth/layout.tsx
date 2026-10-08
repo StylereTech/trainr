@@ -1,10 +1,10 @@
 import Image from 'next/image'
 import { TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
-import { redirectIfAuthenticated } from '@/lib/route-guards'
+import type { Metadata } from 'next'
 
-export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  await redirectIfAuthenticated()
+export const metadata: Metadata = { referrer: 'no-referrer' }
 
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-slate-950 text-white">
       <Image

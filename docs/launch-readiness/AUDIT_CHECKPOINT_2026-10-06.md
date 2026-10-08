@@ -1,5 +1,7 @@
 # Production Audit Checkpoint
 
+2026-10-08 account/email audit: registration and trainer notices are now atomic; verification/recovery call Resend with bounded requests, explicit failure states and retryable persisted tokens. Verification is an explicit one-time POST, with role-aware signup and signed-in recovery tested locally. Baseline `8652e4c50674ec461eecfe6e7e3e1550651529b6`; **678 unit and 152 real local SQL tests passed**. [Exact steps, browser/build evidence, initial failures and remaining gates](ACCOUNT_EMAIL_REGISTRATION_REPORT.md). External email delivery, token-storage hardening, child-profile completeness and all live money-flow/rollout gates remain open. Production readiness HOLD.
+
 ## Deployment Configuration Checkpoint: 2026-10-08 UTC
 
 Baseline `af48930057a74adbe209dc974896e108199a96c6`. Fresh Vercel inspection proved that live `trainr-node` and Git preview `trainr` are different targets; Preview has no project/shared environment variables. Hosted CI is blocked before executing steps by billing. Hardened production/database verification scripts; new tests and exact evidence are in the [deployment configuration report](DEPLOYMENT_CONFIGURATION_REPORT.md). No production/main mutation or money movement. Full goal active, readiness HOLD.
