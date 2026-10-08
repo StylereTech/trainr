@@ -79,6 +79,30 @@ it.each(['notes', 'startTime', 'athleteProfileId', 'couponCode'])('rejects alter
   expect(await independent.booking.count()).toBe(1)
   expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(1)
 })
+it('does not turn a requested package into a single-session reservation or consume its coupon', async () => {
+  const offer = await prisma.serviceOffering.findUniqueOrThrow({ where: { id: service } })
+  const bundle = await prisma.package.create({ data: { trainerProfileId: offer.trainerProfileId, title: 'Synthetic five sessions',
+    totalSessions: 5, priceInCents: 25000, validForDays: 90, items: { create: { serviceOfferingId: service, sessionsCount: 5 } } } })
+  const body = { ...await input(), packageId: bundle.id }
+  expect((await post(body)).status).toBe(400)
+  expect(await independent.booking.count()).toBe(0)
+  expect(await independent.bookingCreateRequest.count()).toBe(0)
+  expect(await independent.payment.count()).toBe(0)
+  expect(await independent.notification.count()).toBe(0)
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(0)
+  await expect(createBooking(parent, body)).rejects.toMatchObject({ name: 'ZodError' })
+})
+it('does not replay an existing single-session reservation as a requested package purchase', async () => {
+  const body = await input()
+  const saved = await (await post(body)).json()
+  const changed = { ...body, packagePurchaseId: 'unsupported-purchase' }
+  expect((await post(changed)).status).toBe(400)
+  expect(await independent.booking.count()).toBe(1)
+  expect(await independent.bookingCreateRequest.count()).toBe(1)
+  expect((await independent.booking.findUniqueOrThrow({ where: { id: saved.id } })).packageId).toBeNull()
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(1)
+  expect(await independent.notification.count()).toBe(1)
+})
 it('returns the current cancelled booking even after trainer or service eligibility changes', async () => {
   const body = await input(), saved = await (await post(body)).json()
   await prisma.booking.update({ where: { id: saved.id }, data: { status: 'CANCELLED' } })

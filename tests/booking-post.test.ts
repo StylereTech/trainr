@@ -33,6 +33,13 @@ it.each([{ requestId: undefined }, { requestId: 'invalid' }, { date: '2026-02-30
   expect((await post({ ...input, ...change })).status).toBe(400)
   expect(mock.create).not.toHaveBeenCalled()
 })
+it.each([{ packageId: 'package' }, { packagePurchaseId: 'purchase' }, { sessionCreditId: 'credit' },
+  { timeZone: 'America/Chicago' }, { totalAmountInCents: 1 }])('rejects unsupported booking semantics instead of silently stripping %j', async change => {
+  const response = await post({ ...input, ...change })
+  expect(response.status).toBe(400)
+  expect(await response.json()).toEqual({ error: 'Unsupported booking fields' })
+  expect(mock.create).not.toHaveBeenCalled()
+})
 it('returns conflict details without misclassifying them as server errors', async () => {
   mock.create.mockRejectedValue(new BookingCreationError('Session is full', 409))
   const response = await post()

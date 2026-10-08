@@ -88,7 +88,7 @@ export const bookingSchema = z.object({
   startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'startTime must be HH:MM'),
   notes: z.string().max(2000).optional(),
   couponCode: z.string().trim().max(32).optional(),
-})
+}).strict('Unsupported booking fields')
 
 export const reviewSchema = z.object({
   rating: z.number().min(1).max(5),
