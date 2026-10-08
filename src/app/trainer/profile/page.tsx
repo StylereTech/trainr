@@ -33,6 +33,7 @@ const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','
 
 interface ServiceForm {
   id?: string
+  sportId?: string | null
   title: string
   description: string
   durationMinutes: number
@@ -193,6 +194,11 @@ function TrainerProfileContent() {
     }
     if (services.length === 0 || !services[0].title) {
       toast({ title: 'Missing fields', description: 'Add at least one service', variant: 'destructive' })
+      return
+    }
+    if (services.some(service => !catalog.some(sport => sport.id === service.sportId && sport.isActive && selectedSports.includes(sport.slug)))) {
+      setActiveTab('services')
+      toast({ title: 'Missing sport', description: 'Choose an active sport you coach for every service.', variant: 'destructive' })
       return
     }
     if (!revision) {
@@ -491,6 +497,13 @@ function TrainerProfileContent() {
                     )}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label htmlFor={`service-sport-${i}`}>Sport *</Label>
+                      <Select value={catalog.some(sport => sport.id === svc.sportId && sport.isActive && selectedSports.includes(sport.slug)) ? svc.sportId! : ''} onValueChange={value => updateService(i, 'sportId', value)}>
+                        <SelectTrigger id={`service-sport-${i}`} aria-label={`Service ${i + 1} sport`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Choose sport" /></SelectTrigger>
+                        <SelectContent>{catalog.filter(sport => sport.isActive && selectedSports.includes(sport.slug)).map(sport => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                     <div className="sm:col-span-2">
                       <Label>Service Title *</Label>
                       <Input value={svc.title} onChange={e => updateService(i, 'title', e.target.value)} placeholder="e.g. Private Football Session" className="mt-1.5 bg-white/5 border-white/10" />

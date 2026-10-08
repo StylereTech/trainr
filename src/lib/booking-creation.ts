@@ -20,7 +20,7 @@ export async function createBooking(userId: string, data: BookingInput) {
     await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${reference.trainerProfileId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM service_offerings WHERE id = ${data.serviceOfferingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM athlete_profiles WHERE id = ${data.athleteProfileId} FOR UPDATE`
-    const service = await tx.serviceOffering.findUnique({ where: { id: data.serviceOfferingId }, include: { trainerProfile: true } })
+    const service = await tx.serviceOffering.findUnique({ where: { id: data.serviceOfferingId }, include: { trainerProfile: { include: { sports: { select: { sportId: true } } } }, sport: true } })
     if (!service || !service.isActive || service.trainerProfileId !== reference.trainerProfileId ||
         !service.trainerProfile.isActive || service.trainerProfile.approvalStatus !== 'APPROVED') {
       throw new BookingCreationError('Trainer or service is not available for booking', 409)
@@ -29,7 +29,10 @@ export async function createBooking(userId: string, data: BookingInput) {
       where: { id: data.athleteProfileId, parentProfileId: parent.id }, include: { sports: { select: { sportId: true } } },
     })
     if (!athlete) throw new BookingCreationError('Athlete not found', 404)
-    if (service.sportId && !athlete.sports.some((sport) => sport.sportId === service.sportId)) {
+    if (!service.sportId || !service.sport?.isActive || !service.trainerProfile.sports.some((sport) => sport.sportId === service.sportId)) {
+      throw new BookingCreationError('This service needs an active sport assigned by the trainer before booking', 409)
+    }
+    if (!athlete.sports.some((sport) => sport.sportId === service.sportId)) {
       throw new BookingCreationError('Choose an athlete registered for this sport', 400)
     }
     if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0 ||

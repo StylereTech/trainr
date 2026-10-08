@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-08 service-sport update: **28 real local PostgreSQL tests passed**, including actual profile handler persistence, preservation of historical booking sport associations through offering versioning, wrong-sport athlete rejection, null/inactive/removed sport rejection and transactional rollback. Baseline `90f5d92d2000506c253928e649741b412f08c6a7` plus this commit; synthetic accounts only. Independent cleanup readback and full steps are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). This does not establish production migration or Stripe persistence success.
+
 ## Current Local SQL Evidence: 2026-10-08
 
 At 04:49-04:52 UTC, the audit branch passed 12 integration tests against disposable PostgreSQL 16.15, with real independent connections, row-lock waiting, migration constraints, atomic rollback and committed readback. Baseline source: `ac7c579e1fcd5af6fc06f11b5678a458aec25766`; harness and exact steps/accounts/results are in [PostgreSQL integration verification](POSTGRES_INTEGRATION_REPORT.md). Synthetic accounts only; Stripe was mocked. Fixture cleanup was independently verified. **PASS for these local SQL cases only.** Production migration, production write persistence, real provider behavior and final readiness remain unverified. Historical results below do not override these limits.

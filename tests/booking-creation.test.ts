@@ -16,7 +16,7 @@ beforeEach(() => {
     parent: { id: 'parent', user: { email: 'parent@example.test' } },
     service: { id: 'service', trainerProfileId: 'trainer', sportId: 'sport', title: 'Training', type: 'INDIVIDUAL',
       priceInCents: 6000, durationMinutes: 60, maxParticipants: 1, isActive: true,
-      trainerProfile: { id: 'trainer', userId: 'trainer-user', isActive: true, approvalStatus: 'APPROVED' } },
+      sport: { isActive: true }, trainerProfile: { id: 'trainer', userId: 'trainer-user', isActive: true, approvalStatus: 'APPROVED', sports: [{ sportId: 'sport' }] } },
     athletes: ['athlete', 'athlete2', 'athlete3'].map((id) => ({ id, parentProfileId: 'parent', sports: [{ sportId: 'sport' }] })),
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
@@ -67,6 +67,15 @@ beforeEach(() => {
 })
 
 describe('atomic reservation creation', () => {
+  it.each(['unassigned', 'inactive', 'removed'])('rejects a service with %s sport before consuming a coupon or creating records', async (condition) => {
+    if (condition === 'unassigned') state.service.sportId = null
+    if (condition === 'inactive') state.service.sport.isActive = false
+    if (condition === 'removed') state.service.trainerProfile.sports = []
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 409 })
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+    expect(state.notifications).toHaveLength(0)
+  })
   it('uses the configured commission on the discounted total', async () => {
     state.fees = [{ platformCommissionPercent: 20, stripeFeePercent: 5, processingFeeCents: 99, minBookingAmountCents: 1500 }]
     expect(await reserve({ couponCode: 'SAVE10' })).toMatchObject({ totalAmountInCents: 5400, platformFeeInCents: 1080, trainerPayoutInCents: 4320 })

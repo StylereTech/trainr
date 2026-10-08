@@ -19,6 +19,7 @@ import { Loader2, ChevronLeft, ChevronRight, Check, Plus, Trash2 } from 'lucide-
 const STEPS = ['Sports', 'Profile', 'Services', 'Availability', 'Review']
 
 interface ServiceForm {
+  sportId?: string
   title: string; description: string; durationMinutes: number; priceInCents: number; type: string; maxParticipants: number;
 }
 interface AvailSlot { dayOfWeek: number; startTime: string; endTime: string; }
@@ -132,7 +133,7 @@ export default function TrainerOnboardingPage() {
     switch (step) {
       case 0: return selectedSports.length > 0 && selectedSpecialties.length > 0
       case 1: return profile.firstName && profile.lastName && profile.bio
-      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= minServicePrice)
+      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= minServicePrice && catalog.some(sport => sport.id === s.sportId && sport.isActive && selectedSports.includes(sport.slug)))
       case 3: return availability.length > 0
       default: return true
     }
@@ -269,9 +270,16 @@ export default function TrainerOnboardingPage() {
                     <span className="font-semibold text-sm">Service {i + 1}</span>
                     {services.length > 1 && <Button variant="ghost" size="icon" onClick={() => setServices(services.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
+                  <div>
+                    <Label htmlFor={`service-sport-${i}`}>Sport *</Label>
+                    <Select value={catalog.some(sport => sport.id === svc.sportId && sport.isActive && selectedSports.includes(sport.slug)) ? svc.sportId : ''} onValueChange={value => setServices(current => current.map((service, index) => index === i ? { ...service, sportId: value } : service))}>
+                      <SelectTrigger id={`service-sport-${i}`} aria-label={`Service ${i + 1} sport`}><SelectValue placeholder="Choose sport" /></SelectTrigger>
+                      <SelectContent>{catalog.filter(sport => sport.isActive && selectedSports.includes(sport.slug)).map(sport => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>Title</Label><Input placeholder="e.g. 1-on-1 Quarterback Training" value={svc.title} onChange={e => { const s = [...services]; s[i].title = e.target.value; setServices(s) }} /></div>
                   <div><Label>Description</Label><Textarea placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div><Label>Duration (min)</Label><Input type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
                     <div><Label>Price ($)</Label><Input type="number" min={minServicePrice / 100} step={0.01} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = Math.round(Number(e.target.value) * 100); setServices(s) }} /></div>
                     <div>

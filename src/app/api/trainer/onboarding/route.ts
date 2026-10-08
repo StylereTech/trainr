@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
       certifications: trainer.certifications.map(certificationForEditor),
       services: trainer.serviceOfferings.map((s: any) => ({
         id: s.id,
+        sportId: s.sportId,
         title: s.title,
         description: s.description || '',
         durationMinutes: s.durationMinutes,

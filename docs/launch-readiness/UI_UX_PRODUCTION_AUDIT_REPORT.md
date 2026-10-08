@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-08 service editor update: explicit active-sport selectors added to onboarding and profile editing; invalid selections block save and direct the trainer to Services. The initial 16-case desktop/mobile browser run passed; screenshot review caught a clipped session-type label at 390px, so the onboarding price/duration/type row now stacks on narrow screens. Final rebuilt browser retest and screenshot proof are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). Baseline `90f5d92d2000506c253928e649741b412f08c6a7` plus this commit; synthetic local API/auth fixtures, not a production UI signoff.
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles

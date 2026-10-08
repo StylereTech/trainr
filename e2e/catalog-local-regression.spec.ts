@@ -46,6 +46,20 @@ for (const width of [1440, 390]) {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
         await expect(page.getByRole('heading', { name: 'Sports', exact: true, level: 2 })).toHaveCSS('color', 'rgb(17, 24, 39)')
         await page.screenshot({ path: testInfo.outputPath('catalog.png') })
+        if (!empty) {
+          await next.click()
+          await page.locator('main input').nth(0).fill('Synthetic')
+          await page.locator('main input').nth(1).fill('Trainer')
+          await page.getByPlaceholder('Tell parents about yourself, your coaching philosophy, and experience...').fill('Synthetic coach profile')
+          await next.click()
+          await page.getByPlaceholder('e.g. 1-on-1 Quarterback Training').fill('Football session')
+          await expect(next).toBeDisabled()
+          await page.getByRole('combobox', { name: 'Service 1 sport' }).click()
+          await page.getByRole('option', { name: 'Football', exact: true }).click()
+          await expect(next).toBeEnabled()
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+          await page.screenshot({ path: testInfo.outputPath('onboarding-service-sport.png'), fullPage: true })
+        }
       })
     }
   })

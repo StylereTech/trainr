@@ -22,7 +22,7 @@ for (const width of [1440, 390]) {
           locationType: 'BOTH', address: '', city: 'Austin', state: 'TX', zipCode: '', travelRadius: 25,
           slug: 'local-trainer', email: 'trainer@example.test', approvalStatus: 'APPROVED', stripeOnboardingComplete: false },
         sports: ['basketball'], specialties: ['spec-shooting'], certifications: [{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123', isVerified: true }],
-        services: [{ id: 'old-service', title: 'Fixture session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }],
+        services: [{ id: 'old-service', sportId: 'sport-basketball', title: 'Fixture session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }],
         availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '12:00' }, { dayOfWeek: 1, startTime: '13:00', endTime: '17:00' }],
       }
       let saves = 0
@@ -37,6 +37,7 @@ for (const width of [1440, 390]) {
         expect(body.specialties).toEqual(saves === 1 ? ['spec-shooting', 'db-QB-ID'] : ['spec-shooting'])
         expect(body.certifications).toEqual([{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123' }])
         expect(body.services[0].id).toBe(saves === 1 ? 'old-service' : 'saved-version')
+        expect(body.services[0].sportId).toBe(saves === 1 ? 'sport-football' : 'sport-basketball')
         if (saves === 3) return route.fulfill({ status: 409, json: { error: 'Profile changed elsewhere. Reload required.' } })
         if (saves === 2) {
           expect(body.availability).toEqual([{ dayOfWeek: 1, startTime: '09:00', endTime: '11:00' }, { dayOfWeek: 1, startTime: '13:00', endTime: '17:00' }])
@@ -49,12 +50,23 @@ for (const width of [1440, 390]) {
       await page.getByRole('button', { name: 'Football', exact: true }).click()
       await page.getByRole('button', { name: 'QB Training (Football)', exact: true }).click()
       await page.getByRole('button', { name: 'Services', exact: true }).click()
+      await expect(page.getByRole('combobox', { name: 'Service 1 sport' })).toContainText('Basketball')
+      await page.getByRole('combobox', { name: 'Service 1 sport' }).click()
+      await page.getByRole('option', { name: 'Football', exact: true }).click()
       await page.getByPlaceholder('e.g. Private Football Session').fill('Revised session')
+      await page.screenshot({ path: testInfo.outputPath('service-sport.png'), fullPage: true })
       await page.getByRole('button', { name: 'Save Changes', exact: true }).click()
       await expect(page.getByText('Your changes have been saved successfully.', { exact: true })).toBeVisible()
       await page.getByRole('button', { name: 'Personal Info', exact: true }).click()
       await page.getByRole('button', { name: 'Football', exact: true }).click()
       await expect(page.getByRole('button', { name: 'QB Training (Football)', exact: true })).toHaveCount(0)
+      await page.getByRole('button', { name: 'Save Changes', exact: true }).click()
+      await expect(page.getByText('Choose an active sport you coach for every service.', { exact: true })).toBeVisible()
+      expect(saves).toBe(1)
+      await expect(page.getByRole('combobox', { name: 'Service 1 sport' })).toContainText('Choose sport')
+      await page.getByRole('combobox', { name: 'Service 1 sport' }).click()
+      await expect(page.getByRole('option', { name: 'Football', exact: true })).toHaveCount(0)
+      await page.getByRole('option', { name: 'Basketball', exact: true }).click()
       await page.getByRole('button', { name: 'Availability', exact: true }).click()
       await expect(page.getByLabel('Monday window 1 start time')).toHaveValue('09:00')
       await expect(page.getByLabel('Monday window 2 start time')).toHaveValue('13:00')

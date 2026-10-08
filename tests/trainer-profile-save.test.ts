@@ -84,6 +84,37 @@ beforeEach(() => {
 })
 
 describe('trainer profile edit integrity (transaction model)', () => {
+  it('returns service sport IDs after a legacy save that omits them', async () => {
+    const saved = await (await save()).json()
+    expect(saved.services[0].sportId).toBe('sport')
+    const refreshed = await (await GET(new Request('http://localhost/api/trainer/onboarding') as any)).json()
+    expect(refreshed.services[0].sportId).toBe('sport')
+  })
+  it.each([undefined, 'unknown'])('rejects new services without an explicit selected sport: %s', async (sportId) => {
+    expect((await save({ services: [{ ...baseService, sportId }] })).status).toBe(409)
+    expect(state.services).toHaveLength(2)
+    expect(state.profile.updatedAt.toISOString()).toBe(revision)
+  })
+  it('requires explicit correction of legacy unassigned services', async () => {
+    state.services[0].sportId = null
+    expect((await save()).status).toBe(409)
+    const saved = await (await save({ services: [{ ...first, sportId: 'sport' }, second] })).json()
+    expect(saved.services[0]).toMatchObject({ id: 'first', sportId: 'sport' })
+  })
+  it.each(['bookings', 'packageItems'])('versions a sport reassignment without changing %s history', async (reference) => {
+    state.catalog.push({ id: 'football', slug: 'football', isActive: true, specialties: [] })
+    state.services[0]._count[reference] = 1
+    const saved = await (await save({ sports: ['basketball', 'football'], services: [{ ...first, sportId: 'football' }, second] })).json()
+    expect(saved.services[0]).toMatchObject({ sportId: 'football' })
+    expect(saved.services[0].id).not.toBe('first')
+    expect(state.services[0]).toMatchObject({ id: 'first', sportId: 'sport', isActive: false })
+  })
+  it('rolls back a sport reassignment if later availability fails', async () => {
+    state.services[0].sportId = null
+    fail = true
+    expect((await save({ services: [{ ...first, sportId: 'sport' }, second] })).status).toBe(503)
+    expect(state.services[0].sportId).toBeNull()
+  })
   it('returns actual catalog choices and canonical specialty IDs after save', async () => {
     const saved = await (await save()).json()
     expect(saved.specialties).toEqual(['specialty'])
@@ -223,7 +254,7 @@ describe('trainer profile edit integrity (transaction model)', () => {
   })
   it('allows first onboarding without a revision', async () => {
     state.services = []
-    expect((await save({ revision: undefined, services: [baseService] })).status).toBe(200)
+    expect((await save({ revision: undefined, services: [{ ...baseService, sportId: 'sport' }] })).status).toBe(200)
     expect(state.services).toHaveLength(1)
   })
   it('preserves date exceptions and all submitted weekly windows', async () => {

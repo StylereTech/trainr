@@ -5,6 +5,7 @@ export class TrainerEditConflict extends Error {}
 
 export const trainerServiceSchema = z.object({
   id: z.string().min(1).max(128).optional(),
+  sportId: z.string().min(1).max(128).optional(),
   title: z.string().trim().min(1).max(150),
   description: z.string().max(2000).optional(),
   durationMinutes: z.number().int().min(1).max(1440).default(60),
@@ -14,7 +15,7 @@ export const trainerServiceSchema = z.object({
 })
 
 // Caller holds the trainer lock, also acquired by reservation creation.
-export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerId: string, services: z.infer<typeof trainerServiceSchema>[], allowedSportIds?: Set<string>) {
+export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerId: string, services: z.infer<typeof trainerServiceSchema>[], allowedSportIds: Set<string>) {
   const existing = await tx.serviceOffering.findMany({
     where: { trainerProfileId: trainerId }, include: { _count: { select: { bookings: true, packageItems: true } } },
   })
@@ -27,10 +28,11 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
   const saved = []
   for (const service of services) {
     const previous = service.id ? byId.get(service.id) : undefined
-    if (previous?.sportId && allowedSportIds && !allowedSportIds.has(previous.sportId)) {
-      throw new TrainerEditConflict('A retained service belongs to a removed sport. Keep that sport selected or remove the service.')
+    const sportId = service.sportId ?? previous?.sportId
+    if (!sportId || !allowedSportIds.has(sportId)) {
+      throw new TrainerEditConflict('Choose an active sport you coach for every service.')
     }
-    const data = { title: service.title, description: service.description || null, durationMinutes: service.durationMinutes,
+    const data = { sportId, title: service.title, description: service.description || null, durationMinutes: service.durationMinutes,
       priceInCents: service.priceInCents, type: service.type, maxParticipants: service.maxParticipants }
     const changed = previous && Object.entries(data).some(([key, value]) =>
       (key === 'description' ? previous.description || null : previous[key as keyof typeof data]) !== value)
@@ -41,7 +43,7 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
     } else {
       // Keep historical booking/package terms immutable; edits publish a new offering.
       if (previous) await tx.serviceOffering.update({ where: { id: previous.id }, data: { isActive: false } })
-      saved.push(await tx.serviceOffering.create({ data: { ...data, trainerProfileId: trainerId, sportId: previous?.sportId || null } }))
+      saved.push(await tx.serviceOffering.create({ data: { ...data, trainerProfileId: trainerId } }))
     }
   }
   const retained = new Set(submittedIds)
@@ -50,6 +52,6 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
       await tx.serviceOffering.update({ where: { id: service.id }, data: { isActive: false } })
     }
   }
-  return saved.map((service) => ({ id: service.id, title: service.title, description: service.description || '',
+  return saved.map((service) => ({ id: service.id, sportId: service.sportId, title: service.title, description: service.description || '',
     durationMinutes: service.durationMinutes, priceInCents: service.priceInCents, type: service.type, maxParticipants: service.maxParticipants }))
 }

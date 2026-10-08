@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-08 update: actual reservation logic now rejects unassigned/inactive/uncoached service sports and mismatched athlete membership. Real local PostgreSQL coverage passed **28 tests**, including correction and successful matching-athlete reservation. This is not live booking proof. At `2026-10-08T05:53:12.0039031Z`, read-only production health returned `ok: true`, `dbConnected: true`; at `05:53:32.9084790Z`, public `GET /api/trainers?limit=100&page=1` returned 11 trainers and 11 sampled services with zero null sport IDs. Browse exposes one service per trainer, so this is not a full service inventory or endorsement of all associations. No authenticated production account or financial mutation was used. Source baseline `90f5d92d2000506c253928e649741b412f08c6a7` plus this commit, not the live source. See [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for exact tests and release gates.
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles
