@@ -1,5 +1,9 @@
 # Database Persistence Report
 
+## Current Local SQL Evidence: 2026-10-08
+
+At 04:49-04:52 UTC, the audit branch passed 12 integration tests against disposable PostgreSQL 16.15, with real independent connections, row-lock waiting, migration constraints, atomic rollback and committed readback. Baseline source: `ac7c579e1fcd5af6fc06f11b5678a458aec25766`; harness and exact steps/accounts/results are in [PostgreSQL integration verification](POSTGRES_INTEGRATION_REPORT.md). Synthetic accounts only; Stripe was mocked. Fixture cleanup was independently verified. **PASS for these local SQL cases only.** Production migration, production write persistence, real provider behavior and final readiness remain unverified. Historical results below do not override these limits.
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles

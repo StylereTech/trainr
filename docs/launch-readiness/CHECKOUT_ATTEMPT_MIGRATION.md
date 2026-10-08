@@ -1,6 +1,6 @@
 # Durable Checkout Rollout Gate
 
-Date: 2026-10-08 UTC. Baseline: `4de8acd039cc5de6f6a63da6b39bb22392d3bcda` plus the commit containing this document. Environment: local Windows, synthetic tests. No production database or Stripe credentials used. Status: source implemented; database migration and live money-flow verification NOT performed.
+Date: 2026-10-08 UTC. Original source baseline: `4de8acd039cc5de6f6a63da6b39bb22392d3bcda`. Updated local SQL proof uses application baseline `ac7c579e1fcd5af6fc06f11b5678a458aec25766`. Environment: local Windows, synthetic tests. No production database or Stripe credentials used. Status: source implemented; exact migration and 12 integration cases PASS on disposable local PostgreSQL 16.15. Staging/production migration and live money-flow verification NOT performed. See [reproduction and evidence](POSTGRES_INTEGRATION_REPORT.md).
 
 ## Why This Is Required
 
@@ -27,7 +27,7 @@ Do not deploy the new webhook/checkout code against a database without this tabl
 
 | Test | Expected Result | Current Proof |
 | --- | --- | --- |
-| Three concurrent checkout requests | One active attempt and one payable Stripe session; same returned URL | Serial transaction/provider model only |
+| Three concurrent checkout requests | One active attempt and one payable Stripe session; same returned URL | Real local PostgreSQL: one persisted attempt/key/session identity; Stripe provider simulated, actual payable-session behavior still unverified |
 | Timeout after Stripe acceptance | Retry uses identical parameters/key and recovers the original session | Model test only |
 | DB save failure after Stripe create | Durable attempt remains; retry recovers the same session | Model test only |
 | Unknown outcome older than 23 hours | Conflict and operator reconciliation; no new create | Model test only |

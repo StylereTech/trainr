@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:prod": "BASE_URL=https://trainr.cc playwright test e2e/role-boundaries.spec.ts --project=chromium",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",

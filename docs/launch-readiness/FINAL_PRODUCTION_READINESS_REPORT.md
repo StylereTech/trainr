@@ -1,5 +1,7 @@
 # Final Production Readiness Report
 
+Latest checkpoint, 2026-10-08 04:52 UTC: **12 real local PostgreSQL integration tests passed**, including the exact checkout migration and concurrency/rollback cases. This replaces the earlier absence of local SQL evidence, not the production hold. See [SQL evidence and limits](POSTGRES_INTEGRATION_REPORT.md) and the [current audit checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). Stripe, staging/production rollout and remaining application/security gates are still incomplete.
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles
