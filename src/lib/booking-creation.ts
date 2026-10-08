@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { calculateDiscount, calculateSplit } from '@/lib/fees'
+import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '@/lib/fees'
 import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
 import type { BookingInput } from '@/lib/validations'
 
@@ -81,6 +81,9 @@ export async function createBooking(userId: string, data: BookingInput) {
       await tx.coupon.update({ where: { id: coupon.id }, data: { currentUses: { increment: 1 } } })
     }
     const total = service.priceInCents - discount
+    if (!isSupportedBookingTotal(total)) {
+      throw new BookingCreationError('Booking total must be zero or between $0.50 and $999,999.99. Change the promo code or contact support.', 400)
+    }
     const { platformFee, trainerShare } = calculateSplit(total)
     const free = total === 0
     const booking = await tx.booking.create({

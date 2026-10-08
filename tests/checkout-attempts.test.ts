@@ -53,7 +53,7 @@ beforeEach(() => {
         },
         notification: { createMany: async ({ data }: any) => state.notifications.push(...data) },
         payment: {
-          create: async () => { state.payment = pendingPayment(); return structuredClone(state.payment) },
+          create: async ({ data }: any) => { state.payment = { ...pendingPayment(), ...data }; return structuredClone(state.payment) },
           update: async ({ data }: any) => { Object.assign(state.payment, data); return structuredClone(state.payment) },
         },
         checkoutAttempt: {
@@ -81,7 +81,7 @@ beforeEach(() => {
     const key = options.idempotencyKey
     if (!accepted.has(key)) {
       const session = {
-        id: `cs_${accepted.size + 1}`, mode: 'payment', currency: 'usd', amount_total: 10000,
+        id: `cs_${accepted.size + 1}`, mode: 'payment', currency: 'usd', amount_total: parameters.line_items[0].price_data.unit_amount,
         payment_status: 'unpaid', status: 'open', payment_intent: null,
         url: `https://checkout.stripe.com/session-${accepted.size + 1}`, metadata: parameters.metadata,
       }
@@ -103,6 +103,29 @@ afterEach(() => vi.useRealTimers())
 const checkout = (user = buyer) => startOrResumeCheckout('booking', user, 'acct_ready')
 
 describe('durable checkout attempts', () => {
+  it.each([0, 1, 49, 50.5, 100000000])('rejects an invalid existing booking total %s before persisting or contacting Stripe', async (total) => {
+    Object.assign(state.booking, { totalAmountInCents: total, platformFeeInCents: 0, trainerPayoutInCents: total })
+    await expect(checkout()).rejects.toThrow('amounts are invalid')
+    expect(state.payment).toBeNull()
+    expect(state.attempts).toHaveLength(0)
+    expect(mock.create).not.toHaveBeenCalled()
+    expect(mock.retrieve).not.toHaveBeenCalled()
+  })
+
+  it('accepts the minimum USD amount with an exact stored split', async () => {
+    Object.assign(state.booking, { totalAmountInCents: 50, platformFeeInCents: 8, trainerPayoutInCents: 42 })
+    await checkout()
+    expect(state.payment.amountInCents).toBe(50)
+    expect(state.attempts[0].parameters.line_items[0].price_data.unit_amount).toBe(50)
+    expect(state.attempts[0].parameters.payment_intent_data.application_fee_amount).toBe(8)
+  })
+
+  it('rejects fractional split cents even when their sum matches the total', async () => {
+    Object.assign(state.booking, { platformFeeInCents: 1500.5, trainerPayoutInCents: 8499.5 })
+    await expect(checkout()).rejects.toThrow('amounts are invalid')
+    expect(mock.create).not.toHaveBeenCalled()
+  })
+
   it('persists the immutable destination-charge request before calling Stripe', async () => {
     await checkout()
     expect(state.attempts).toHaveLength(1)

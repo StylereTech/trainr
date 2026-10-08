@@ -11,8 +11,10 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
   test.describe(`local booking UI ${viewport.width}px`, () => {
     test.use({ viewport, timezoneId: 'UTC' })
 
-    for (const free of [false, true]) {
-      test(free ? 'confirms zero-due booking without opening checkout' : 'keeps a failed checkout pending with a visible error', async ({ page, context }, testInfo) => {
+    for (const scenario of ['pending', 'free', 'invalid-coupon']) {
+      const free = scenario === 'free'
+      const invalidCoupon = scenario === 'invalid-coupon'
+      test(invalidCoupon ? 'shows an unchargeable discount and allows correction' : free ? 'confirms zero-due booking without opening checkout' : 'keeps a failed checkout pending with a visible error', async ({ page, context }, testInfo) => {
         const token = await encode({ secret, token: { sub: 'local-parent', email: 'parent@example.test', role: 'PARENT' } })
         await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
         const tomorrow = new Date()
@@ -40,6 +42,9 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
           if (path === '/api/auth/session') return route.fulfill({ json: { user: { id: 'local-parent', role: 'PARENT', email: 'parent@example.test' }, expires: '2099-01-01' } })
           if (path === '/api/bookings' && route.request().method() === 'POST') {
             expect(route.request().postDataJSON()).toMatchObject({ serviceOfferingId: 'service', athleteProfileId: 'athlete', date, startTime: '11:00' })
+            if (route.request().postDataJSON().couponCode === 'LEAVE49') {
+              return route.fulfill({ status: 400, json: { error: 'Booking total must be zero or between $0.50 and $999,999.99. Change the promo code or contact support.' } })
+            }
             saved = { id: 'booking', date, startTime: '11:00', endTime: '12:00', status: free ? 'CONFIRMED' : 'PENDING',
               totalAmountInCents: free ? 0 : 6000, payment: free ? { status: 'SUCCEEDED' } : null,
               serviceOffering: trainer.serviceOfferings[0], trainerProfile: trainer, athleteProfile: athlete, review: null }
@@ -62,6 +67,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
         await expect(page.getByRole('button', { name: '10:00', exact: true })).toHaveCount(0)
         await page.getByRole('button', { name: '11:00', exact: true }).click()
         if (free) await page.getByLabel('Promo code').fill('FREE100')
+        if (invalidCoupon) await page.getByLabel('Promo code').fill('LEAVE49')
         if (viewport.width < 1024) await page.getByRole('button', { name: /Booking summary/ }).click()
         const submit = page.getByRole('button', { name: 'Book & Pay', exact: true })
         await submit.scrollIntoViewIfNeeded()
@@ -69,6 +75,16 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
         await page.screenshot({ path: testInfo.outputPath('booking-selected.png') })
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
         await submit.click()
+        if (invalidCoupon) {
+          await expect(page.getByText('Booking total must be zero or between $0.50 and $999,999.99. Change the promo code or contact support.', { exact: true })).toBeVisible()
+          await expect(page).toHaveURL(/\/book\/local-fixture$/)
+          expect(saved).toBeNull()
+          expect(checkoutCalls).toBe(0)
+          await expect(submit).toBeEnabled()
+          await page.screenshot({ path: testInfo.outputPath('invalid-discount.png') })
+          await page.getByLabel('Promo code').fill('')
+          await submit.click()
+        }
         await expect(page).toHaveURL(/\/parent\/dashboard$/)
         await expect(page.getByText(free ? 'No payment is due.' : 'Fixture checkout unavailable. Booking remains unpaid.', { exact: true })).toBeVisible()
         expect(checkoutCalls).toBe(free ? 0 : 1)

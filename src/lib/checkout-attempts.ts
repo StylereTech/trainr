@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
+import { isSupportedBookingTotal } from '@/lib/fees'
 
 export class CheckoutConflict extends Error {}
 type Buyer = { id: string; email?: string | null }
@@ -33,7 +34,9 @@ function assertPayable(booking: CheckoutBooking | null, buyer: Buyer, accountId:
   if (payment && (payment.amountInCents !== booking.totalAmountInCents || payment.platformFeeInCents !== booking.platformFeeInCents || payment.trainerPayoutInCents !== booking.trainerPayoutInCents)) {
     throw new CheckoutConflict('Stored payment amounts require reconciliation.')
   }
-  if (booking.totalAmountInCents <= 0 || booking.platformFeeInCents < 0 || booking.trainerPayoutInCents < 0 ||
+  if (!isSupportedBookingTotal(booking.totalAmountInCents) || booking.totalAmountInCents === 0 ||
+      !Number.isSafeInteger(booking.platformFeeInCents) || !Number.isSafeInteger(booking.trainerPayoutInCents) ||
+      booking.platformFeeInCents < 0 || booking.trainerPayoutInCents < 0 ||
       booking.platformFeeInCents + booking.trainerPayoutInCents !== booking.totalAmountInCents) {
     throw new CheckoutConflict('Booking payment amounts are invalid.')
   }

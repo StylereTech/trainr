@@ -46,7 +46,7 @@ beforeEach(async () => {
   provider.create.mockImplementation(async (parameters, options) => {
     const key = options.idempotencyKey
     if (!sessions.has(key)) sessions.set(key, { id: `cs_${randomUUID()}`, status: 'open', payment_status: 'unpaid', payment_intent: null,
-      mode: 'payment', currency: 'usd', amount_total: 6000, metadata: parameters.metadata, url: 'https://checkout.stripe.com/synthetic-only' })
+      mode: 'payment', currency: 'usd', amount_total: parameters.line_items[0].price_data.unit_amount, metadata: parameters.metadata, url: 'https://checkout.stripe.com/synthetic-only' })
     return sessions.get(key)
   })
   provider.retrieve.mockImplementation(async (id) => Array.from(sessions.values()).find((session) => session.id === id))
@@ -72,6 +72,28 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it.each([0, 49, 50])('persists only payable or free discounted bookings: %s cents', async (remaining) => {
+    const coupon = await prisma.coupon.create({ data: { code: randomUUID().replaceAll('-', '').toUpperCase(), discountAmountInCents: 6000 - remaining, maxUses: 1, createdById: 'synthetic-test-operator' } })
+    createdCoupons.push(coupon.id)
+    if (remaining === 49) {
+      await expect(reserve(0, '09:00', coupon.code)).rejects.toMatchObject({ status: 400 })
+      expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).currentUses).toBe(0)
+      expect(await independent.booking.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+      expect(await independent.notification.count({ where: { userId: fixture.trainerUser } })).toBe(0)
+      return
+    }
+    const booking = await reserve(0, '09:00', coupon.code)
+    if (remaining === 50) await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    const saved = await independent.booking.findUniqueOrThrow({ where: { id: booking.id }, include: { payment: true } })
+    expect(saved.totalAmountInCents).toBe(remaining)
+    expect(saved.status).toBe(remaining === 0 ? 'CONFIRMED' : 'PENDING')
+    expect(saved.payment?.amountInCents).toBe(remaining)
+    expect(saved.payment?.status).toBe(remaining === 0 ? 'SUCCEEDED' : 'PENDING')
+    expect(saved.platformFeeInCents + saved.trainerPayoutInCents).toBe(remaining)
+    expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).currentUses).toBe(1)
+    expect(provider.create).toHaveBeenCalledTimes(remaining === 0 ? 0 : 1)
+  })
+
   it('uses independent PostgreSQL sessions', async () => {
     const [a, b] = await Promise.all([
       prisma.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`,

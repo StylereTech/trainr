@@ -53,3 +53,7 @@ The missing local real-database test harness is resolved. Database row-lock, con
 Still required: staging schema-drift review and migration rehearsal against the actual deployment baseline; Stripe test-mode network/recovery/refund/Connect verification; remaining application fixes; privileged-account remediation; explicit migration/deployment to the actual `trainr-node` production project; controlled live smoke and money-flow signoff. Main and production were not changed in this pass.
 
 Full quality-gate retest and audit-branch publication are recorded in the [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md).
+
+## Amount-Boundary Retest: 2026-10-08 04:57 UTC
+
+Source baseline `31eabbaffdff473483116cca6f9b987b8f141e24` plus the amount-guard changes in this report's commit. Same local database and synthetic account isolation. Added zero/49/50-cent coupon cases: zero confirms with zero settled local payment and no provider call; 49 rejects with zero coupon usage/bookings/notifications; 50 persists a pending booking/payment and exact balanced split, using only a mocked checkout provider. **15/15 integration tests passed in 8.32 seconds**. Independent cleanup counts again returned zero for users, bookings, payments and coupons; clean server shutdown confirmed. No real Stripe success or production persistence is implied.

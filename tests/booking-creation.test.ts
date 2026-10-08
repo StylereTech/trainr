@@ -151,6 +151,33 @@ describe('atomic reservation creation', () => {
     expect(state.coupon.currentUses).toBe(1)
   })
 
+  it.each([1, 49])('rolls back a coupon leaving an unchargeable %s-cent balance', async (remaining) => {
+    Object.assign(state.coupon, { discountPercent: null, discountAmountInCents: 6000 - remaining })
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 400, message: expect.stringContaining('$0.50') })
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+    expect(state.notifications).toHaveLength(0)
+  })
+
+  it('rejects a percentage discount leaving a sub-minimum charge', async () => {
+    state.service.priceInCents = 1500
+    state.coupon.discountPercent = 99
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 400 })
+    expect(state.coupon.currentUses).toBe(0)
+  })
+
+  it('accepts an exact 50-cent balance without altering the discount', async () => {
+    Object.assign(state.coupon, { discountPercent: null, discountAmountInCents: 5950 })
+    expect(await reserve({ couponCode: 'SAVE10' })).toMatchObject({ status: 'PENDING', totalAmountInCents: 50, platformFeeInCents: 8, trainerPayoutInCents: 42 })
+    expect(state.coupon.currentUses).toBe(1)
+  })
+
+  it.each([49, 100000000])('rejects unsupported legacy service price %s without a coupon', async (price) => {
+    state.service.priceInCents = price
+    await expect(reserve()).rejects.toMatchObject({ status: 400 })
+    expect(state.bookings).toHaveLength(0)
+  })
+
   it.each(['booking', 'notification'])('rolls back coupon usage and reservation if %s creation fails', async (failure) => {
     fail = failure
     await expect(reserve({ couponCode: 'SAVE10' })).rejects.toThrow('failed')
