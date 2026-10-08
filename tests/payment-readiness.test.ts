@@ -7,13 +7,16 @@ const mocks = vi.hoisted(() => ({
   account: vi.fn(),
   session: vi.fn(),
   trainer: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  booking: { findUnique: vi.fn(), update: vi.fn() },
-  payment: { upsert: vi.fn() },
+  transaction: vi.fn(),
+  query: vi.fn(),
+  booking: { findUnique: vi.fn(), updateMany: vi.fn() },
+  payment: { update: vi.fn() },
   notification: { createMany: vi.fn() },
   wallet: { update: vi.fn(), create: vi.fn() },
 }))
 vi.mock('@/lib/auth', () => ({ authOptions: {}, getServerSession: mocks.session }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
+  $transaction: mocks.transaction,
   trainerProfile: mocks.trainer, booking: mocks.booking, payment: mocks.payment,
   notification: mocks.notification, trainerWallet: mocks.wallet,
 } }))
@@ -27,6 +30,10 @@ vi.mock('@/lib/stripe', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.transaction.mockImplementation(async (run) => run({
+    $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
+  }))
+  mocks.booking.updateMany.mockResolvedValue({ count: 1 })
   mocks.session.mockResolvedValue({ user: { id: 'trainer-user', role: 'TRAINER' } })
 })
 
@@ -71,15 +78,15 @@ describe('Stripe webhook payment guards', () => {
     const response = await send('checkout.session.completed', { payment_status: 'unpaid', metadata: { bookingId: 'booking' } })
     expect(response.status).toBe(200)
     expect(mocks.booking.findUnique).not.toHaveBeenCalled()
-    expect(mocks.payment.upsert).not.toHaveBeenCalled()
+    expect(mocks.payment.update).not.toHaveBeenCalled()
   })
 
   it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded'])(
     'rejects a mismatched amount for %s', async (type) => {
-      mocks.booking.findUnique.mockResolvedValue({ totalAmountInCents: 7500 })
+      mocks.booking.findUnique.mockResolvedValue({ totalAmountInCents: 7500, payment: { id: 'payment', amountInCents: 7500 } })
       const response = await send(type, { payment_status: 'paid', amount_total: 1, currency: 'usd', metadata: { bookingId: 'booking' } })
       expect(response.status).toBe(409)
-      expect(mocks.payment.upsert).not.toHaveBeenCalled()
+      expect(mocks.payment.update).not.toHaveBeenCalled()
     },
   )
 
@@ -91,18 +98,21 @@ describe('Stripe webhook payment guards', () => {
 
   it('records the stored booking split without crediting a second withdrawable wallet', async () => {
     mocks.booking.findUnique.mockResolvedValue({
+      id: 'booking', status: 'PENDING',
       totalAmountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500,
+      payment: { id: 'payment', status: 'PENDING', amountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500 },
       trainerProfileId: 'trainer', trainerProfile: { userId: 'trainer-user', firstName: 'Test', lastName: 'Trainer' },
       parentProfile: { userId: 'parent-user' }, date: new Date('2026-11-01'),
     })
     const response = await send('checkout.session.completed', {
       id: 'cs_test', payment_intent: 'pi_test', payment_status: 'paid', amount_total: 7500,
-      currency: 'usd', metadata: { bookingId: 'booking' },
+      currency: 'usd', metadata: { bookingId: 'booking', paymentId: 'payment' },
     })
     expect(response.status).toBe(200)
-    expect(mocks.payment.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      update: expect.objectContaining({ platformFeeInCents: 1000, trainerPayoutInCents: 6500, status: 'SUCCEEDED' }),
+    expect(mocks.payment.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'SUCCEEDED' }),
     }))
+    expect(mocks.payment.update.mock.calls[0][0].data).not.toHaveProperty('trainerPayoutInCents')
     expect(mocks.wallet.update).not.toHaveBeenCalled()
     expect(mocks.wallet.create).not.toHaveBeenCalled()
   })

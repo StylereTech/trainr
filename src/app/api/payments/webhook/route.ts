@@ -3,9 +3,14 @@ import { headers } from 'next/headers'
 import { stripeRuntimeStatus, verifyWebhookSignature } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { isStripeAccountReady } from '@/lib/stripe-account'
+import { applyPaymentEvidence, PaymentEventConflict } from '@/lib/stripe-payment-events'
 import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
+
+function stripeId(value: string | { id: string } | null): string | null {
+  return typeof value === 'string' ? value : value?.id || null
+}
 
 export async function POST(req: NextRequest) {
   if (!stripeRuntimeStatus().webhookConfigured || !stripeRuntimeStatus().secretConfigured) {
@@ -13,174 +18,71 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.text()
-  const headersList = await headers()
-  const signature = headersList.get('stripe-signature')
-
-  if (!signature) {
-    return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
-  }
+  const signature = (await headers()).get('stripe-signature')
+  if (!signature) return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
 
   let event: Stripe.Event
   try {
     event = await verifyWebhookSignature(body, signature)
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err)
+  } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  switch (event.type) {
-    case 'checkout.session.completed':
-    case 'checkout.session.async_payment_succeeded': {
-      const session = event.data.object as Stripe.Checkout.Session
-      if (session.payment_status !== 'paid') break
-      const bookingId = session.metadata?.bookingId
-
-      if (bookingId) {
-        const paymentIntentId = session.payment_intent as string
-
-        // Get booking for split calculation
-        const booking = await prisma.booking.findUnique({
-          where: { id: bookingId },
-          include: { trainerProfile: true, parentProfile: true },
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+      case 'checkout.session.async_payment_succeeded': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.payment_status !== 'paid' || !session.metadata?.bookingId) break
+        await applyPaymentEvidence({
+          bookingId: session.metadata.bookingId, paymentId: session.metadata.paymentId,
+          sessionId: session.id, intentId: stripeId(session.payment_intent),
+          amount: session.amount_total, currency: session.currency, outcome: 'paid',
         })
-
-        if (!booking) break
-
-        if (session.currency !== 'usd' || session.amount_total !== booking.totalAmountInCents) {
-          return NextResponse.json({ error: 'Payment amount or currency does not match booking' }, { status: 409 })
-        }
-        const platformFee = booking.platformFeeInCents
-        const trainerShare = booking.trainerPayoutInCents
-
-        // Update payment status
-        await prisma.payment.upsert({
-          where: { bookingId },
-          update: {
-            stripeCheckoutSessionId: session.id,
-            stripePaymentIntentId: paymentIntentId,
-            status: 'SUCCEEDED',
-            platformFeeInCents: platformFee,
-            trainerPayoutInCents: trainerShare,
-          },
-          create: {
-            bookingId,
-            stripeCheckoutSessionId: session.id,
-            stripePaymentIntentId: paymentIntentId,
-            amountInCents: booking.totalAmountInCents,
-            platformFeeInCents: platformFee,
-            trainerPayoutInCents: trainerShare,
-            status: 'SUCCEEDED',
-          },
-        })
-
-        // Confirm booking
-        await prisma.booking.update({
-          where: { id: bookingId },
-          data: { status: 'CONFIRMED' },
-        })
-
-        // Notify both parties
-        await prisma.notification.createMany({
-          data: [
-            {
-              userId: booking.trainerProfile.userId,
-              type: 'PAYMENT_RECEIVED',
-              title: 'Payment Received!',
-              message: `Payment of $${(booking.totalAmountInCents / 100).toFixed(2)} received. Your share of $${(trainerShare / 100).toFixed(2)} is routed to your connected Stripe account. Bank payout timing is available in Stripe.`,
-              data: { bookingId },
-            },
-            {
-              userId: booking.parentProfile.userId,
-              type: 'BOOKING_CONFIRMED',
-              title: 'Booking Confirmed! ✅',
-              message: `Your session with ${booking.trainerProfile.firstName} ${booking.trainerProfile.lastName} on ${new Date(booking.date).toLocaleDateString()} is confirmed.`,
-              data: { bookingId },
-            },
-          ],
-        })
+        break
       }
-      break
-    }
-
-    case 'payment_intent.succeeded': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent
-      const bookingId = paymentIntent.metadata?.bookingId
-
-      if (bookingId) {
-        await prisma.payment.updateMany({
-          where: { bookingId },
-          data: {
-            stripeChargeId: paymentIntent.latest_charge as string,
-            status: 'SUCCEEDED',
-          },
+      case 'payment_intent.succeeded':
+      case 'payment_intent.payment_failed': {
+        const intent = event.data.object as Stripe.PaymentIntent
+        if (!intent.metadata?.bookingId) break
+        await applyPaymentEvidence({
+          bookingId: intent.metadata.bookingId, paymentId: intent.metadata.paymentId,
+          intentId: intent.id,
+          // A failed attempt may have a charge different from the later successful retry.
+          chargeId: event.type === 'payment_intent.succeeded' ? stripeId(intent.latest_charge) : null,
+          amount: event.type === 'payment_intent.succeeded' ? intent.amount_received : intent.amount,
+          currency: intent.currency, outcome: event.type === 'payment_intent.succeeded' ? 'paid' : 'failed',
         })
+        break
       }
-      break
-    }
-
-    case 'payment_intent.payment_failed': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent
-      const bookingId = paymentIntent.metadata?.bookingId
-
-      if (bookingId) {
-        await prisma.payment.updateMany({
-          where: { bookingId },
-          data: { status: 'FAILED' },
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+        if (!charge.metadata?.bookingId) break
+        await applyPaymentEvidence({
+          bookingId: charge.metadata.bookingId, paymentId: charge.metadata.paymentId,
+          intentId: stripeId(charge.payment_intent), chargeId: charge.id,
+          amount: charge.amount, currency: charge.currency,
+          refundAmount: charge.amount_refunded, outcome: 'refunded',
         })
+        break
       }
-      break
-    }
-
-    case 'charge.refunded': {
-      const charge = event.data.object as Stripe.Charge
-      const bookingId = charge.metadata?.bookingId
-
-      if (bookingId) {
-        const refundAmount = charge.amount_refunded
-        const isFullRefund = charge.amount === charge.amount_refunded
-
-        await prisma.payment.updateMany({
-          where: { bookingId },
-          data: {
-            status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
-            refundAmountInCents: refundAmount,
-          },
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account
+        await prisma.trainerProfile.updateMany({
+          where: { stripeAccountId: account.id },
+          data: { stripeOnboardingComplete: isStripeAccountReady(account) },
         })
-
-        if (isFullRefund) {
-          await prisma.booking.updateMany({
-            where: { id: bookingId },
-            data: { status: 'CANCELLED' },
-          })
-        }
+        break
       }
-      break
+      // Destination-charge transfers are not guaranteed to inherit booking metadata.
+      // Do not attach financial objects to a booking solely from transfer metadata.
     }
-
-    case 'account.updated': {
-      const account = event.data.object as Stripe.Account
-      await prisma.trainerProfile.updateMany({
-        where: { stripeAccountId: account.id },
-        data: { stripeOnboardingComplete: isStripeAccountReady(account) },
-      })
-      break
+  } catch (error) {
+    if (error instanceof PaymentEventConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
     }
-
-    case 'transfer.created': {
-      const transfer = event.data.object as Stripe.Transfer
-      const bookingId = transfer.metadata?.bookingId
-
-      if (bookingId) {
-        await prisma.payment.updateMany({
-          where: { bookingId },
-          data: { stripeTransferId: transfer.id },
-        })
-      }
-      break
-    }
-
-    default:
-      console.log(`Unhandled event type: ${event.type}`)
+    console.error('Stripe webhook persistence failed', { eventId: event.id, type: event.type })
+    return NextResponse.json({ error: 'Payment event could not be persisted; retry required' }, { status: 503 })
   }
 
   return NextResponse.json({ received: true })

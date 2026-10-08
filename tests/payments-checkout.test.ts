@@ -11,6 +11,7 @@ const mockPrisma = {
   payment: {
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     delete: vi.fn(),
   },
 }
@@ -80,6 +81,8 @@ describe('Payments checkout API', () => {
     mockPrisma.payment.create.mockResolvedValue({
       id: 'payment-1',
       status: 'PENDING',
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
     })
     mockCheckoutCreate.mockResolvedValue({
       id: 'cs_test_123',
@@ -89,6 +92,7 @@ describe('Payments checkout API', () => {
       id: 'payment-1',
       stripeCheckoutSessionId: 'cs_test_123',
     })
+    mockPrisma.payment.updateMany.mockResolvedValue({ count: 1 })
   })
 
   it('creates a Stripe checkout session for a pending booking from the booking flow', async () => {
@@ -154,5 +158,43 @@ describe('Payments checkout API', () => {
     expect(response.status).toBe(500)
     expect(mockCheckoutCreate).not.toHaveBeenCalled()
     expect(mockPrisma.payment.create).not.toHaveBeenCalled()
+  })
+
+  it('only attaches the session conditionally and never resets financial state', async () => {
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'payment-1', status: { in: ['PENDING', 'FAILED'] },
+        stripeCheckoutSessionId: null, stripePaymentIntentId: null,
+        stripeChargeId: null, stripeTransferId: null,
+      },
+      data: { stripeCheckoutSessionId: 'cs_test_123' },
+    })
+    expect(mockPrisma.payment.update).not.toHaveBeenCalled()
+  })
+
+  it('withholds checkout URL when a fast webhook or another request changed payment state', async () => {
+    mockPrisma.payment.updateMany.mockResolvedValue({ count: 0 })
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    const response = await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(response.status).toBe(409)
+    expect(await response.json()).not.toHaveProperty('checkoutUrl')
+    expect(mockPrisma.payment.delete).not.toHaveBeenCalled()
+  })
+
+  it.each(['stripe', 'database'])('retains payment identity after uncertain %s failure', async (failure) => {
+    if (failure === 'stripe') mockCheckoutCreate.mockRejectedValueOnce(new Error('request timeout'))
+    else mockPrisma.payment.updateMany.mockRejectedValueOnce(new Error('write failed'))
+    const { POST } = await import('@/app/api/payments/checkout/route')
+    const response = await POST(new Request('http://localhost/api/payments/checkout', {
+      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
+    }) as any)
+    expect(response.status).toBe(500)
+    expect(mockPrisma.payment.delete).not.toHaveBeenCalled()
   })
 })

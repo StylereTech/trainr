@@ -155,3 +155,29 @@ Exact steps: fresh `npm ci --no-audit --no-fund`, `npm run db:generate`, then `n
 - `git diff --check`: passed. Source/test fix and this evidence are being published together; the commit containing this section identifies the exact tested code.
 
 This clears the observed SDK compilation blocker locally. It does not establish browser E2E, live database writes, checkout, refunds, payout settlement, or final production readiness. The earlier open money-flow and security findings remain open. Remote preview retest and explicit deployment to the correct production project are still required.
+
+### Remote Retest Of SDK Fix
+
+Published commit: `f11e1e3e606de750bfa6b9314c3f69709ea6c736` on `codex/payment-readiness-20261006`; remote ref matched local HEAD and worktree was clean. Vercel preview `D5MCHEzzHUPCtbiLs54YKX6XJoLe` reached **Ready** on 2026-10-08 03:20 UTC. Authenticated Vercel logs showed completed compilation, serverless functions and deployment. Opened `https://trainr-30k6m90y1-styleres-projects.vercel.app/` in the browser and observed the rendered homepage and navigation. PASS: preview build and homepage load only, not authenticated payment flows. GitHub Actions run `37722165511` again failed before starting steps because of the billing lock. Production/main were unchanged.
+
+## Transactional Payment Event Pass: 2026-10-08 UTC
+
+Baseline: `f11e1e3e606de750bfa6b9314c3f69709ea6c736`; exact patch is the commit containing this section. Environment: local Windows worktree, synthetic payment fixtures, no customer account or live Stripe request. Route: `POST /api/payments/webhook`; implementation: `src/lib/stripe-payment-events.ts`.
+
+Confirmed defects before editing: duplicate success events emitted notifications repeatedly; independent payment/booking/notification writes could partially succeed; payment failure or success snapshots could overwrite settled/refunded states; late success unconditionally reconfirmed cancelled bookings; refunds could regress from full to partial. Transfer metadata alone could attach an unrelated transfer ID.
+
+Fix: serialize each booking/payment's event writes in one PostgreSQL transaction with row locks; require matching stored payment identity, amount and currency; retain cumulative refunds; confirm only pending bookings; notify on transitions, not every delivery; flag cancelled/rescheduled late payments for reconciliation without reopening the booking. Both intent and Checkout success events use the same operation. Persistence errors return retryable 503, mismatched financial evidence returns 409, and signature errors remain 400. Raw database/provider error details are not returned. No wallet credit, refund creation, transfer or payout is issued.
+
+Exact local steps: `npm run typecheck`; `npm test -- tests/payment-readiness.test.ts tests/stripe-webhook-ordering.test.ts`; then `npm run check`. Focused results: 36 tests passed. Full suite: 14 files / 134 tests passed. Cases cover replay, both success-event orders, rollback on notification failure, terminal bookings, failed-then-successful intent, full/partial refund ordering, wrong IDs/amount/currency, invalid refunds and missing payment records. Build result is recorded after the command completes.
+
+Limitations/open blockers: the stateful test harness models rollback; it does not prove real PostgreSQL lock behavior or concurrent connections. No dedicated test database is configured and neither `psql` nor Docker is available in this shell. An isolated staging database and Stripe test-mode environment were requested. Checkout retry creation still needs durable idempotency; **do not promote this branch to production until that coupled path is fixed and retested**. Cancellation/refund execution and reconciliation remain open. No live money-flow signoff is granted.
+
+References: [Stripe webhook delivery behavior](https://docs.stripe.com/webhooks) and [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests).
+
+### Coupled Checkout Guard And Signature Retest
+
+The initial 134-test quality gate completed successfully, including production build. Then guarded checkout finalization with a conditional update that only attaches the session to the unchanged pending/failed payment; it no longer resets captured/refund fields. If a webhook or competing request changes state first, checkout returns 409 without a URL. Uncertain Stripe/database failures retain the existing payment row rather than deleting the identity needed for reconciliation. Four tests cover these writes and failure paths. This does **not** solve duplicate external session creation or recovery after uncertain provider outcomes; a durable checkout-attempt/idempotency design is still required.
+
+Added six route tests using the actual installed Stripe SDK signature verifier and synthetic signing secrets: valid unpaid event, modified raw payload, wrong secret, stale signature, missing signature, and retryable persistence failure without raw error disclosure. No network/payment is involved. Reran `npm run check`: lint/typecheck passed and all **15 files / 144 tests passed**. Final build result follows. Expected failing-provider log messages occurred only in the corresponding synthetic tests.
+
+Final result: **PASS**, complete `npm run check` exited 0 on 2026-10-08 approximately 03:35 UTC. The build compiled, validated types, generated 68 static pages and finished traces. `git diff --check` passed. Initial sandboxed Vitest invocation failed resolving the Windows config with access denied; the authorized unsandboxed rerun passed. Disk space was monitored; only the verified npm download cache was cleared with approval, preserving installed dependencies and all source/application data. No migration, database write or financial action was performed. Publish this checkpoint to the audit branch only; the production hold remains in effect.

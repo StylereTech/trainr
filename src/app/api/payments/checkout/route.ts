@@ -50,8 +50,6 @@ async function expireRetryableCheckoutSession(sessionId: string) {
 }
 
 export async function POST(req: NextRequest) {
-  let createdPaymentId: string | null = null
-
   try {
     const requestUser = await getRequestUser(req)
     if (!requestUser?.id) {
@@ -172,7 +170,6 @@ export async function POST(req: NextRequest) {
           status: 'PENDING',
         },
       })
-      createdPaymentId = paymentRecord.id
     }
 
     const checkoutSession = await stripe.checkout.sessions.create({
@@ -223,32 +220,31 @@ export async function POST(req: NextRequest) {
       cancel_url: toAbsoluteAppUrl('/parent/dashboard?payment=cancelled'),
     })
 
-    const payment = await prisma.payment.update({
-      where: { id: paymentRecord.id },
-      data: {
-        amountInCents: booking.totalAmountInCents,
-        platformFeeInCents: booking.platformFeeInCents,
-        trainerPayoutInCents: booking.trainerPayoutInCents,
-        processingFeeInCents: 0,
-        status: 'PENDING',
-        refundAmountInCents: 0,
-        refundReason: null,
-        stripeCheckoutSessionId: checkoutSession.id,
-        stripePaymentIntentId: null,
+    // A webhook can commit before this request finishes. Never reset financial
+    // fields or replace a session that another request/event has already linked.
+    const attached = await prisma.payment.updateMany({
+      where: {
+        id: paymentRecord.id,
+        status: { in: ['PENDING', 'FAILED'] },
+        stripeCheckoutSessionId: paymentRecord.stripeCheckoutSessionId,
+        stripePaymentIntentId: paymentRecord.stripePaymentIntentId,
         stripeChargeId: null,
         stripeTransferId: null,
       },
+      data: {
+        stripeCheckoutSessionId: checkoutSession.id,
+      },
     })
+    if (attached.count !== 1) {
+      return NextResponse.json({ error: 'Payment changed while checkout was being prepared. Refresh your booking before retrying.' }, { status: 409 })
+    }
 
     return NextResponse.json({
       checkoutUrl: checkoutSession.url,
-      paymentId: payment.id,
+      paymentId: paymentRecord.id,
     })
   } catch (error) {
-    if (createdPaymentId) {
-      await prisma.payment.delete({ where: { id: createdPaymentId } }).catch(() => null)
-    }
-
+    // Keep the durable record: Stripe may have accepted creation despite a timeout.
     const normalized = mapStripeError(error, 'Failed to create checkout session')
     return NextResponse.json({ error: normalized.message, detail: normalized.detail }, { status: normalized.status })
   }
