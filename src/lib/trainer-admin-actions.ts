@@ -20,13 +20,17 @@ export async function applyTrainerAdminAction(trainerId: string, adminUserId: st
   return prisma.$transaction(async tx => {
     // Hold the actor's role stable, then serialize with profile edits and reservations.
     await tx.$queryRaw`SELECT id FROM users WHERE id = ${adminUserId} FOR SHARE`
-    const actor = await tx.user.findUnique({ where: { id: adminUserId }, select: { role: true } })
-    if (actor?.role !== 'ADMIN') throw new TrainerAdminActionError('Administrator access is required', 403)
+    const actor = await tx.user.findUnique({ where: { id: adminUserId }, select: { role: true, deletedAt: true } })
+    if (actor?.role !== 'ADMIN' || actor.deletedAt) throw new TrainerAdminActionError('Administrator access is required', 403)
     await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${trainerId} FOR UPDATE`
-    const trainer = await tx.trainerProfile.findUnique({ where: { id: trainerId } })
+    const trainer = await tx.trainerProfile.findUnique({ where: { id: trainerId }, include: { user: { select: { role: true, deletedAt: true } } } })
     if (!trainer) throw new TrainerAdminActionError('Trainer not found', 404)
     if (trainer.updatedAt.toISOString() !== input.revision) {
       throw new TrainerAdminActionError('Trainer profile changed. Reload and review it before applying this decision.', 409)
+    }
+    const enabling = input.action === 'approve' || (input.action === 'toggle_active' && input.isActive) || (input.action === 'feature' && input.featured)
+    if (enabling && (trainer.user.role !== 'TRAINER' || trainer.user.deletedAt)) {
+      throw new TrainerAdminActionError('An active trainer account is required before enabling this listing.', 409)
     }
 
     const data: Prisma.TrainerProfileUpdateInput = {}

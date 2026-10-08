@@ -41,7 +41,7 @@ export const authOptions: any = {
           },
         })
 
-        if (!user?.passwordHash) {
+        if (!user?.passwordHash || user.deletedAt) {
           authDebug('authorize:user-not-found-or-no-password', { provider: 'credentials' })
           return null
         }

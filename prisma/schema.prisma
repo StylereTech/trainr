@@ -24,6 +24,7 @@ model User {
   emailVerified DateTime?
   passwordHash  String
   sessionVersion Int    @default(0)
+  deletedAt     DateTime?
   role          Role     @default(PARENT)
   image         String?
   createdAt     DateTime @default(now())

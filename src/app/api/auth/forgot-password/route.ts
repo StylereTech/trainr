@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
 
-    if (user) {
+    if (user && !user.deletedAt) {
       const resetToken = crypto.randomBytes(32).toString('hex')
       const resetExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
-      await prisma.user.update({
-        where: { id: user.id },
+      await prisma.user.updateMany({
+        where: { id: user.id, deletedAt: null },
         data: {
           resetPasswordToken: resetToken,
           resetPasswordExpiry: resetExpiry,

@@ -15,8 +15,10 @@ describe('App Review account deletion compliance', () => {
     expect(page).toContain('No phone call or email is required')
     expect(api).toContain('export async function DELETE')
     expect(api).toContain('getRequestUser')
-    expect(api).toContain('passwordHash: randomPasswordHash')
-    expect(api).toContain('deleted.trainr.local')
+    expect(api).toContain('closeAccount(tx, requestUser.id)')
+    const closure = read('src/lib/account-closure.ts')
+    expect(closure).toContain('passwordHash: randomPasswordHash')
+    expect(closure).toContain('deleted.trainr.local')
   })
 
   it('links account settings from the signed-in navigation on desktop and mobile', () => {

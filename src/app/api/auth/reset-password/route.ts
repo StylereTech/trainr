@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findFirst({
       where: {
         resetPasswordToken: token,
+        deletedAt: null,
         resetPasswordExpiry: { gt: new Date() },
       },
       select: { id: true },
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hash(password, 12)
 
     const updated = await prisma.user.updateMany({
-      where: { id: user.id, resetPasswordToken: token, resetPasswordExpiry: { gt: new Date() } },
+      where: { id: user.id, deletedAt: null, resetPasswordToken: token, resetPasswordExpiry: { gt: new Date() } },
       data: {
         passwordHash,
         sessionVersion: { increment: 1 },

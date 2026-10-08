@@ -51,7 +51,7 @@ test('real admin role change revokes old admin API and page access and excludes 
   for (const row of rows) {
     for (const field of ['passwordHash', 'sessionVersion', 'resetPasswordToken', 'verificationToken']) expect(row).not.toHaveProperty(field)
   }
-  expect((await page.request.patch('/api/admin/users', { data: { userId: target.id, action: 'change_role', role: 'PARENT' } })).status()).toBe(200)
+  expect((await page.request.patch('/api/admin/users', { data: { userId: target.id, action: 'change_role', role: 'PARENT', revision: target.updatedAt.toISOString() } })).status()).toBe(200)
   expect((await localAuth.database.user.findUniqueOrThrow({ where: { id: target.id } })).sessionVersion).toBe(1)
   await localAuth.signIn(target)
   expect((await page.request.get('/api/admin/users')).status()).toBe(401)

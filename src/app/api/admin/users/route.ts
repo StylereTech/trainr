@@ -1,142 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import { getServerSession } from '@/lib/auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { adminUserFields, applyUserAdminAction, userAdminActionSchema, UserAdminActionError } from '@/lib/user-admin-actions'
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return null
-  if (session.user.role !== 'ADMIN') return null
-  return session
-}
+const querySchema = z.object({
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  role: z.enum(['PARENT', 'TRAINER', 'ADMIN']).optional(),
+  search: z.string().trim().max(200).optional(),
+}).strict()
 
-// GET /api/admin/users — List all users with filters
 export async function GET(req: NextRequest) {
-  const session = await requireAdmin()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { searchParams } = new URL(req.url)
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '20')
-  const role = searchParams.get('role') || undefined
-  const search = searchParams.get('search') || undefined
-
-  const where: any = {}
-  if (role) where.role = role
-  if (search) {
-    where.OR = [
-      { email: { contains: search, mode: 'insensitive' } },
-      { trainerProfile: { firstName: { contains: search, mode: 'insensitive' } } },
-      { trainerProfile: { lastName: { contains: search, mode: 'insensitive' } } },
-    ]
+  try {
+    const session = await getServerSession()
+    if (!session?.user || session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams))
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid user-list filters' }, { status: 400 })
+    const { page, limit, role, search } = parsed.data
+    const where: Prisma.UserWhereInput = { ...(role ? { role } : {}),
+      ...(search ? { OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { trainerProfile: { firstName: { contains: search, mode: 'insensitive' } } },
+        { trainerProfile: { lastName: { contains: search, mode: 'insensitive' } } },
+      ] } : {}) }
+    const [users, total] = await prisma.$transaction([
+      prisma.user.findMany({ where, select: { ...adminUserFields,
+        parentProfile: { select: { id: true, _count: { select: { athletes: true, bookings: true } } } },
+        trainerProfile: { select: { id: true, firstName: true, lastName: true, approvalStatus: true, isActive: true,
+          sports: { include: { sport: true } }, _count: { select: { bookings: true, reviews: true } } } },
+      }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * limit, take: limit }),
+      prisma.user.count({ where }),
+    ], { isolationLevel: 'RepeatableRead' })
+    return NextResponse.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+  } catch {
+    console.error('Administrator user-list query failed')
+    return NextResponse.json({ error: 'Unable to load users. Please retry.' }, { status: 503 })
   }
-
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        image: true,
-        createdAt: true,
-        updatedAt: true,
-        emailVerified: true,
-        parentProfile: {
-          select: {
-            id: true,
-            phone: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            _count: { select: { athletes: true, bookings: true } },
-          },
-        },
-        trainerProfile: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            approvalStatus: true,
-            isActive: true,
-            sports: { include: { sport: true } },
-            _count: { select: { bookings: true, reviews: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.user.count({ where }),
-  ])
-
-  return NextResponse.json({
-    users,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  })
 }
 
-// PATCH /api/admin/users — Update user (change role, ban, etc.)
 export async function PATCH(req: NextRequest) {
-  const session = await requireAdmin()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const adminUserId = session.user.id
-  const body = await req.json()
-  const { userId, action, role } = body
-
-  if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 400 })
-
-  const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-
-  if (action === 'change_role' && role) {
-    const validRoles = ['PARENT', 'TRAINER', 'ADMIN']
-    if (!validRoles.includes(role)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-    if (user.role === 'ADMIN' && role !== 'ADMIN') {
-      const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } })
-      if (adminCount <= 1) return NextResponse.json({ error: 'Cannot remove the last admin' }, { status: 400 })
-    }
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { role, sessionVersion: { increment: 1 } },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        image: true,
-        createdAt: true,
-        updatedAt: true,
-        emailVerified: true,
-      },
-    })
-    await prisma.adminAction.create({
-      data: {
-        adminUserId,
-        actionType: 'CHANGE_ROLE',
-        targetType: 'USER',
-        targetId: userId,
-        description: `Changed role from ${user.role} to ${role}`,
-        metadata: { previousRole: user.role, newRole: role },
-      },
-    })
-    return NextResponse.json(updated)
+  try {
+    const session = await getServerSession()
+    if (!session?.user || session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let body: unknown
+    try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+    const parsed = userAdminActionSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid account action. Reload and check the required fields.' }, { status: 400 })
+    return NextResponse.json(await applyUserAdminAction(session.user.id, parsed.data))
+  } catch (error) {
+    if (error instanceof UserAdminActionError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error('Administrator account transaction failed')
+    return NextResponse.json({ error: 'Unable to confirm this change. Reload before trying again.' }, { status: 503 })
   }
-
-  if (action === 'delete') {
-    await prisma.user.delete({ where: { id: userId } })
-    await prisma.adminAction.create({
-      data: {
-        adminUserId,
-        actionType: 'DELETE_USER',
-        targetType: 'USER',
-        targetId: userId,
-        description: `Deleted user ${user.email}`,
-      },
-    })
-    return NextResponse.json({ success: true })
-  }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 }

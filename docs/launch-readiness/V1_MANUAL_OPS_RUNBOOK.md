@@ -1,5 +1,7 @@
 # V1 Manual Ops Runbook
 
+2026-10-08 account operations update: account deactivation ends access and anonymizes selected profile fields but retains financial/audit history. It does **not** cancel/refund existing bookings, expire issued Stripe checkout URLs, close Connect accounts or settle payouts. Reconcile those separately. Admin changes require the reviewed revision; reload after conflicts/uncertain responses. Use another active admin to deactivate an admin; never bypass last-admin checks with direct SQL. The new `deletedAt` migration and prior `sessionVersion` migration must precede rollout. [Verified operations and limitations](ADMIN_ACCOUNT_INTEGRITY_REPORT.md).
+
 2026-10-08 session release requirement: apply/rehearse the additive `sessionVersion` migration before deploying the new authentication code. All pre-version sessions must sign in again; successful password reset, self-deletion and role changes increment the version. Do not roll back to code that trusts stale claims, lower versions, or treat a preview build as production revocation proof. Exact verified steps and remaining privileged-account remediation are in the [session audit](SESSION_REVOCATION_REPORT.md).
 
 ## Status And Evidence

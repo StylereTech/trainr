@@ -26,7 +26,7 @@ describe('current session identity', () => {
     mock.user.mockResolvedValue({ ...account, role })
     expect((await resolveSessionUser({ ...claims, role }))?.profileId).toBe(role === 'PARENT' ? 'parent' : role === 'TRAINER' ? 'trainer' : null)
   })
-  it.each([null, { ...account, sessionVersion: 4 }, { ...account, role: 'ADMIN' }, { ...account, role: 'TRAINER' }])('rejects removed, revoked or role-changed accounts', async user => {
+  it.each([null, { ...account, deletedAt: new Date() }, { ...account, sessionVersion: 4 }, { ...account, role: 'ADMIN' }, { ...account, role: 'TRAINER' }])('rejects removed, revoked or role-changed accounts', async user => {
     mock.user.mockResolvedValue(user)
     expect(await resolveSessionUser(claims)).toBeNull()
   })

@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mock.session.mockResolvedValue({ user: { id: 'admin', role: 'ADMIN' } })
   fail = null
-  state = { actor: { role: 'ADMIN' }, trainer: { id: 'trainer', userId: 'trainer-user', firstName: 'Synthetic', lastName: 'Trainer',
+  state = { actor: { role: 'ADMIN' }, trainer: { id: 'trainer', userId: 'trainer-user', user: { role: 'TRAINER', deletedAt: null }, firstName: 'Synthetic', lastName: 'Trainer',
     approvalStatus: 'PENDING', approvedAt: null, rejectedReason: null, isActive: true, featured: false, updatedAt: new Date(revision) }, audits: [], notifications: [] }
   let tail = Promise.resolve()
   mock.transaction.mockImplementation(async run => {
@@ -53,6 +53,18 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('trainer eligibility decisions', () => {
+  it('rejects a deactivated administrator even though its historical role is retained', async () => {
+    state.actor.deletedAt = new Date()
+    await expect(approve()).rejects.toMatchObject({ status: 403 })
+    expect(state.audits).toHaveLength(0)
+  })
+  it.each(['PARENT', 'ADMIN', 'deleted'])('does not enable a listing belonging to %s account state', async status => {
+    state.trainer.user = status === 'deleted' ? { role: 'TRAINER', deletedAt: new Date() } : { role: status, deletedAt: null }
+    await expect(approve()).rejects.toMatchObject({ status: 409 })
+    await expect(applyTrainerAdminAction('trainer', 'admin', { action: 'toggle_active', isActive: true, revision })).rejects.toMatchObject({ status: 409 })
+    await expect(applyTrainerAdminAction('trainer', 'admin', { action: 'feature', featured: true, revision })).rejects.toMatchObject({ status: 409 })
+    expect(state.audits).toHaveLength(0)
+  })
   it('atomically approves with a truthful notification and before/after audit', async () => {
     const updated = await approve()
     expect(updated.approvalStatus).toBe('APPROVED')

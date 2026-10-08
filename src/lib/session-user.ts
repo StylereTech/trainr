@@ -7,10 +7,10 @@ export async function resolveSessionUser(token: SessionClaims | null) {
       typeof token.sessionVersion !== 'number' || !Number.isSafeInteger(token.sessionVersion) || token.sessionVersion < 0) return null
   try {
     const user = await prisma.user.findUnique({ where: { id: token.sub }, select: {
-      id: true, email: true, image: true, role: true, sessionVersion: true,
+      id: true, email: true, image: true, role: true, sessionVersion: true, deletedAt: true,
       parentProfile: { select: { id: true } }, trainerProfile: { select: { id: true } },
     } })
-    if (!user || user.sessionVersion !== token.sessionVersion || user.role !== token.role) return null
+    if (!user || user.deletedAt || user.sessionVersion !== token.sessionVersion || user.role !== token.role) return null
     return { id: user.id, email: user.email, image: user.image, role: user.role,
       profileId: user.role === 'PARENT' ? user.parentProfile?.id ?? null : user.role === 'TRAINER' ? user.trainerProfile?.id ?? null : null }
   } catch {
