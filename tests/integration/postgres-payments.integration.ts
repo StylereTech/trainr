@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// This suite isolates state transitions. stripe-settlement suites exercise the real verifier and provider receipt chain.
+vi.mock('@/lib/stripe-settlement', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/stripe-settlement')>(),
+  verifyDestinationSettlement: async (booking: any, _attempt: unknown, _intent: string, charge?: string | null) => ({
+    chargeId: charge || booking.payment.stripeChargeId || 'ch_synthetic',
+    transferId: 'tr_synthetic', hasRefunds: false, requiresReview: false,
+  }),
+}))
 import { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createBooking } from '@/lib/booking-creation'

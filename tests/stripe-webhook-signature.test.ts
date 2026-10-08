@@ -32,6 +32,15 @@ async function send(body = payload) {
 }
 
 describe('webhook route with real Stripe SDK signature verification', () => {
+  it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded', 'payment_intent.payment_failed'])('ignores connected-account %s events even with valid TRAINR metadata', async type => {
+    const body = JSON.stringify({ id: 'evt_connected', account: 'acct_fixture', type,
+      data: { object: { id: 'pi_fixture', payment_status: 'paid', amount_received: 6000, amount_total: 6000, currency: 'usd',
+        metadata: { bookingId: 'booking', paymentId: 'payment' } } } })
+    mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
+    expect((await send(body)).status).toBe(200)
+    expect(mock.transaction).not.toHaveBeenCalled()
+  })
+
   it.each(['refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated', 'charge.refunded'])('reconciles current provider truth for a signed %s event', async type => {
     const body = JSON.stringify({ id: 'evt_refund', type, data: { object: type === 'charge.refunded' ? { id: 'ch_fixture', amount_refunded: 6000 } : { id: 're_fixture', charge: 'ch_fixture', amount: 6000, status: 'succeeded' } } })
     mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })

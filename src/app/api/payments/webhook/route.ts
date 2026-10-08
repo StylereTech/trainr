@@ -6,6 +6,7 @@ import { isStripeAccountReady } from '@/lib/stripe-account'
 import { applyPaymentEvidence, PaymentEventConflict } from '@/lib/stripe-payment-events'
 import Stripe from 'stripe'
 import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
+import { SettlementConflict } from '@/lib/stripe-settlement'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     switch (event.type as string) {
       case 'checkout.session.completed':
       case 'checkout.session.async_payment_succeeded': {
+        if (event.account) break
         const session = event.data.object as Stripe.Checkout.Session
         if (session.payment_status !== 'paid' || !session.metadata?.bookingId) break
         await applyPaymentEvidence({
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
       }
       case 'payment_intent.succeeded':
       case 'payment_intent.payment_failed': {
+        if (event.account) break
         const intent = event.data.object as Stripe.PaymentIntent
         if (!intent.metadata?.bookingId) break
         await applyPaymentEvidence({
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     if (error instanceof RefundReconciliationError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (error instanceof PaymentEventConflict) {
+    if (error instanceof PaymentEventConflict || error instanceof SettlementConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
     console.error('Stripe webhook persistence failed', { eventId: event.id, type: event.type })

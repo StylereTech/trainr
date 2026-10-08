@@ -5,6 +5,10 @@ import { prisma } from '@/lib/prisma'
 import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
 import { isStripeAccountReady } from '@/lib/stripe-account'
 import { CheckoutConflict, startOrResumeCheckout } from '@/lib/checkout-attempts'
+import { SettlementConflict } from '@/lib/stripe-settlement'
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const checkoutBody = z.object({ bookingId: z.string().trim().min(1).max(128) })
 
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (!ready) return NextResponse.json({ error: 'Trainer must finish Stripe setup before checkout' }, { status: 400 })
     return NextResponse.json(await startOrResumeCheckout(bookingId, user, accountId))
   } catch (error) {
-    if (error instanceof CheckoutConflict) return NextResponse.json({ error: error.message }, { status: 409 })
+    if (error instanceof CheckoutConflict || error instanceof SettlementConflict) return NextResponse.json({ error: error.message }, { status: 409 })
     const normalized = mapStripeError(error, 'Unable to prepare checkout. Try again or contact support.')
     return NextResponse.json({ error: normalized.message }, { status: normalized.status })
   }
