@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
+import { expect, test } from './fixtures/local-auth'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -14,9 +13,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     for (const scenario of ['pending', 'free', 'invalid-coupon']) {
       const free = scenario === 'free'
       const invalidCoupon = scenario === 'invalid-coupon'
-      test(invalidCoupon ? 'shows an unchargeable discount and allows correction' : free ? 'confirms zero-due booking without opening checkout' : 'keeps a failed checkout pending with a visible error', async ({ page, context }, testInfo) => {
-        const token = await encode({ secret, token: { sub: 'local-parent', email: 'parent@example.test', role: 'PARENT' } })
-        await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+      test(invalidCoupon ? 'shows an unchargeable discount and allows correction' : free ? 'confirms zero-due booking without opening checkout' : 'keeps a failed checkout pending with a visible error', async ({ page, localAuth }, testInfo) => {
+        await localAuth.signIn(await localAuth.create('PARENT'))
         const tomorrow = new Date()
         tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
         const date = tomorrow.toISOString().slice(0, 10)

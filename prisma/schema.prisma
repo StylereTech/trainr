@@ -23,6 +23,7 @@ model User {
   email         String   @unique
   emailVerified DateTime?
   passwordHash  String
+  sessionVersion Int    @default(0)
   role          Role     @default(PARENT)
   image         String?
   createdAt     DateTime @default(now())

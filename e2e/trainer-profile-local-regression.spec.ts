@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
+import { expect, test } from './fixtures/local-auth'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -9,9 +8,8 @@ test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 for (const width of [1440, 390]) {
   test.describe(`trainer profile ${width}px`, () => {
     test.use({ viewport: { width, height: 900 } })
-    test('retains saved service IDs and edits individual weekly windows', async ({ page, context }, testInfo) => {
-      const token = await encode({ secret, token: { sub: 'local-trainer', email: 'trainer@example.test', role: 'TRAINER' } })
-      await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+    test('retains saved service IDs and edits individual weekly windows', async ({ page, localAuth }, testInfo) => {
+      await localAuth.signIn(await localAuth.create('TRAINER'))
       let fixture = {
         catalog: [
           { id: 'sport-basketball', slug: 'basketball', name: 'Basketball', icon: null, isActive: true, specialties: [{ id: 'spec-shooting', slug: 'shooting', name: 'Shooting' }] },

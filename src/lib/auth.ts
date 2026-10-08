@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { getServerSession as _gss } from "next-auth/next"
 import type { NextRequest } from 'next/server'
+import { resolveSessionUser } from '@/lib/session-user'
 
 const authDebugEnabled = process.env.AUTH_DEBUG === 'true'
 
@@ -57,7 +58,8 @@ export const authOptions: any = {
           id: user.id,
           email: user.email,
           role: user.role,
-          profileId: user.parentProfile?.id ?? user.trainerProfile?.id ?? null,
+          profileId: user.role === 'PARENT' ? user.parentProfile?.id ?? null : user.role === 'TRAINER' ? user.trainerProfile?.id ?? null : null,
+          sessionVersion: user.sessionVersion,
         }
       },
     }),
@@ -77,6 +79,7 @@ export const authOptions: any = {
         token.sub = user.id
         token.role = user.role
         token.profileId = user.profileId ?? null
+        token.sessionVersion = user.sessionVersion
       }
       authDebug('callback:jwt', {
         provider: account?.provider ?? null,
@@ -87,11 +90,9 @@ export const authOptions: any = {
       return token
     },
     async session({ session, token }: any) {
-      if (session.user) {
-        session.user.id = token.sub
-        ;(session.user as any).role = token.role
-        ;(session.user as any).profileId = token.profileId ?? null
-      }
+      const user = await resolveSessionUser(token)
+      if (!user) return null
+      session.user = user
       authDebug('callback:session', {
         sessionUserId: session?.user?.id ?? null,
         role: (session?.user as any)?.role ?? null,
@@ -147,10 +148,6 @@ export async function getRequestUser(req: NextRequest) {
     return null
   }
 
-  return {
-    id: String(token.sub),
-    role: token.role ? String(token.role) : undefined,
-    email: token.email ? String(token.email) : undefined,
-    profileId: token.profileId ? String(token.profileId) : null,
-  }
+  const user = await resolveSessionUser(token)
+  return user ? { id: user.id, role: user.role, email: user.email, profileId: user.profileId } : null
 }

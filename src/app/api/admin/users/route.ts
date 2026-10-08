@@ -100,7 +100,7 @@ export async function PATCH(req: NextRequest) {
     }
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { role },
+      data: { role, sessionVersion: { increment: 1 } },
       select: {
         id: true,
         email: true,

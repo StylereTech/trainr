@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
+import { expect, test } from './fixtures/local-auth'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -7,10 +6,9 @@ test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) || !secret, 'L
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 
 for (const width of [1440, 390]) {
-  test(`trainer approval handles load errors and stale decisions ${width}px`, async ({ page, context }, testInfo) => {
+  test(`trainer approval handles load errors and stale decisions ${width}px`, async ({ page, localAuth }, testInfo) => {
     await page.setViewportSize({ width, height: 900 })
-    const token = await encode({ secret, token: { sub: 'local-admin', email: 'admin@example.test', role: 'ADMIN' } })
-    await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+    await localAuth.signIn(await localAuth.create('ADMIN'))
     const trainer = { id: 'trainer', firstName: 'Synthetic', lastName: 'Coach', slug: 'fixture', headline: 'Initial profile', bio: 'Synthetic coaching experience.',
       yearsExperience: 4, locationType: 'BOTH', city: 'Austin', state: 'TX', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-08T00:00:00.000Z',
       sports: [{ sport: { name: 'Basketball', icon: '' } }], user: { email: 'trainer@example.test', createdAt: '2026-10-01T00:00:00.000Z' } }
@@ -68,10 +66,9 @@ for (const width of [1440, 390]) {
     expect(errors).toEqual([])
   })
 
-  test(`trainer approval reloads an uncertain response without repeating the write ${width}px`, async ({ page, context }, testInfo) => {
+  test(`trainer approval reloads an uncertain response without repeating the write ${width}px`, async ({ page, localAuth }, testInfo) => {
     await page.setViewportSize({ width, height: 900 })
-    const token = await encode({ secret, token: { sub: 'local-admin', role: 'ADMIN' } })
-    await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+    await localAuth.signIn(await localAuth.create('ADMIN'))
     let pending = true
     let decisions = 0
     await page.route('**/api/**', async route => {

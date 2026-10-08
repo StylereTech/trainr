@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// @ts-ignore - next-auth/jwt types not resolving in edge middleware
 import { getToken } from 'next-auth/jwt'
 
 async function getAuthToken(req: NextRequest) {
@@ -9,7 +8,7 @@ async function getAuthToken(req: NextRequest) {
     cookieName: '__Secure-next-auth.session-token',
   })
 
-  if (!token) {
+  if (!token?.sub) {
     token = await getToken({
       req,
       secret: process.env.NEXTAUTH_SECRET,
@@ -58,7 +57,7 @@ export async function middleware(req: NextRequest) {
 
   const token = await getAuthToken(req)
 
-  if (!token) {
+  if (!token || typeof token.sub !== 'string' || !token.sub || typeof token.sessionVersion !== 'number' || !Number.isSafeInteger(token.sessionVersion) || token.sessionVersion < 0) {
     const url = req.nextUrl.clone()
     url.pathname = '/auth/signin'
     url.searchParams.set('callbackUrl', pathname)

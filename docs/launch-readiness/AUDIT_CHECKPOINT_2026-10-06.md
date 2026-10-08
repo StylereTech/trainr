@@ -1,5 +1,13 @@
 # Production Audit Checkpoint
 
+## Latest: Session Revocation, 2026-10-08 07:17 UTC
+
+Baseline `6ba2929e0432faca904dbdfdbdaa439f896104fe` plus this commit. Replaced stale JWT-only authorization with current database role/version checks in both request authentication and NextAuth sessions. Password reset, account anonymization and role changes revoke previous cookies; resets consume tokens atomically. Legacy cookies require fresh login. Admin user projection no longer selects credential/token fields. Additive migration applied only to guarded disposable PostgreSQL; production rollout requires staged migration and sign-in/revocation proof.
+
+**555 unit tests / 31 files, 50 real local PostgreSQL tests, 29 desktop/mobile browser tests, lint, typecheck and production build passed.** Five new browser cases use actual credentials, handlers and SQL with no API mocks; existing 24 business-UI cases retain mocked APIs but now use database-backed synthetic server authentication. One initial desktop selector collision was corrected and the full browser matrix passed 29/29 in 2.1 minutes. Independent fixture counts zero; local app/database stopped. [Exact steps, routes, account scope, initial failures, retest evidence and migration cautions](SESSION_REVOCATION_REPORT.md).
+
+Read-only production health/anonymous booking checks passed at 07:14 UTC, on older deployed code. Baseline Vercel preview succeeded; GitHub Actions run `37740256248` was blocked before any step by account billing lock. Refetched main still `2067e743c54ffee669cd484f26dc472b157f1881`. No production migration, promotion or money movement. Admin role-change/audit atomicity, last-admin races, account registration/email/child flows, timezone choice, cancellation/refunds, live Stripe/Connect/payout proof and broader release gates remain unfinished. The goal remains active; this is not final production signoff.
+
 - Date/time: 2026-10-06 PDT / 2026-10-07 UTC.
 - Source baseline: `2067e743c54ffee669cd484f26dc472b157f1881` on `origin/main`.
 - Working branch: `codex/payment-readiness-20261006`; final patch SHA is the commit containing this report.

@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
+import { expect, test } from './fixtures/local-auth'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -10,9 +9,8 @@ for (const width of [1440, 390]) {
   test.describe(`trainer catalog ${width}px`, () => {
     test.use({ viewport: { width, height: 900 } })
     for (const empty of [false, true]) {
-      test(empty ? 'shows an empty catalog without inventing selectable sports' : 'uses database specialty labels and clears choices on sport removal', async ({ page, context }, testInfo) => {
-        const token = await encode({ secret, token: { sub: 'local-trainer', email: 'trainer@example.test', role: 'TRAINER' } })
-        await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+      test(empty ? 'shows an empty catalog without inventing selectable sports' : 'uses database specialty labels and clears choices on sport removal', async ({ page, localAuth }, testInfo) => {
+        await localAuth.signIn(await localAuth.create('TRAINER'))
         const catalog = empty ? [] : [
           { id: 'football', slug: 'football', name: 'Football', icon: null, isActive: true, specialties: [{ id: 'db-QB-ID', slug: 'qb-training', name: 'QB Training' }] },
           { id: 'old', slug: 'old', name: 'Retired Sport', icon: null, isActive: false, specialties: [] },

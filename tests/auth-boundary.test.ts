@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mocks = vi.hoisted(() => ({ token: vi.fn(), session: vi.fn() }))
+const mocks = vi.hoisted(() => ({ token: vi.fn(), session: vi.fn(), user: vi.fn() }))
 vi.mock('next-auth/jwt', () => ({ getToken: mocks.token }))
 vi.mock('next-auth/next', () => ({ getServerSession: mocks.session }))
-vi.mock('@/lib/prisma', () => ({ prisma: {} }))
+vi.mock('@/lib/prisma', () => ({ prisma: { user: { findUnique: mocks.user } } }))
 
-beforeEach(() => { vi.resetAllMocks() })
+beforeEach(() => {
+  vi.resetAllMocks()
+  mocks.user.mockResolvedValue({ id: 'parent-1', email: 'parent@example.test', image: null, role: 'PARENT', sessionVersion: 0,
+    parentProfile: { id: 'profile-1' }, trainerProfile: null })
+})
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('Authentication trust boundary', () => {
@@ -27,7 +31,7 @@ describe('Authentication trust boundary', () => {
   it.each(['__Secure-next-auth.session-token', 'next-auth.session-token'])(
     'accepts a verified token from %s', async (cookieName) => {
       mocks.token.mockImplementation(async (options) => options.cookieName === cookieName
-        ? { sub: 'parent-1', role: 'PARENT', email: 'parent@example.test', profileId: 'profile-1' } : null)
+        ? { sub: 'parent-1', role: 'PARENT', sessionVersion: 0, email: 'stale@example.test', profileId: 'stale-profile' } : null)
       const { getRequestUser } = await import('@/lib/auth')
       expect(await getRequestUser(new NextRequest('https://trainr.cc/api/bookings'))).toEqual({
         id: 'parent-1', role: 'PARENT', email: 'parent@example.test', profileId: 'profile-1',

@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
         resetPasswordToken: token,
         resetPasswordExpiry: { gt: new Date() },
       },
+      select: { id: true },
     })
 
     if (!user) {
@@ -34,14 +35,17 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hash(password, 12)
 
-    await prisma.user.update({
-      where: { id: user.id },
+    const updated = await prisma.user.updateMany({
+      where: { id: user.id, resetPasswordToken: token, resetPasswordExpiry: { gt: new Date() } },
       data: {
         passwordHash,
+        sessionVersion: { increment: 1 },
         resetPasswordToken: null,
         resetPasswordExpiry: null,
       },
     })
+
+    if (updated.count !== 1) return NextResponse.json({ error: 'Invalid or expired reset token' }, { status: 400 })
 
     return NextResponse.json({ message: 'Password reset successfully. You can now sign in.' })
   } catch (error) {

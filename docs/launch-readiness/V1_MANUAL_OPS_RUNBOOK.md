@@ -1,5 +1,7 @@
 # V1 Manual Ops Runbook
 
+2026-10-08 session release requirement: apply/rehearse the additive `sessionVersion` migration before deploying the new authentication code. All pre-version sessions must sign in again; successful password reset, self-deletion and role changes increment the version. Do not roll back to code that trusts stale claims, lower versions, or treat a preview build as production revocation proof. Exact verified steps and remaining privileged-account remediation are in the [session audit](SESSION_REVOCATION_REPORT.md).
+
 ## Status And Evidence
 
 - Public trust update, 2026-10-08: listing approval must not be represented as identity/background screening. An individual credential's recorded verification is not a whole-trainer safety guarantee. Before production publication, owner must confirm actual screening operations, safety mailbox ownership/delivery and escalation coverage; no response SLA was verified. See [tested copy and rollout limits](PUBLIC_TRUST_REPORT.md). Do not restore unsupported counts/testimonials without evidence.

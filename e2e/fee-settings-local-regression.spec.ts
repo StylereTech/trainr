@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
+import { expect, test } from './fixtures/local-auth'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -9,9 +8,8 @@ test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
   test.describe(`fee settings ${viewport.width}px`, () => {
     test.use({ viewport })
-    test('recovers load failure, saves a revision and prevents stale overwrite', async ({ page, context }, testInfo) => {
-      const token = await encode({ secret, token: { sub: 'local-admin', email: 'admin@example.test', role: 'ADMIN' } })
-      await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+    test('recovers load failure, saves a revision and prevents stale overwrite', async ({ page, localAuth }, testInfo) => {
+      await localAuth.signIn(await localAuth.create('ADMIN'))
       const defaults = { platformCommissionPercent: 15, stripeFeePercent: 2.9, processingFeeCents: 30, minBookingAmountCents: 1500 }
       let active: any = null
       let failLoad = true

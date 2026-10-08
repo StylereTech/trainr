@@ -107,6 +107,7 @@ export async function DELETE(req: NextRequest) {
           email: anonymizedEmail,
           emailVerified: null,
           passwordHash: randomPasswordHash,
+          sessionVersion: { increment: 1 },
           image: null,
           verificationToken: null,
           verificationExpiry: null,
