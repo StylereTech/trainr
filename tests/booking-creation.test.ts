@@ -21,7 +21,7 @@ beforeEach(() => {
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
       currentUses: 0, maxUses: 1, expiresAt: null, isActive: true, applicableSportId: null },
-    bookings: [], notifications: [],
+    bookings: [], notifications: [], fees: [],
   }
   let tail = Promise.resolve()
   // Models serialized transactions and rollback; real PostgreSQL locking needs staging verification.
@@ -34,6 +34,7 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        feeConfig: { findMany: async () => state.fees },
         parentProfile: { findUnique: async () => state.parent },
         serviceOffering: { findUnique: async () => state.service },
         athleteProfile: { findFirst: async ({ where }: any) => state.athletes.find((a: any) => a.id === where.id && a.parentProfileId === where.parentProfileId) },
@@ -66,6 +67,16 @@ beforeEach(() => {
 })
 
 describe('atomic reservation creation', () => {
+  it('uses the configured commission on the discounted total', async () => {
+    state.fees = [{ platformCommissionPercent: 20, stripeFeePercent: 5, processingFeeCents: 99, minBookingAmountCents: 1500 }]
+    expect(await reserve({ couponCode: 'SAVE10' })).toMatchObject({ totalAmountInCents: 5400, platformFeeInCents: 1080, trainerPayoutInCents: 4320 })
+  })
+  it('rejects a service below the configured minimum before spending a coupon', async () => {
+    state.fees = [{ platformCommissionPercent: 20, stripeFeePercent: 2.9, processingFeeCents: 30, minBookingAmountCents: 7000 }]
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 409 })
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+  })
   it('creates a pending reservation with exact fee split and no fabricated payment', async () => {
     expect(await reserve()).toMatchObject({ status: 'PENDING', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, endTime: '10:00' })
     expect(state.bookings[0].payment).toBeUndefined()
@@ -174,7 +185,7 @@ describe('atomic reservation creation', () => {
 
   it.each([49, 100000000])('rejects unsupported legacy service price %s without a coupon', async (price) => {
     state.service.priceInCents = price
-    await expect(reserve()).rejects.toMatchObject({ status: 400 })
+    await expect(reserve()).rejects.toMatchObject({ status: price < 1500 ? 409 : 400 })
     expect(state.bookings).toHaveLength(0)
   })
 

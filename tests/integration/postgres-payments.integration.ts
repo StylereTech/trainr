@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createBooking } from '@/lib/booking-creation'
 import { applyBookingAction } from '@/lib/booking-actions'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
+import { defaultFeeValues, updateFeeConfiguration } from '@/lib/fee-config'
 
 // Only Stripe is simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -16,6 +17,7 @@ let fixture: { parent: string; trainerUser: string; trainer: string; service: st
 const createdParents: string[] = []
 const createdTrainers: string[] = []
 const createdCoupons: string[] = []
+const createdConfigs: string[] = []
 let verifiedTarget = false
 
 beforeAll(async () => {
@@ -52,6 +54,13 @@ beforeEach(async () => {
   provider.retrieve.mockImplementation(async (id) => Array.from(sessions.values()).find((session) => session.id === id))
 })
 
+afterEach(async () => {
+  if (!verifiedTarget || !createdConfigs.length) return
+  await prisma.adminAction.deleteMany({ where: { targetType: 'FEE_CONFIG', targetId: { in: createdConfigs } } })
+  await prisma.feeConfig.deleteMany({ where: { id: { in: createdConfigs } } })
+  createdConfigs.length = 0
+})
+
 afterAll(async () => {
   if (!verifiedTarget) {
     await Promise.all([prisma.$disconnect(), independent.$disconnect()])
@@ -72,6 +81,39 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  async function config(commission: number, expectedConfigId: string | null = null) {
+    const row = await updateFeeConfiguration(fixture.trainerUser, { ...defaultFeeValues, platformCommissionPercent: commission, expectedConfigId })
+    createdConfigs.push(row.id)
+    return row
+  }
+
+  it('snapshots configured commission and preserves old booking terms through checkout', async () => {
+    const first = await config(20)
+    const old = await reserve()
+    expect(old.platformFeeInCents).toBe(1200)
+    await config(10, first.id)
+    const fresh = await reserve(1, '10:00')
+    expect(fresh.platformFeeInCents).toBe(600)
+    await startOrResumeCheckout(old.id, { id: fixture.parent }, 'acct_synthetic')
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: old.id } })
+    expect(payment).toMatchObject({ amountInCents: 6000, platformFeeInCents: 1200, trainerPayoutInCents: 4800 })
+    expect(provider.create.mock.calls[0][0].payment_intent_data.application_fee_amount).toBe(1200)
+  })
+
+  it('serializes real concurrent fee updates and rejects the stale writer', async () => {
+    const results = await Promise.allSettled([config(20), config(25)])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(await independent.feeConfig.count({ where: { isActive: true } })).toBe(1)
+    expect(await independent.adminAction.count({ where: { targetId: { in: createdConfigs } } })).toBe(1)
+  })
+
+  it('rolls back fee replacement when the actual audit foreign key fails', async () => {
+    const first = await config(20)
+    await expect(updateFeeConfiguration('nonexistent-synthetic-admin', { ...defaultFeeValues, expectedConfigId: first.id })).rejects.toThrow()
+    expect((await independent.feeConfig.findUniqueOrThrow({ where: { id: first.id } })).isActive).toBe(true)
+    expect(await independent.feeConfig.count()).toBe(1)
+  })
+
   it.each([0, 49, 50])('persists only payable or free discounted bookings: %s cents', async (remaining) => {
     const coupon = await prisma.coupon.create({ data: { code: randomUUID().replaceAll('-', '').toUpperCase(), discountAmountInCents: 6000 - remaining, maxUses: 1, createdById: 'synthetic-test-operator' } })
     createdCoupons.push(coupon.id)

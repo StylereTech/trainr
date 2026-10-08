@@ -87,6 +87,7 @@ function TrainerProfileContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [revision, setRevision] = useState<string | null>(null)
+  const [minServicePrice, setMinServicePrice] = useState(1500)
 
   // Profile data
   const [profile, setProfile] = useState({
@@ -129,6 +130,7 @@ function TrainerProfileContent() {
       if (!res.ok) throw new Error('Failed to fetch profile')
       const data = await res.json()
       setRevision(data.revision)
+      setMinServicePrice(data.minServicePriceInCents ?? 1500)
       setProfile(data.profile)
       setSelectedSports(data.sports)
       setSelectedSpecialties(data.specialties)
@@ -484,7 +486,7 @@ function TrainerProfileContent() {
                     </div>
                     <div>
                       <Label>Price ($) *</Label>
-                      <Input type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={15} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
+                      <Input type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={minServicePrice / 100} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div>
                       <Label>Duration (minutes)</Label>

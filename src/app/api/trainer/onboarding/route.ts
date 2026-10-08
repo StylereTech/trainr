@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { normalizeSpecialtySelections } from '@/lib/trainer'
 import { saveTrainerServices, TrainerEditConflict, trainerServiceSchema } from '@/lib/trainer-services'
 import { timeToMinutes } from '@/lib/availability'
+import { effectiveFeeValues } from '@/lib/fee-config'
 
 // GET /api/trainer/onboarding — Fetch existing trainer profile data for editing
 export async function GET(req: NextRequest) {
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
     if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
     return NextResponse.json({
+      minServicePriceInCents: (await effectiveFeeValues(prisma)).minBookingAmountCents,
       revision: trainer.updatedAt.toISOString(),
       profile: {
         firstName: trainer.firstName,
@@ -127,6 +129,10 @@ export async function PUT(req: NextRequest) {
     if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
     const result = await prisma.$transaction(async (tx) => {
+      const fees = await effectiveFeeValues(tx)
+      if (data.services.some((service) => service.priceInCents < fees.minBookingAmountCents)) {
+        throw new TrainerEditConflict(`Service price must be at least $${(fees.minBookingAmountCents / 100).toFixed(2)}. Reload current pricing requirements.`)
+      }
       await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${trainer.id} FOR UPDATE`
       const current = await tx.trainerProfile.findUnique({ where: { id: trainer.id } })
       if (!current || current.userId !== userId) throw new TrainerEditConflict('Profile changed. Reload before saving.')

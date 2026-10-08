@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET, PUT } from '@/app/api/trainer/onboarding/route'
 
-const mock = vi.hoisted(() => ({ session: vi.fn(), profile: vi.fn(), transaction: vi.fn(), query: vi.fn(), deleteSlots: vi.fn() }))
+const mock = vi.hoisted(() => ({ session: vi.fn(), profile: vi.fn(), transaction: vi.fn(), query: vi.fn(), deleteSlots: vi.fn(), fees: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getServerSession: mock.session, authOptions: {} }))
-vi.mock('@/lib/prisma', () => ({ prisma: { trainerProfile: { findUnique: mock.profile }, $transaction: mock.transaction } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { trainerProfile: { findUnique: mock.profile }, feeConfig: { findMany: mock.fees }, $transaction: mock.transaction } }))
 let state: any
 let fail = false
 const revision = '2026-10-01T00:00:00.000Z'
@@ -18,6 +18,7 @@ const save = (change = {}) => PUT(new Request('http://localhost/api/trainer/onbo
 beforeEach(() => {
   vi.resetAllMocks()
   fail = false
+  mock.fees.mockResolvedValue([])
   state = {
     profile: { id: 'trainer', userId: 'trainer-user', updatedAt: new Date(revision), ...input,
       sports: [], specialties: [], certifications: [], user: { email: 'trainer@example.test' } },
@@ -38,6 +39,7 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        feeConfig: { findMany: mock.fees },
         trainerProfile: {
           findUnique: async () => state.profile,
           update: async ({ data }: any) => { Object.assign(state.profile, data); return state.profile },
@@ -76,6 +78,12 @@ beforeEach(() => {
 })
 
 describe('trainer profile edit integrity (transaction model)', () => {
+  it('rejects service prices below the configured minimum without changing profile data', async () => {
+    mock.fees.mockResolvedValue([{ platformCommissionPercent: 15, stripeFeePercent: 2.9, processingFeeCents: 30, minBookingAmountCents: 7000 }])
+    expect((await save()).status).toBe(409)
+    expect(state.profile.updatedAt.toISOString()).toBe(revision)
+    expect(mock.deleteSlots).not.toHaveBeenCalled()
+  })
   it('keeps identity when services are reordered', async () => {
     const response = await save({ services: [second, first] })
     expect(response.status).toBe(200)

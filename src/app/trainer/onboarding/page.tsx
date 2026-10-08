@@ -29,6 +29,18 @@ export default function TrainerOnboardingPage() {
   const { toast } = useToast()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [minServicePrice, setMinServicePrice] = useState(1500)
+  const [pricingError, setPricingError] = useState('')
+  const [pricingLoaded, setPricingLoaded] = useState(false)
+  useEffect(() => {
+    fetch('/api/trainer/onboarding', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
+      const data = await response.json()
+      if (!Number.isInteger(data.minServicePriceInCents)) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
+      setMinServicePrice(data.minServicePriceInCents)
+      setPricingLoaded(true)
+    }).catch((error) => setPricingError(error.message))
+  }, [])
 
   const [selectedSports, setSelectedSports] = useState<string[]>([])
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
@@ -113,10 +125,11 @@ export default function TrainerOnboardingPage() {
   }
 
   const canProceed = () => {
+    if (!pricingLoaded) return false
     switch (step) {
       case 0: return selectedSports.length > 0 && selectedSpecialties.length > 0
       case 1: return profile.firstName && profile.lastName && profile.bio
-      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= 1500)
+      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= minServicePrice)
       case 3: return availability.length > 0
       default: return true
     }
@@ -125,6 +138,7 @@ export default function TrainerOnboardingPage() {
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       <div className="container max-w-2xl">
+        {pricingError && <p role="alert" className="mb-4 text-red-700">{pricingError}</p>}
         {/* Progress */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -255,7 +269,7 @@ export default function TrainerOnboardingPage() {
                   <div><Label>Description</Label><Textarea placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
                   <div className="grid grid-cols-3 gap-3">
                     <div><Label>Duration (min)</Label><Input type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
-                    <div><Label>Price ($)</Label><Input type="number" min={15} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = parseInt(e.target.value) * 100; setServices(s) }} /></div>
+                    <div><Label>Price ($)</Label><Input type="number" min={minServicePrice / 100} step={0.01} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = Math.round(Number(e.target.value) * 100); setServices(s) }} /></div>
                     <div>
                       <Label>Type</Label>
                       <Select value={svc.type} onValueChange={v => { const s = [...services]; s[i].type = v; setServices(s) }}>

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '@/lib/fees'
 import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
 import type { BookingInput } from '@/lib/validations'
+import { effectiveFeeValues } from '@/lib/fee-config'
 
 export class BookingCreationError extends Error {
   constructor(message: string, public readonly status: number) { super(message) }
@@ -34,6 +35,10 @@ export async function createBooking(userId: string, data: BookingInput) {
     if (!Number.isInteger(service.priceInCents) || service.priceInCents < 0 ||
         !Number.isInteger(service.maxParticipants) || service.maxParticipants < 1) {
       throw new BookingCreationError('Service pricing or capacity requires correction', 409)
+    }
+    const fees = await effectiveFeeValues(tx)
+    if (service.priceInCents < fees.minBookingAmountCents) {
+      throw new BookingCreationError('Service price is below the current platform minimum. Contact the trainer.', 409)
     }
     const slots = await tx.availabilitySlot.findMany({ where: { trainerProfileId: service.trainerProfileId } })
     if (!isTimeSlotAvailable(slots, date, data.startTime, service.durationMinutes)) {
@@ -84,7 +89,7 @@ export async function createBooking(userId: string, data: BookingInput) {
     if (!isSupportedBookingTotal(total)) {
       throw new BookingCreationError('Booking total must be zero or between $0.50 and $999,999.99. Change the promo code or contact support.', 400)
     }
-    const { platformFee, trainerShare } = calculateSplit(total)
+    const { platformFee, trainerShare } = calculateSplit(total, fees.platformCommissionPercent)
     const free = total === 0
     const booking = await tx.booking.create({
       data: {

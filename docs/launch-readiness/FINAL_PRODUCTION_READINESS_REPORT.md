@@ -1,5 +1,7 @@
 # Final Production Readiness Report
 
+2026-10-08 fee-configuration update: source based on `29d8ae449bf91ba98919dcdd4314a69f0391a050` now wires effective settings into new booking splits and service minimums, with atomic audited updates and stale-edit rejection. **393 unit tests and 18 real local PostgreSQL tests passed**; final browser/build proof is in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). See [fee integrity findings and exact steps](FEE_CONFIGURATION_REPORT.md). Production settings were not changed and readiness is still not signed off.
+
 Latest checkpoint, 2026-10-08 04:52 UTC: **12 real local PostgreSQL integration tests passed**, including the exact checkout migration and concurrency/rollback cases. This replaces the earlier absence of local SQL evidence, not the production hold. See [SQL evidence and limits](POSTGRES_INTEGRATION_REPORT.md) and the [current audit checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). Stripe, staging/production rollout and remaining application/security gates are still incomplete.
 
 05:02 UTC update: fixed coupon totals that would create unchargeable pending bookings. **369 unit tests, 15 real local PostgreSQL tests, 8 synthetic desktop/mobile browser tests and production build passed.** Baseline `31eabbaffdff473483116cca6f9b987b8f141e24` plus this report's commit; exact evidence is in the checkpoint. Admin fee configuration was confirmed disconnected from booking calculation and remains open. No production promotion, real Stripe success or final signoff.

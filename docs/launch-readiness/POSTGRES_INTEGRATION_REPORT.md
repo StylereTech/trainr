@@ -1,5 +1,7 @@
 # PostgreSQL Integration Verification
 
+Latest extension, 2026-10-08 05:12 UTC: **18/18 passed**, including real fee-writer serialization, audit-foreign-key rollback and preservation of snapshotted booking fees after configuration changes. Baseline `29d8ae449bf91ba98919dcdd4314a69f0391a050` plus this commit; see [fee configuration report](FEE_CONFIGURATION_REPORT.md). All six synthetic record categories were independently verified empty after cleanup and the server stopped. Earlier results below remain historical subsets.
+
 - Date/time: 2026-10-08 04:49-04:52 UTC.
 - Source baseline: `ac7c579e1fcd5af6fc06f11b5678a458aec25766`; harness is in the commit containing this report. Application source is unchanged in this pass.
 - Environment: Windows, Node 22, PostgreSQL 16.15, Prisma 6.19.3. Disposable local database `trainr_audit_20261008`, role `trainr_test`, listener `127.0.0.1:55439` only.
