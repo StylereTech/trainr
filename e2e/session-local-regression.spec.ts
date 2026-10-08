@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
+import { hashAccountToken } from '../src/lib/account-tokens'
 import { encode } from 'next-auth/jwt'
 import { test, expect } from './fixtures/local-auth'
 
@@ -20,8 +21,8 @@ for (const width of [1440, 390]) {
     expect(session.user).toMatchObject({ id: user.id, role: 'PARENT' })
     expect(session.user).not.toHaveProperty('sessionVersion')
     expect(session.user).not.toHaveProperty('passwordHash')
-    const token = randomUUID()
-    await localAuth.database.user.update({ where: { id: user.id }, data: { resetPasswordToken: token, resetPasswordExpiry: new Date(Date.now() + 60000) } })
+    const token = randomBytes(32).toString('hex')
+    await localAuth.database.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashAccountToken('reset', token), resetPasswordExpiry: new Date(Date.now() + 60000) } })
     const newPassword = `New-local-${randomUUID()}`
     expect((await page.request.post('/api/auth/reset-password', { data: { token, password: newPassword } })).status()).toBe(200)
     expect((await page.request.get('/api/bookings')).status()).toBe(401)
@@ -49,7 +50,7 @@ test('real admin role change revokes old admin API and page access and excludes 
   const rows = Array.isArray(body) ? body : body.users
   expect(rows.length).toBeGreaterThanOrEqual(2)
   for (const row of rows) {
-    for (const field of ['passwordHash', 'sessionVersion', 'resetPasswordToken', 'verificationToken']) expect(row).not.toHaveProperty(field)
+    for (const field of ['passwordHash', 'sessionVersion', 'resetPasswordToken', 'verificationToken', 'resetPasswordTokenSeed', 'verificationTokenSeed']) expect(row).not.toHaveProperty(field)
   }
   expect((await page.request.patch('/api/admin/users', { data: { userId: target.id, action: 'change_role', role: 'PARENT', revision: target.updatedAt.toISOString() } })).status()).toBe(200)
   expect((await localAuth.database.user.findUniqueOrThrow({ where: { id: target.id } })).sessionVersion).toBe(1)

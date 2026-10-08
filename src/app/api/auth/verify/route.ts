@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getRequestUser } from '@/lib/auth'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { z } from 'zod'
+import { hashAccountToken } from '@/lib/account-tokens'
 
 export async function GET(req: NextRequest) {
   const current = await getRequestUser(req)
@@ -19,15 +20,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     if (!rateLimit(`verify:${getClientIp(req)}`, 10, 60_000).allowed) return NextResponse.json({ error: 'Try again later' }, { status: 429 })
-    const { token } = z.object({ token: z.string().min(1).max(128) }).parse(await req.json())
+    const { token } = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await req.json())
+    const tokenHash = hashAccountToken('verification', token)
 
     const user = await prisma.user.findFirst({
       where: {
-        verificationToken: token,
+        verificationToken: tokenHash,
         deletedAt: null,
         emailVerified: null,
         verificationExpiry: { gt: new Date() },
       },
+      select: { id: true },
     })
 
     if (!user) {
@@ -35,10 +38,11 @@ export async function POST(req: NextRequest) {
     }
 
     const updated = await prisma.user.updateMany({
-      where: { id: user.id, deletedAt: null, emailVerified: null, verificationToken: token, verificationExpiry: { gt: new Date() } },
+      where: { id: user.id, deletedAt: null, emailVerified: null, verificationToken: tokenHash, verificationExpiry: { gt: new Date() } },
       data: {
         emailVerified: new Date(),
         verificationToken: null,
+        verificationTokenSeed: null,
         verificationExpiry: null,
       },
     })

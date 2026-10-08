@@ -38,6 +38,7 @@ export async function closeAccount(tx: Prisma.TransactionClient, userId: string)
   await tx.user.update({ where: { id: userId }, data: {
     email: `deleted-${userId}-${now.getTime()}@deleted.trainr.local`, emailVerified: null,
     passwordHash: randomPasswordHash, sessionVersion: { increment: 1 }, deletedAt: now, image: null,
-    verificationToken: null, verificationExpiry: null, resetPasswordToken: null, resetPasswordExpiry: null, updatedAt: now,
+    verificationToken: null, verificationTokenSeed: null, verificationExpiry: null,
+    resetPasswordToken: null, resetPasswordTokenSeed: null, resetPasswordExpiry: null, updatedAt: now,
   } })
 }

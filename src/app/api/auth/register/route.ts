@@ -41,18 +41,12 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hash(data.password, 12)
 
-    // Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex')
-    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-
     const user = await prisma.$transaction(async tx => {
       const created = await tx.user.create({
         data: {
           email: data.email.toLowerCase(),
           passwordHash,
           role: data.role,
-          verificationToken,
-          verificationExpiry,
           parentProfile: data.role === 'PARENT' ? {
             create: {
               phone: data.phone || null,

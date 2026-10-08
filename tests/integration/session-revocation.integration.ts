@@ -1,4 +1,6 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
+import { hashAccountToken } from '@/lib/account-tokens'
+import { requestAccountEmail } from '@/lib/account-email'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
@@ -31,6 +33,8 @@ function resetRequest(token: string) {
 
 beforeAll(async () => {
   vi.stubEnv('NEXTAUTH_SECRET', secret)
+  vi.stubEnv('RESEND_API_KEY', '')
+  vi.stubEnv('EMAIL_FROM', '')
   const marker = await prisma.$queryRaw<Array<{ purpose: string }>>`SELECT purpose FROM trainr_test_guard`
   expect(marker).toEqual([{ purpose: 'disposable integration database' }])
 })
@@ -76,8 +80,8 @@ describe('real database and encrypted-cookie session revocation', () => {
   it('resets a password once, revokes the old cookie and accepts newly authenticated credentials', async () => {
     const user = await createUser()
     const oldRequest = await request(user)
-    const token = randomUUID()
-    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: token, resetPasswordExpiry: new Date(Date.now() + 60000) } })
+    const token = randomBytes(32).toString('hex')
+    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashAccountToken('reset', token), resetPasswordExpiry: new Date(Date.now() + 60000) } })
     expect((await resetPassword(resetRequest(token))).status).toBe(200)
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(updated.sessionVersion).toBe(1)
@@ -91,26 +95,32 @@ describe('real database and encrypted-cookie session revocation', () => {
   })
   it('allows only one concurrent reset to consume the token', async () => {
     const user = await createUser()
-    const token = randomUUID()
-    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: token, resetPasswordExpiry: new Date(Date.now() + 60000) } })
+    const token = randomBytes(32).toString('hex')
+    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashAccountToken('reset', token), resetPasswordExpiry: new Date(Date.now() + 60000) } })
     const results = await Promise.all([resetPassword(resetRequest(token)), resetPassword(resetRequest(token))])
     expect(results.map(result => result.status).sort()).toEqual([200, 400])
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).sessionVersion).toBe(1)
   })
   it('does not change the version for an expired reset', async () => {
     const user = await createUser()
-    const token = randomUUID()
-    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: token, resetPasswordExpiry: new Date(Date.now() - 60000) } })
+    const token = randomBytes(32).toString('hex')
+    await prisma.user.update({ where: { id: user.id }, data: { resetPasswordToken: hashAccountToken('reset', token), resetPasswordExpiry: new Date(Date.now() - 60000) } })
     expect((await resetPassword(resetRequest(token))).status).toBe(400)
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).sessionVersion).toBe(0)
   })
   it('revokes a self-deleted account even though its historical user row remains', async () => {
     const user = await createUser()
+    await requestAccountEmail(user.id, 'verification')
+    await requestAccountEmail(user.id, 'reset')
+    const pending = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(pending.verificationTokenSeed).toBeTruthy()
+    expect(pending.resetPasswordTokenSeed).toBeTruthy()
     const req = await request(user)
     expect((await deleteAccount(req)).status).toBe(200)
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(updated.sessionVersion).toBe(1)
     expect(updated.email).toMatch(/@deleted\.trainr\.local$/)
+    expect(updated).toMatchObject({ verificationToken: null, verificationTokenSeed: null, resetPasswordToken: null, resetPasswordTokenSeed: null })
     expect((await bookings(req)).status).toBe(401)
   })
   it('preserves the admin self-delete restriction', async () => {

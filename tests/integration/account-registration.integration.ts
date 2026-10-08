@@ -5,6 +5,7 @@ import { encode } from 'next-auth/jwt'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { requestAccountEmail } from '@/lib/account-email'
+import { hashAccountToken } from '@/lib/account-tokens'
 import { POST as register } from '@/app/api/auth/register/route'
 import { GET as status, POST as verify } from '@/app/api/auth/verify/route'
 import { POST as resend } from '@/app/api/auth/verification-email/route'
@@ -16,6 +17,12 @@ const prefix = `registration-${randomUUID()}`
 const secret = 'local-account-registration-only-not-for-deployment'
 const password = 'Local-password-123'
 const fetcher = vi.fn()
+function emailedToken(purpose: 'verification' | 'reset') {
+  const path = purpose === 'verification' ? '/account/verify-email' : '/auth/reset-password'
+  const calls = fetcher.mock.calls.filter(call => JSON.parse(call[1].body).text.includes(path))
+  const text = JSON.parse(calls.at(-1)![1].body).text as string
+  return new URL(text.split('\n').find(line => line.startsWith('https://'))!).searchParams.get('token')!
+}
 let sequence = 0
 function input(role = 'PARENT') {
   return { email: `${prefix}-${++sequence}@example.test`, password, role, firstName: 'Synthetic', lastName: 'Registration', agreeToTerms: true, state: 'TX' }
@@ -59,7 +66,8 @@ describe('actual PostgreSQL registration, email attempts and verification', () =
     expect(body).not.toHaveProperty('passwordHash')
     expect(body).not.toHaveProperty('verificationToken')
     const user = await prisma.user.findUniqueOrThrow({ where: { email: data.email }, include: { parentProfile: true, trainerProfile: true } })
-    expect(user.verificationToken).toMatch(/^[a-f0-9]{64}$/)
+    expect(user.verificationToken).toBe(hashAccountToken('verification', emailedToken('verification')))
+    expect(JSON.stringify(user)).not.toContain(emailedToken('verification'))
     expect(role === 'PARENT' ? user.parentProfile?.state : user.trainerProfile?.state).toBe('TX')
     expect(await authOptions.providers[0].options.authorize({ email: ` ${data.email.toUpperCase()} `, password })).toMatchObject({ id: user.id, role })
   })
@@ -108,18 +116,20 @@ describe('actual PostgreSQL registration, email attempts and verification', () =
   })
   it('does not consume verification through a GET and consumes it only once under concurrent POSTs', async () => {
     const user = await registered()
-    expect((await status(new NextRequest(`http://localhost/api/auth/verify?token=${user.verificationToken}`))).status).toBe(401)
+    const token = emailedToken('verification')
+    expect((await status(new NextRequest(`http://localhost/api/auth/verify?token=${token}`))).status).toBe(401)
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerified).toBeNull()
-    const results = await Promise.all([verify(request('/api/auth/verify', { token: user.verificationToken })), verify(request('/api/auth/verify', { token: user.verificationToken }))])
+    const results = await Promise.all([verify(request('/api/auth/verify', { token })), verify(request('/api/auth/verify', { token }))])
     expect(results.map(r => r.status).sort()).toEqual([200, 400])
     expect(await (await status(await signed(user, '/api/auth/verify'))).json()).toEqual({ verified: true, role: 'PARENT' })
   })
   it('rejects expired and deactivated verification tokens', async () => {
     const user = await registered()
+    const token = emailedToken('verification')
     await prisma.user.update({ where: { id: user.id }, data: { verificationExpiry: new Date(0) } })
-    expect((await verify(request('/api/auth/verify', { token: user.verificationToken }))).status).toBe(400)
+    expect((await verify(request('/api/auth/verify', { token }))).status).toBe(400)
     await prisma.user.update({ where: { id: user.id }, data: { verificationExpiry: new Date(Date.now() + 60000), deletedAt: new Date() } })
-    expect((await verify(request('/api/auth/verify', { token: user.verificationToken }))).status).toBe(400)
+    expect((await verify(request('/api/auth/verify', { token }))).status).toBe(400)
     expect(await requestAccountEmail(user.id, 'verification')).toBe('ineligible')
   })
   it('serializes retry token issuance and reuses the provider identity before the resend interval', async () => {
@@ -129,16 +139,18 @@ describe('actual PostgreSQL registration, email attempts and verification', () =
     const keys = fetcher.mock.calls.map(call => call[1].headers.get('Idempotency-Key'))
     expect(new Set(keys).size).toBe(1)
     const stored = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
-    expect(JSON.parse(fetcher.mock.calls[0][1].body).text).toContain(stored.resetPasswordToken)
+    expect(stored.resetPasswordToken).toBe(hashAccountToken('reset', emailedToken('reset')))
+    expect(JSON.stringify(stored)).not.toContain(emailedToken('reset'))
   })
   it('issues a new link on a later explicit request and rejects the superseded token', async () => {
     const user = await registered()
+    const oldToken = emailedToken('verification')
     await prisma.user.update({ where: { id: user.id }, data: { verificationExpiry: new Date(Date.now() + (24 * 60 - 16) * 60000) } })
     expect(await requestAccountEmail(user.id, 'verification')).toBe('accepted')
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(updated.verificationToken).not.toBe(user.verificationToken)
-    expect((await verify(request('/api/auth/verify', { token: user.verificationToken }))).status).toBe(400)
-    expect((await verify(request('/api/auth/verify', { token: updated.verificationToken }))).status).toBe(200)
+    expect((await verify(request('/api/auth/verify', { token: oldToken }))).status).toBe(400)
+    expect((await verify(request('/api/auth/verify', { token: emailedToken('verification') }))).status).toBe(200)
   })
   it('requires current authentication to retry verification and sends only to the account address', async () => {
     expect((await resend(request('/api/auth/verification-email', {}))).status).toBe(401)
@@ -154,8 +166,9 @@ describe('actual PostgreSQL registration, email attempts and verification', () =
     fetcher.mockClear()
     expect((await forgot(request('/api/auth/forgot-password', { email: user.email }))).status).toBe(200)
     const stored = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
-    expect(JSON.parse(fetcher.mock.calls[0][1].body).text).toContain(`/auth/reset-password?token=${stored.resetPasswordToken}`)
-    const data = { token: stored.resetPasswordToken, password: 'Changed-local-password-456' }
+    const token = emailedToken('reset')
+    expect(stored.resetPasswordToken).toBe(hashAccountToken('reset', token))
+    const data = { token, password: 'Changed-local-password-456' }
     expect((await reset(request('/api/auth/reset-password', data))).status).toBe(200)
     expect((await reset(request('/api/auth/reset-password', data))).status).toBe(400)
     expect((await status(await signed(user, '/api/auth/verify'))).status).toBe(401)
@@ -170,6 +183,54 @@ describe('actual PostgreSQL registration, email attempts and verification', () =
     await prisma.user.update({ where: { id: user.id }, data: { deletedAt: new Date() } })
     fetcher.mockClear()
     expect(await (await forgot(request('/api/auth/forgot-password', { email: user.email }))).json()).toEqual(missing)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('rejects stored hashes, stored seeds and cross-purpose links without changing credentials', async () => {
+    const user = await registered()
+    const verificationToken = emailedToken('verification')
+    await requestAccountEmail(user.id, 'reset')
+    const resetToken = emailedToken('reset')
+    const stored = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
+    for (const token of [stored.verificationToken, stored.verificationTokenSeed, resetToken]) {
+      expect((await verify(request('/api/auth/verify', { token }))).status).toBe(400)
+    }
+    for (const token of [stored.resetPasswordToken, stored.resetPasswordTokenSeed, verificationToken]) {
+      expect((await reset(request('/api/auth/reset-password', { token, password: 'Rejected-password-456' }))).status).toBe(400)
+    }
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ emailVerified: null, sessionVersion: 0, passwordHash: user.passwordHash })
+    expect((await verify(request('/api/auth/verify', { token: verificationToken }))).status).toBe(200)
+    expect((await reset(request('/api/auth/reset-password', { token: resetToken, password: 'Accepted-password-456' }))).status).toBe(200)
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ verificationToken: null, verificationTokenSeed: null, resetPasswordToken: null, resetPasswordTokenSeed: null })
+  })
+
+  it('rejects legacy plaintext rows instead of accepting an insecure fallback', async () => {
+    const user = await registered()
+    const token = 'b'.repeat(64)
+    await prisma.user.update({ where: { id: user.id }, data: { verificationToken: token, resetPasswordToken: token, resetPasswordExpiry: new Date(Date.now() + 60000) } })
+    expect((await verify(request('/api/auth/verify', { token }))).status).toBe(400)
+    expect((await reset(request('/api/auth/reset-password', { token, password: 'Rejected-password-456' }))).status).toBe(400)
+    await requestAccountEmail(user.id, 'reset')
+    expect((await reset(request('/api/auth/reset-password', { token: emailedToken('reset'), password: 'Accepted-password-456' }))).status).toBe(200)
+  })
+
+  it('rotates the pending verifier when a changed server key causes a resend mismatch', async () => {
+    const user = await registered()
+    const oldToken = emailedToken('verification')
+    vi.stubEnv('NEXTAUTH_SECRET', secret + '-rotated')
+    expect(await requestAccountEmail(user.id, 'verification')).toBe('accepted')
+    const replacement = emailedToken('verification')
+    expect(replacement).not.toBe(oldToken)
+    expect((await verify(request('/api/auth/verify', { token: oldToken }))).status).toBe(400)
+    expect((await verify(request('/api/auth/verify', { token: replacement }))).status).toBe(200)
+  })
+
+  it('does not replace a pending verifier or transmit email when the derivation key is unavailable', async () => {
+    const user = await registered()
+    fetcher.mockClear()
+    vi.stubEnv('NEXTAUTH_SECRET', '')
+    await expect(requestAccountEmail(user.id, 'verification')).rejects.toThrow('key is unavailable')
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).verificationToken).toBe(user.verificationToken)
     expect(fetcher).not.toHaveBeenCalled()
   })
 })

@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { hashAccountToken } from '@/lib/account-tokens'
 
 const schema = z.object({
-  token: z.string().min(1).max(128),
+  token: z.string().regex(/^[a-f0-9]{64}$/),
   password: z.string().min(8, 'Password must be at least 8 characters').refine(value => Buffer.byteLength(value, 'utf8') <= 72, 'Password must be at most 72 UTF-8 bytes'),
 })
 
@@ -20,10 +21,11 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { token, password } = schema.parse(body)
+    const tokenHash = hashAccountToken('reset', token)
 
     const user = await prisma.user.findFirst({
       where: {
-        resetPasswordToken: token,
+        resetPasswordToken: tokenHash,
         deletedAt: null,
         resetPasswordExpiry: { gt: new Date() },
       },
@@ -37,11 +39,12 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hash(password, 12)
 
     const updated = await prisma.user.updateMany({
-      where: { id: user.id, deletedAt: null, resetPasswordToken: token, resetPasswordExpiry: { gt: new Date() } },
+      where: { id: user.id, deletedAt: null, resetPasswordToken: tokenHash, resetPasswordExpiry: { gt: new Date() } },
       data: {
         passwordHash,
         sessionVersion: { increment: 1 },
         resetPasswordToken: null,
+        resetPasswordTokenSeed: null,
         resetPasswordExpiry: null,
       },
     })

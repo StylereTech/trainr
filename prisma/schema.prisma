@@ -44,10 +44,14 @@ model User {
   reportsResolved ModerationReport[] @relation("Resolver")
 
   verificationToken   String?
+  verificationTokenSeed String?
   verificationExpiry  DateTime?
   resetPasswordToken  String?
+  resetPasswordTokenSeed String?
   resetPasswordExpiry DateTime?
 
+  @@index([verificationToken])
+  @@index([resetPasswordToken])
   @@map("users")
 }
 

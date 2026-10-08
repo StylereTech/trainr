@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { Resend } from 'resend'
 import { prisma } from '@/lib/prisma'
+import { createAccountToken, deriveAccountToken, hashAccountToken } from '@/lib/account-tokens'
 
 export type AccountEmailPurpose = 'verification' | 'reset'
 export type AccountEmailResult = 'accepted' | 'unavailable' | 'verified' | 'ineligible'
@@ -38,16 +39,19 @@ export async function requestAccountEmail(userId: string, purpose: AccountEmailP
     if (!user || user.deletedAt) return null
     if (purpose === 'verification' && user.emailVerified) return { verified: true as const }
     const now = new Date()
-    let token = purpose === 'verification' ? user.verificationToken : user.resetPasswordToken
+    const tokenHash = purpose === 'verification' ? user.verificationToken : user.resetPasswordToken
+    const seed = purpose === 'verification' ? user.verificationTokenSeed : user.resetPasswordTokenSeed
     const expiry = purpose === 'verification' ? user.verificationExpiry : user.resetPasswordExpiry
     const lifetime = (purpose === 'verification' ? 24 : 1) * 60 * 60 * 1000
-    // Brief retries reuse the same link; a later explicit request issues a fresh one.
-    if (!token || !expiry || expiry.getTime() - now.getTime() <= lifetime - 15 * 60 * 1000) {
-      token = randomBytes(32).toString('hex')
+    let token = seed && /^[a-f0-9]{64}$/.test(seed) ? deriveAccountToken(purpose, user.id, seed) : null
+    // Brief retries keep the exact provider identity without persisting the bearer token.
+    if (!token || hashAccountToken(purpose, token) !== tokenHash || !expiry || expiry.getTime() - now.getTime() <= lifetime - 15 * 60 * 1000) {
+      const created = createAccountToken(purpose, user.id)
+      token = created.token
       const expires = new Date(now.getTime() + lifetime)
       await tx.user.update({ where: { id: user.id }, data: purpose === 'verification'
-        ? { verificationToken: token, verificationExpiry: expires }
-        : { resetPasswordToken: token, resetPasswordExpiry: expires } })
+        ? { verificationToken: created.tokenHash, verificationTokenSeed: created.seed, verificationExpiry: expires }
+        : { resetPasswordToken: created.tokenHash, resetPasswordTokenSeed: created.seed, resetPasswordExpiry: expires } })
     }
     return { verified: false as const, email: user.email, token }
   })

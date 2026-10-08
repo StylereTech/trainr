@@ -58,7 +58,7 @@ describe('administrator user HTTP boundaries', () => {
     const args = mock.find.mock.calls[0][0]
     expect(args).toMatchObject({ skip: 10, take: 10, where: { role: 'TRAINER' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] })
     expect(args.select.deletedAt).toBe(true)
-    for (const field of ['passwordHash', 'resetPasswordToken', 'verificationToken', 'sessionVersion']) expect(args.select[field]).toBeUndefined()
+    for (const field of ['passwordHash', 'resetPasswordToken', 'verificationToken', 'resetPasswordTokenSeed', 'verificationTokenSeed', 'sessionVersion']) expect(args.select[field]).toBeUndefined()
   })
   it('returns a retryable generic list error, not an empty successful result', async () => {
     mock.transaction.mockRejectedValue(new Error('private database connection'))
