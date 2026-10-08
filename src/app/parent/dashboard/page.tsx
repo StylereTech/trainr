@@ -43,6 +43,11 @@ function isTrainerPaymentReady(booking: Booking) {
   return Boolean(booking.trainerProfile.stripeAccountId) && booking.trainerProfile.stripeOnboardingComplete
 }
 
+function canStartCheckout(booking: Booking) {
+  return ['PENDING', 'CONFIRMED'].includes(booking.status) && booking.totalAmountInCents > 0 &&
+    (!booking.payment || ['PENDING', 'FAILED'].includes(booking.payment.status))
+}
+
 export default function ParentDashboard() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -63,9 +68,6 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     const paymentState = searchParams.get('payment')
-    if (paymentState === 'success') {
-      toast({ title: 'Payment completed', description: 'Your booking payment was submitted successfully.' })
-    }
     if (paymentState === 'cancelled') {
       toast({ title: 'Checkout cancelled', description: 'You can return and complete payment any time.', variant: 'destructive' })
     }
@@ -199,8 +201,8 @@ export default function ParentDashboard() {
                       </div>
                       <div className="md:text-right">
                         <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                        {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">Awaiting trainer confirmation</div>}
-                        {b.status === 'CONFIRMED' && b.payment?.status !== 'SUCCEEDED' && (
+                        {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : 'Awaiting payment'}</div>}
+                        {canStartCheckout(b) && (
                           isTrainerPaymentReady(b) ? (
                             <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={startingCheckoutId === b.id}>
                               {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
@@ -211,12 +213,12 @@ export default function ParentDashboard() {
                             </div>
                           )
                         )}
-                        {b.status === 'CONFIRMED' && b.payment?.status !== 'SUCCEEDED' && !isTrainerPaymentReady(b) && (
+                        {canStartCheckout(b) && !isTrainerPaymentReady(b) && (
                           <div className="mt-2 text-xs text-amber-200">
                             This trainer must finish Stripe setup before payment can be collected.
                           </div>
                         )}
-                        {b.payment?.status === 'SUCCEEDED' && <div className="mt-1 text-xs font-medium text-emerald-300">Paid</div>}
+                        {b.payment?.status === 'SUCCEEDED' && <div className="mt-1 text-xs font-medium text-emerald-300">{b.totalAmountInCents === 0 ? 'No payment due' : 'Paid'}</div>}
                       </div>
                     </CardContent>
                   </Card>

@@ -49,7 +49,7 @@ interface TrainerData {
   certifications: { name: string; issuingOrg: string | null; isVerified: boolean }[]
   serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string; maxParticipants: number }[]
   packages: { id: string; title: string; description: string | null; totalSessions: number; priceInCents: number; validForDays: number; items: { serviceOffering: { title: string }; sessionsCount: number }[] }[]
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean }[]
+  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean; isAvailable: boolean }[]
   assets: { url: string; type: string; order: number }[]
   reviews: Review[]
   _count: { reviews: number }
@@ -124,6 +124,7 @@ export default function TrainerProfilePage() {
 
   const availabilityByDay: Record<string, { start: string; end: string }[]> = {}
   trainer.availabilitySlots.forEach(slot => {
+    if (!slot.isAvailable) return
     const day = slot.dayOfWeek !== null ? DAY_NAMES[slot.dayOfWeek] : 'One-time'
     if (!availabilityByDay[day]) availabilityByDay[day] = []
     availabilityByDay[day].push({ start: slot.startTime, end: slot.endTime })

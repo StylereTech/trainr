@@ -75,12 +75,15 @@ export const packageSchema = z.object({
 })
 
 export const bookingSchema = z.object({
-  serviceOfferingId: z.string().min(1),
-  athleteProfileId: z.string().min(1),
-  date: z.string().min(1),
-  startTime: z.string().min(1),
-  notes: z.string().optional(),
-  couponCode: z.string().optional(),
+  serviceOfferingId: z.string().trim().min(1).max(128),
+  athleteProfileId: z.string().trim().min(1).max(128),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD').refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`)
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+  }, 'date must be a valid calendar date'),
+  startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'startTime must be HH:MM'),
+  notes: z.string().max(2000).optional(),
+  couponCode: z.string().trim().max(32).optional(),
 })
 
 export const reviewSchema = z.object({

@@ -37,3 +37,11 @@ it('rejects a session without a recognized role before querying bookings', async
   expect(response.status).toBe(403)
   expect(mocks.booking.findMany).not.toHaveBeenCalled()
 })
+
+it.each(['page=0', 'page=-1', 'page=1.5', 'page=bad', 'limit=101', 'limit=0', 'status=NOT_REAL'])('rejects invalid query %s before reading records', async (query) => {
+  mocks.user.mockResolvedValue({ id: 'user', role: 'PARENT' })
+  const { GET } = await import('@/app/api/bookings/route')
+  const response = await GET(new Request(`http://localhost/api/bookings?${query}`) as any)
+  expect(response.status).toBe(400)
+  expect(mocks.booking.findMany).not.toHaveBeenCalled()
+})

@@ -1,4 +1,5 @@
 import { SPECIALTIES, slugify } from '@/lib/utils'
+import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
 
 export function slugifySpecialty(value: string): string {
   return slugify(value)
@@ -38,30 +39,27 @@ export function formatDateForInput(date: Date): string {
 }
 
 export function generateAvailableTimeSlots(
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string }[],
+  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; specificDate?: string | Date | null; isRecurring?: boolean; isAvailable?: boolean }[],
   selectedDate: string,
   durationMinutes: number
 ): string[] {
-  if (!selectedDate || durationMinutes <= 0) return []
-
-  const dayOfWeek = parseDateInputAsLocalDate(selectedDate).getDay()
-  const relevantSlots = availabilitySlots.filter((slot) => slot.dayOfWeek === dayOfWeek)
-  const times: string[] = []
-
-  for (const slot of relevantSlots) {
-    const [startH, startM] = slot.startTime.split(':').map(Number)
-    const [endH, endM] = slot.endTime.split(':').map(Number)
-    let current = startH * 60 + startM
-    const sessionLength = durationMinutes
-    const end = endH * 60 + endM
-
-    while (current + sessionLength <= end) {
-      const h = Math.floor(current / 60)
-      const m = current % 60
-      times.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
-      current += sessionLength
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate) || !Number.isInteger(durationMinutes) || durationMinutes <= 0) return []
+  const date = new Date(`${selectedDate}T00:00:00.000Z`)
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== selectedDate) return []
+  const slots = availabilitySlots.map((slot) => ({
+    ...slot,
+    specificDate: slot.specificDate ? new Date(slot.specificDate) : null,
+    isRecurring: slot.isRecurring ?? !slot.specificDate,
+    isAvailable: slot.isAvailable ?? true,
+  }))
+  const times = new Set<string>()
+  for (const slot of slots) {
+    if (!slot.isAvailable) continue
+    const end = timeToMinutes(slot.endTime)
+    for (let current = timeToMinutes(slot.startTime); current + durationMinutes <= end; current += durationMinutes) {
+      const time = minutesToTime(current)
+      if (isTimeSlotAvailable([slot], date, time, durationMinutes) && isTimeSlotAvailable(slots, date, time, durationMinutes)) times.add(time)
     }
   }
-
-  return times
+  return Array.from(times).sort()
 }

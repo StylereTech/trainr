@@ -84,13 +84,14 @@ export async function getPublicTrainerBySlug(slug: string) {
         },
       },
       availabilitySlots: {
-        where: { isAvailable: true },
         orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
         select: {
           dayOfWeek: true,
           startTime: true,
           endTime: true,
           isRecurring: true,
+          isAvailable: true,
+          specificDate: true,
         },
       },
       assets: {

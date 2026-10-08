@@ -45,7 +45,7 @@ interface TrainerData {
   locationType: string
   sports: { sport: { name: string; icon: string | null } }[]
   serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string }[]
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean }[]
+  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean; isAvailable: boolean; specificDate: string | null }[]
 }
 
 interface Athlete {
@@ -192,7 +192,13 @@ export default function BookingPage() {
         return
       }
 
-      // Attempt immediate checkout redirect (pay-to-book)
+      if (data.status === 'CONFIRMED' && data.totalAmountInCents === 0) {
+        toast({ title: 'Booking confirmed', description: 'No payment is due.' })
+        router.push('/parent/dashboard')
+        return
+      }
+
+      let checkoutError = 'Payment could not be started. Your booking has been saved.'
       try {
         const checkoutRes = await fetch('/api/payments/checkout', {
           method: 'POST',
@@ -204,11 +210,12 @@ export default function BookingPage() {
           window.location.href = checkoutData.checkoutUrl
           return
         }
+        checkoutError = checkoutData.error || checkoutError
       } catch {
-        // Stripe not configured or checkout failed — fall back to dashboard
+        checkoutError = 'Unable to reach checkout. Your booking has been saved.'
       }
 
-      toast({ title: 'Booking Created!', description: 'Complete payment from your dashboard to confirm.' })
+      toast({ title: 'Check booking payment', description: checkoutError, variant: 'destructive' })
       router.push('/parent/dashboard')
     } catch {
       toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
