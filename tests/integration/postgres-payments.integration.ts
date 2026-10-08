@@ -555,7 +555,10 @@ describe('real PostgreSQL money-flow persistence', () => {
     await Promise.all([applyPaymentEvidence(evidence), applyPaymentEvidence(evidence)])
     expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
     expect(await independent.notification.count({ where: { userId: fixture.parent, type: 'BOOKING_CONFIRMED' } })).toBe(1)
-    await Promise.all([applyPaymentEvidence({ ...evidence, outcome: 'refunded', refundAmount: 6000 }), applyPaymentEvidence(evidence)])
+    // Refund reconciliation has its own provider/SQL suite; seed its established result here.
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CANCELLED' } })
+    await applyPaymentEvidence(evidence)
     expect((await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('REFUNDED')
     expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CANCELLED')
   })

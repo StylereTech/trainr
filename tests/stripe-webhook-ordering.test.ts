@@ -109,10 +109,11 @@ describe('transactional Stripe payment evidence', () => {
     expect(state.notifications).toHaveLength(2)
   })
 
-  it('never regresses a cumulative refund or reopens a fully refunded booking', async () => {
+  it('late settlement never overwrites a refund established by reconciliation', async () => {
     await applyPaymentEvidence(paid)
-    await applyPaymentEvidence({ ...paid, outcome: 'refunded', refundAmount: 7500 })
-    await applyPaymentEvidence({ ...paid, outcome: 'refunded', refundAmount: 1000 })
+    state.payment.status = 'REFUNDED'
+    state.payment.refundAmountInCents = 7500
+    state.status = 'CANCELLED'
     await applyPaymentEvidence(paid)
     await applyPaymentEvidence({ ...paid, outcome: 'failed' })
     expect(state.status).toBe('CANCELLED')
@@ -122,14 +123,15 @@ describe('transactional Stripe payment evidence', () => {
   })
 
   it('retains a partial refund when success arrives later', async () => {
-    await applyPaymentEvidence({ ...paid, outcome: 'refunded', refundAmount: 1000 })
+    state.payment.status = 'PARTIALLY_REFUNDED'
+    state.payment.refundAmountInCents = 1000
     await applyPaymentEvidence(paid)
     expect(state.payment.status).toBe('PARTIALLY_REFUNDED')
     expect(state.payment.refundAmountInCents).toBe(1000)
-    expect(state.status).toBe('CONFIRMED')
-    expect(state.notifications).toHaveLength(2)
+    expect(state.status).toBe('PENDING')
+    expect(state.notifications).toHaveLength(0)
     await applyPaymentEvidence(paid)
-    expect(state.notifications).toHaveLength(2)
+    expect(state.notifications).toHaveLength(0)
   })
 
   it.each([
@@ -154,7 +156,7 @@ describe('transactional Stripe payment evidence', () => {
     expect(state.payment.stripeCheckoutSessionId).toBe('cs_current')
   })
 
-  it.each([-1, 0, 7501, 0.5, undefined])('rejects invalid refund amount %s', async (refundAmount) => {
+  it.each([-1, 0, 1000, 7500, 7501, 0.5, undefined])('refuses raw cumulative refund snapshot %s without provider reconciliation', async (refundAmount) => {
     await expect(applyPaymentEvidence({ ...paid, outcome: 'refunded', refundAmount })).rejects.toThrow('refund')
     expect(state.payment.refundAmountInCents).toBe(0)
   })

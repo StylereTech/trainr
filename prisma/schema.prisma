@@ -407,12 +407,16 @@ model Payment {
   processingFeeInCents  Int           @default(0)
   status                PaymentStatus @default(PENDING)
   refundAmountInCents   Int           @default(0)
+  refundPendingAmountInCents Int      @default(0)
+  refundFailedCount     Int           @default(0)
+  refundsVerifiedAt     DateTime?
   refundReason          String?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   checkoutAttempts CheckoutAttempt[]
+  refunds PaymentRefund[]
 
   @@map("payments")
 }
@@ -429,6 +433,34 @@ model CheckoutAttempt {
 
   @@unique([paymentId, sequence])
   @@map("checkout_attempts")
+}
+
+enum RefundStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model PaymentRefund {
+  id                         String @id
+  paymentId                  String
+  stripeChargeId             String
+  stripePaymentIntentId      String
+  amountInCents              Int
+  currency                   String
+  status                     RefundStatus
+  transferReversalId         String?
+  sourceTransferReversalId   String?
+  failureBalanceTransactionId String?
+  failureReason              String?
+  stripeCreatedAt            DateTime
+  observedAt                 DateTime
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_refunds")
 }
 
 // ==================

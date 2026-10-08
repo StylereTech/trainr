@@ -53,6 +53,12 @@ beforeEach(() => {
 })
 
 describe('booking state transitions', () => {
+  it('blocks completion while a refund is still pending', async () => {
+    state.booking.payment.refundPendingAmountInCents = 6000
+    await expect(act('complete')).rejects.toMatchObject({ status: 409 })
+    expect(state.booking.status).toBe('CONFIRMED')
+    expect(state.notifications).toHaveLength(0)
+  })
   it('locks booking before payment and commits completion with statistics', async () => {
     expect(await act('complete')).toMatchObject({ status: 'COMPLETED' })
     expect(state.stats).toEqual({ totalSessions: 3, totalBookings: 3 })

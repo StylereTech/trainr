@@ -30,7 +30,7 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (booking.status === status) return tx.booking.findUnique({ where: { id: booking.id } })
     const allowed = input.action === 'cancel' ? ['PENDING', 'CONFIRMED'] : input.action === 'confirm' ? ['PENDING'] : ['CONFIRMED']
     if (!allowed.includes(booking.status)) throw new BookingActionError('Booking cannot make this status transition', 409)
-    if (input.action !== 'cancel' && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 ||
+    if (input.action !== 'cancel' && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
         payment.amountInCents !== booking.totalAmountInCents || booking.totalAmountInCents < 0)) {
       throw new BookingActionError('Verified, fully settled payment is required before confirming or completing this session', 409)
     }

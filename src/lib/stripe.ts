@@ -120,14 +120,6 @@ export async function createPaymentIntent(
   return paymentIntent
 }
 
-export async function refundPayment(paymentIntentId: string, amount?: number) {
-  const refund = await stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    amount,
-  })
-  return refund
-}
-
 export async function verifyWebhookSignature(payload: string | Buffer, signature: string) {
   const event = stripe.webhooks.constructEvent(
     payload,

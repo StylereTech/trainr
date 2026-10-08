@@ -16,6 +16,7 @@ export type PaymentEvidence = {
 }
 
 export async function applyPaymentEvidence(evidence: PaymentEvidence) {
+  if (evidence.outcome === 'refunded') throw new PaymentEventConflict('Refund snapshots require current Stripe refund reconciliation')
   await prisma.$transaction(async (tx) => {
     // Serialize related events, including distinct event IDs for the same payment.
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${evidence.bookingId} FOR UPDATE`
@@ -65,27 +66,6 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
       return
     }
 
-    if (evidence.outcome === 'refunded') {
-      const amount = evidence.refundAmount
-      if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0 || amount > payment.amountInCents) {
-        throw new PaymentEventConflict('Invalid cumulative refund amount')
-      }
-      // Stripe delivers snapshots out of order; never lower the recorded refund.
-      if (amount < payment.refundAmountInCents) return
-      const full = amount === payment.amountInCents
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: { ...identity, status: full ? 'REFUNDED' : 'PARTIALLY_REFUNDED', refundAmountInCents: amount },
-      })
-      if (full) {
-        await tx.booking.updateMany({
-          where: { id: booking.id, status: { in: ['PENDING', 'CONFIRMED'] } },
-          data: { status: 'CANCELLED' },
-        })
-      }
-      return
-    }
-
     // A delayed success cannot undo a refund or a terminal booking decision.
     if (payment.status === 'REFUNDED') return
     const partiallyRefunded = payment.status === 'PARTIALLY_REFUNDED'
@@ -94,7 +74,8 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
       where: { id: payment.id },
       data: { ...identity, status: partiallyRefunded ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED' },
     })
-    const confirmed = await tx.booking.updateMany({
+    const refundActivity = payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0
+    const confirmed = refundActivity ? { count: 0 } : await tx.booking.updateMany({
       where: { id: booking.id, status: 'PENDING' }, data: { status: 'CONFIRMED' },
     })
     const needsReview = booking.status === 'CANCELLED' || booking.status === 'RESCHEDULED'

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { Loader2, Calendar, Sparkles } from 'lucide-react'
+import { Loader2, Calendar, Sparkles, RefreshCw } from 'lucide-react'
+import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 
 interface Booking {
   id: string
@@ -24,7 +25,7 @@ interface Booking {
   parentProfile: { user: { email: string } }
   athleteProfile: { firstName: string; lastName: string }
   serviceOffering: { title: string; priceInCents: number }
-  payment: { status: string; stripePaymentIntentId: string | null } | null
+  payment: (RefundSummaryPayment & { stripePaymentIntentId: string | null }) | null
 }
 
 export default function AdminBookings() {
@@ -34,23 +35,42 @@ export default function AdminBookings() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [loadError, setLoadError] = useState('')
+  const [refundError, setRefundError] = useState('')
+  const [refreshingRefundId, setRefreshingRefundId] = useState<string | null>(null)
   const limit = 20
 
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     const params = new URLSearchParams({ page: String(page), limit: String(limit) })
     if (statusFilter !== 'all') params.set('status', statusFilter)
 
-    const res = await fetch(`/api/admin/bookings?${params}`)
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/admin/bookings?${params}`)
+      if (!res.ok) throw new Error('Unable to load bookings')
       const data = await res.json()
-      setBookings(data.bookings || [])
+      if (!Array.isArray(data.bookings) || !Number.isInteger(data.pagination?.total)) throw new Error('Invalid booking response')
+      setBookings(data.bookings)
       setTotal(data.pagination.total)
-    }
-    setLoading(false)
-  }
+      return true
+    } catch { setLoadError('Unable to load current bookings. Retry before relying on displayed payment state.'); return false }
+    finally { setLoading(false) }
+  }, [page, statusFilter])
 
-  useEffect(() => { fetchBookings() }, [page, statusFilter])
+  useEffect(() => { void fetchBookings() }, [fetchBookings])
+
+  const refreshRefunds = async (bookingId: string) => {
+    setRefreshingRefundId(bookingId)
+    setRefundError('')
+    try {
+      const response = await fetch('/api/admin/refunds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId, action: 'reconcile' }) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Refund status could not be verified.')
+      if (await fetchBookings()) toast({ title: 'Refund status verified', description: 'No refund or transfer was issued by this refresh.' })
+    } catch (error) { setRefundError(error instanceof Error ? error.message : 'Refund status could not be verified. Retry reconciliation.') }
+    finally { setRefreshingRefundId(null) }
+  }
 
   const handleAction = async (bookingId: string, action: string) => {
     const res = await fetch('/api/admin/bookings', {
@@ -96,8 +116,11 @@ export default function AdminBookings() {
         </CardContent>
       </Card>
 
+      {refundError && <p role="alert" className="border-l-2 border-rose-400 p-3 text-sm text-rose-200">{refundError}</p>}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-emerald-300" /></div>
+      ) : loadError ? (
+        <div role="alert" className="text-sm text-rose-200">{loadError}<Button variant="outline" size="sm" className="ml-2" onClick={() => void fetchBookings()}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button></div>
       ) : bookings.length === 0 ? (
         <Card className="border-white/10 bg-white/[0.04] text-white"><CardContent className="py-10 text-center text-slate-400">No bookings found</CardContent></Card>
       ) : (
@@ -114,6 +137,7 @@ export default function AdminBookings() {
                       <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                       {b.payment && <Badge variant="outline" className={b.payment.status === 'SUCCEEDED' ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/20 bg-amber-400/10 text-amber-200'}>Payment: {b.payment.status}</Badge>}
                     </div>
+                    <RefundSummary payment={b.payment} />
                     <div className="mt-2 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
                       <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString()}</span>
@@ -125,9 +149,13 @@ export default function AdminBookings() {
                   <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[300px]">
                     <div className="rounded-[1.25rem] border border-white/10 bg-slate-950/45 p-3 text-sm">
                       <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                      <div className="mt-1 text-xs text-slate-400">Fee: {formatCurrency(b.platformFeeInCents)} • Payout: {formatCurrency(b.trainerPayoutInCents)}</div>
+                      <div className="mt-1 text-xs text-slate-400">Booked fee: {formatCurrency(b.platformFeeInCents)} • Trainer allocation: {formatCurrency(b.trainerPayoutInCents)}</div>
+                      {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                     </div>
                     <div className="flex flex-wrap gap-2 xl:justify-end">
+                      {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId} onClick={() => void refreshRefunds(b.id)}>
+                        {refreshingRefundId === b.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh refunds
+                      </Button>}
                       {b.status === 'PENDING' && (
                         <>
                           <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar, Users, Heart, Star, Plus, Clock, Loader2, CreditCard, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
+import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 
 interface Booking {
   id: string
@@ -19,7 +20,7 @@ interface Booking {
   status: string
   totalAmountInCents: number
   notes: string | null
-  payment?: { status: string } | null
+  payment?: RefundSummaryPayment | null
   serviceOffering: { title: string; durationMinutes: number }
   trainerProfile: {
     firstName: string
@@ -193,6 +194,7 @@ export default function ParentDashboard() {
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                         </div>
+                        <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString()}</span>
@@ -240,6 +242,7 @@ export default function ParentDashboard() {
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                         </div>
+                        <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span>{new Date(b.date).toLocaleDateString()}</span>

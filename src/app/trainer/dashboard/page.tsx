@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
+import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 
 interface Booking {
   id: string
@@ -33,6 +34,7 @@ interface Booking {
   totalAmountInCents: number
   trainerPayoutInCents: number
   notes: string | null
+  payment?: RefundSummaryPayment | null
   serviceOffering: { title: string; durationMinutes: number }
   parentProfile: { user: { email: string } }
   athleteProfile: { firstName: string; lastName: string }
@@ -314,7 +316,7 @@ export default function TrainerDashboard() {
         </Card>
 
         <Tabs defaultValue="pending" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
             <TabsTrigger value="pending">Pending ({pendingBookings.length})</TabsTrigger>
             <TabsTrigger value="confirmed">Confirmed ({confirmedBookings.length})</TabsTrigger>
             <TabsTrigger value="completed">Completed ({completedBookings.length})</TabsTrigger>
@@ -335,6 +337,7 @@ export default function TrainerDashboard() {
                             <span className="font-semibold text-sm">{b.parentProfile.user.email.split('@')[0]}</span>
                             <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                           </div>
+                          <RefundSummary payment={b.payment} />
                           <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                           <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                             <span>{new Date(b.date).toLocaleDateString()}</span>
@@ -345,7 +348,8 @@ export default function TrainerDashboard() {
                         <div className="flex flex-col gap-2 md:items-end">
                           <div className="text-left md:text-right">
                             <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                            <div className="text-xs text-slate-400">You earn: {formatCurrency(b.trainerPayoutInCents)}</div>
+                            <div className="text-xs text-slate-400">Booked allocation: {formatCurrency(b.trainerPayoutInCents)}</div>
+                            {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {b.status === 'PENDING' && (

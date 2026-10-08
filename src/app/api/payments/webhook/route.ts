@@ -5,8 +5,10 @@ import { prisma } from '@/lib/prisma'
 import { isStripeAccountReady } from '@/lib/stripe-account'
 import { applyPaymentEvidence, PaymentEventConflict } from '@/lib/stripe-payment-events'
 import Stripe from 'stripe'
+import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 function stripeId(value: string | { id: string } | null): string | null {
   return typeof value === 'string' ? value : value?.id || null
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    switch (event.type) {
+    switch (event.type as string) {
       case 'checkout.session.completed':
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object as Stripe.Checkout.Session
@@ -58,15 +60,23 @@ export async function POST(req: NextRequest) {
         break
       }
       case 'charge.refunded': {
+        if (event.account) break
         const charge = event.data.object as Stripe.Charge
-        if (!charge.metadata?.bookingId) break
-        await applyPaymentEvidence({
-          bookingId: charge.metadata.bookingId, paymentId: charge.metadata.paymentId,
-          attemptId: charge.metadata.checkoutAttemptId,
-          intentId: stripeId(charge.payment_intent), chargeId: charge.id,
-          amount: charge.amount, currency: charge.currency,
-          refundAmount: charge.amount_refunded, outcome: 'refunded',
-        })
+        await reconcileRefundEvent(charge.id)
+        break
+      }
+      case 'refund.created':
+      case 'refund.updated':
+      case 'refund.failed':
+      case 'charge.refund.updated': {
+        if (event.account) break
+        const refund = event.data.object as Stripe.Refund
+        const chargeId = stripeId(refund.charge)
+        if (!chargeId) {
+          if (refund.payment_intent || refund.metadata?.bookingId) throw new RefundReconciliationError('Refund charge identity is missing')
+          break
+        }
+        await reconcileRefundEvent(chargeId, refund.id)
         break
       }
       case 'account.updated': {
@@ -81,6 +91,7 @@ export async function POST(req: NextRequest) {
       // Do not attach financial objects to a booking solely from transfer metadata.
     }
   } catch (error) {
+    if (error instanceof RefundReconciliationError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof PaymentEventConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }

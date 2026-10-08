@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Stripe from 'stripe'
 
-const mock = vi.hoisted(() => ({ signature: '', transaction: vi.fn() }))
+const mock = vi.hoisted(() => ({ signature: '', transaction: vi.fn(), refund: vi.fn() }))
+vi.mock('@/lib/refund-reconciliation', () => ({
+  reconcileRefundEvent: mock.refund,
+  RefundReconciliationError: class extends Error { constructor(message: string, public status = 409) { super(message) } },
+}))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(mock.signature ? { 'stripe-signature': mock.signature } : {}),
 }))
@@ -28,6 +32,29 @@ async function send(body = payload) {
 }
 
 describe('webhook route with real Stripe SDK signature verification', () => {
+  it.each(['refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated', 'charge.refunded'])('reconciles current provider truth for a signed %s event', async type => {
+    const body = JSON.stringify({ id: 'evt_refund', type, data: { object: type === 'charge.refunded' ? { id: 'ch_fixture', amount_refunded: 6000 } : { id: 're_fixture', charge: 'ch_fixture', amount: 6000, status: 'succeeded' } } })
+    mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
+    expect((await send(body)).status).toBe(200)
+    expect(mock.refund).toHaveBeenCalledWith('ch_fixture', ...(type === 'charge.refunded' ? [] : ['re_fixture']))
+    expect(mock.transaction).not.toHaveBeenCalled()
+  })
+
+  it('does not acknowledge a signed refund when provider reconciliation fails', async () => {
+    const body = JSON.stringify({ id: 'evt_refund', type: 'refund.updated', data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
+    mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
+    mock.refund.mockRejectedValueOnce(new Error('private provider details'))
+    const response = await send(body)
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('private provider')
+  })
+
+  it('ignores mirrored connected-account refund events', async () => {
+    const body = JSON.stringify({ id: 'evt_refund', account: 'acct_fixture', type: 'refund.updated', data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
+    mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
+    expect((await send(body)).status).toBe(200)
+    expect(mock.refund).not.toHaveBeenCalled()
+  })
   it('accepts an authentic synthetic signature without contacting Stripe or crediting an unpaid event', async () => {
     expect((await send()).status).toBe(200)
     expect(mock.transaction).not.toHaveBeenCalled()
