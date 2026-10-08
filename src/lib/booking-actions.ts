@@ -12,7 +12,13 @@ export class BookingActionError extends Error {
 
 export async function applyBookingAction(bookingId: string, actor: { id: string; role?: string }, input: z.infer<typeof bookingActionSchema>) {
   return prisma.$transaction(async (tx) => {
-    // Use the same lock order as checkout and webhook settlement.
+    // Revocation writers lock users first; retain current authority through commit.
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${actor.id} FOR SHARE`
+    const currentActor = await tx.user.findUnique({ where: { id: actor.id }, select: { role: true, deletedAt: true } })
+    if (!currentActor || currentActor.deletedAt || currentActor.role !== actor.role) {
+      throw new BookingActionError('Account access changed. Sign in again before updating a booking.', 403)
+    }
+    // Keep booking/payment order consistent with checkout and webhook settlement.
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
     const booking = await tx.booking.findUnique({
@@ -54,7 +60,7 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     const recipients = input.action === 'cancel' ? [booking.parentProfile.userId, booking.trainerProfile.userId] : [booking.parentProfile.userId]
     const notifications = Array.from(new Set(recipients)).map((userId) => ({ userId, ...content, data: { bookingId } }))
     if (moneyReview) {
-      const operators = await tx.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      const operators = await tx.user.findMany({ where: { role: 'ADMIN', deletedAt: null }, select: { id: true } })
       notifications.push(...operators.map(({ id }) => ({
         userId: id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Cancelled booking payment requires review',
         message: 'Reconcile the saved checkout and Stripe payment before issuing any refund. No refund or transfer reversal was submitted by this cancellation.', data: { bookingId },

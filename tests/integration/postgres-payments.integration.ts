@@ -109,6 +109,92 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it.each([
+    ['PARENT', 'role'], ['TRAINER', 'role'], ['ADMIN', 'role'],
+    ['PARENT', 'deactivation'], ['TRAINER', 'deactivation'], ['ADMIN', 'deactivation'],
+  ] as const)('denies a queued %s booking mutation after %s commits', async (role, change) => {
+    const booking = await reserve()
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
+    const payment = await pendingPayment(booking.id)
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    let actorId = role === 'PARENT' ? fixture.parent : fixture.trainerUser
+    if (role === 'ADMIN') {
+      const admin = await prisma.user.create({ data: { email: `booking-admin-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } })
+      actorId = admin.id; createdAdmins.push(admin.id)
+    }
+    const audience = [fixture.parent, fixture.trainerUser, actorId]
+    const notices = await independent.notification.count({ where: { userId: { in: audience } } })
+    let release!: () => void
+    let ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const hold = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${actorId} FOR UPDATE`
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid)
+      await untilReleased
+      await tx.user.update({ where: { id: actorId }, data: change === 'deactivation'
+        ? { deletedAt: new Date(), sessionVersion: { increment: 1 } }
+        : { role: role === 'PARENT' ? 'TRAINER' : 'PARENT', sessionVersion: { increment: 1 } } })
+    }, { timeout: 15000 })
+    const holder = await locked
+    const action = applyBookingAction(booking.id, { id: actorId, role }, { action: role === 'PARENT' ? 'cancel' : 'complete' })
+      .then(value => ({ value, error: null }), error => ({ value: null, error }))
+    let outcome: Awaited<typeof action>
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+    } finally { release(); await hold; outcome = await action }
+    expect(outcome.error).toMatchObject({ status: 403 })
+    expect(outcome.value).toBeNull()
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
+    expect((await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('SUCCEEDED')
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(0)
+    expect(await independent.notification.count({ where: { userId: { in: audience } } })).toBe(notices)
+    expect(await independent.adminAction.count({ where: { targetId: booking.id } })).toBe(0)
+  })
+
+  it('lets an authorized action commit before a later revocation, then denies its retry', async () => {
+    const booking = await reserve()
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
+    const payment = await pendingPayment(booking.id)
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    let release!: () => void
+    let ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const hold = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${booking.id} FOR UPDATE`
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid); await untilReleased
+    }, { timeout: 15000 })
+    const holder = await locked
+    const actor = { id: fixture.trainerUser, role: 'TRAINER' }
+    const action = applyBookingAction(booking.id, actor, { action: 'complete' })
+      .then(value => ({ value, error: null }), error => ({ value: null, error }))
+    let revocation: Promise<unknown> | undefined
+    let outcome: Awaited<typeof action>
+    try {
+      await expect.poll(async () => {
+        const rows = await independent.$queryRaw<Array<{ pid: number }>>`SELECT pid FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return rows[0]?.pid || 0
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+      const [waiting] = await independent.$queryRaw<Array<{ pid: number }>>`SELECT pid FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+      revocation = independent.user.update({ where: { id: actor.id }, data: { role: 'PARENT', sessionVersion: { increment: 1 } } }).then(value => value)
+      await expect.poll(async () => {
+        const [blocked] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${waiting.pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return blocked.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+    } finally { release(); await hold; outcome = await action; await revocation }
+    expect(outcome.error).toBeNull()
+    expect(outcome.value).toMatchObject({ status: 'COMPLETED' })
+    await expect(applyBookingAction(booking.id, actor, { action: 'complete' })).rejects.toMatchObject({ status: 403 })
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(1)
+    expect(await independent.notification.count({ where: { userId: fixture.parent, type: 'SESSION_COMPLETED' } })).toBe(1)
+  })
+
   it('expires saved checkout after cancellation and repeats without duplicate notices or replacement', async () => {
     const booking = await reserve()
     const result = await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')

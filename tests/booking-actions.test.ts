@@ -17,6 +17,7 @@ beforeEach(() => {
     booking: { id: 'booking', status: 'CONFIRMED', trainerProfileId: 'trainer', totalAmountInCents: 6000,
       trainerProfile: { userId: trainer.id }, parentProfile: { userId: parent.id },
       payment: { id: 'payment', status: 'SUCCEEDED', amountInCents: 6000, refundAmountInCents: 0 } },
+    users: [trainer, parent, admin].map(user => ({ ...user, deletedAt: null })),
     stats: { totalSessions: 2, totalBookings: 2 }, notifications: [], audits: [],
   }
   let tail = Promise.resolve()
@@ -38,7 +39,8 @@ beforeEach(() => {
           if (fail === 'stats') throw new Error('stats failure')
           for (const key of Object.keys(data)) state.stats[key] += data[key].increment
         } },
-        user: { findMany: async () => [{ id: admin.id }] },
+        user: { findUnique: async ({ where }: any) => state.users.find((user: any) => user.id === where.id) || null,
+          findMany: async () => [{ id: admin.id }] },
         notification: { createMany: async ({ data }: any) => {
           if (fail === 'notification') throw new Error('notification failure')
           state.notifications.push(...data)
@@ -53,17 +55,38 @@ beforeEach(() => {
 })
 
 describe('booking state transitions', () => {
+  it.each([parent, trainer, admin])('rejects a stale role for %j before any mutation', async actor => {
+    state.users.find((user: any) => user.id === actor.id).role = actor.role === 'PARENT' ? 'TRAINER' : 'PARENT'
+    await expect(act('cancel', actor)).rejects.toMatchObject({ status: 403 })
+    expect(state.booking.status).toBe('CONFIRMED')
+    expect(state.notifications).toHaveLength(0)
+    expect(state.audits).toHaveLength(0)
+    expect(state.stats.totalSessions).toBe(2)
+  })
+  it.each([parent, trainer, admin])('rejects a deactivated actor %j even for an idempotent retry', async actor => {
+    state.users.find((user: any) => user.id === actor.id).deletedAt = new Date()
+    state.booking.status = 'CANCELLED'
+    await expect(act('cancel', actor)).rejects.toMatchObject({ status: 403 })
+    expect(state.notifications).toHaveLength(0)
+  })
+  it('rejects a missing actor before reading the booking', async () => {
+    state.users = []
+    await expect(act('complete')).rejects.toMatchObject({ status: 403 })
+    expect(state.booking.status).toBe('CONFIRMED')
+    expect(state.stats.totalSessions).toBe(2)
+  })
   it('blocks completion while a refund is still pending', async () => {
     state.booking.payment.refundPendingAmountInCents = 6000
     await expect(act('complete')).rejects.toMatchObject({ status: 409 })
     expect(state.booking.status).toBe('CONFIRMED')
     expect(state.notifications).toHaveLength(0)
   })
-  it('locks booking before payment and commits completion with statistics', async () => {
+  it('locks the actor before booking/payment and commits completion with statistics', async () => {
     expect(await act('complete')).toMatchObject({ status: 'COMPLETED' })
     expect(state.stats).toEqual({ totalSessions: 3, totalBookings: 3 })
     expect(state.notifications).toHaveLength(1)
     expect(mock.query.mock.calls.map((call) => call[0].join('?'))).toEqual([
+      'SELECT id FROM users WHERE id = ? FOR SHARE',
       'SELECT id FROM bookings WHERE id = ? FOR UPDATE',
       'SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE',
     ])
