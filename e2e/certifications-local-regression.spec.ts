@@ -13,11 +13,12 @@ for (const width of [1440, 390]) {
       const token = await encode({ secret, token: { sub: 'local-trainer', email: 'trainer@example.test', role: 'TRAINER' } })
       await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
       let fixture = {
+        catalog: [{ id: 'sport', slug: 'basketball', name: 'Basketball', icon: null, isActive: true, specialties: [{ id: 'spec-shooting', slug: 'shooting', name: 'Shooting' }] }],
         revision: '2026-10-01T00:00:00.000Z', minServicePriceInCents: 1500,
         profile: { firstName: 'Test', lastName: 'Trainer', headline: '', bio: '', phone: '', yearsExperience: 1,
           locationType: 'BOTH', address: '', city: 'Austin', state: 'TX', zipCode: '', travelRadius: 25,
           slug: 'local-trainer', email: 'trainer@example.test', approvalStatus: 'APPROVED', stripeOnboardingComplete: false },
-        sports: ['basketball'], specialties: ['shooting'],
+        sports: ['basketball'], specialties: ['spec-shooting'],
         services: [{ id: 'service', title: 'Fixture session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }],
         availability: [],
         certifications: [{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123', isVerified: true }],
@@ -37,7 +38,7 @@ for (const width of [1440, 390]) {
         if (saves === 3) expect(body.certifications[1].id).toBe('new-cert')
         if (saves === 4) expect(body.certifications).toHaveLength(1)
         fixture = { ...fixture, revision: `2026-10-01T00:00:0${saves}.000Z`, certifications: body.certifications.map((cert: any, i: number) => ({ ...cert, id: cert.id || 'new-cert', isVerified: i === 0 && saves === 1 })) }
-        return route.fulfill({ json: { success: true, services: fixture.services, certifications: fixture.certifications, revision: fixture.revision } })
+        return route.fulfill({ json: { success: true, specialties: fixture.specialties, services: fixture.services, certifications: fixture.certifications, revision: fixture.revision } })
       })
       await page.goto('/trainer/profile')
       await expect(page.getByLabel('Certification 1 credential ID')).toHaveValue('C-123')

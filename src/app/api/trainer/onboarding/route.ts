@@ -3,7 +3,7 @@ import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { normalizeSpecialtySelections } from '@/lib/trainer'
+import { resolveTrainerSelections, trainerCatalogQuery } from '@/lib/trainer-catalog'
 import { saveTrainerServices, TrainerEditConflict, trainerServiceSchema } from '@/lib/trainer-services'
 import { timeToMinutes } from '@/lib/availability'
 import { effectiveFeeValues } from '@/lib/fee-config'
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
     return NextResponse.json({
+      catalog: await prisma.sport.findMany(trainerCatalogQuery),
       minServicePriceInCents: (await effectiveFeeValues(prisma)).minBookingAmountCents,
       revision: trainer.updatedAt.toISOString(),
       profile: {
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
         stripeOnboardingComplete: trainer.stripeOnboardingComplete,
       },
       sports: trainer.sports.map((s: any) => s.sport.slug),
-      specialties: trainer.specialties.map((s: any) => s.specialty.slug),
+      specialties: trainer.specialties.map((s: any) => s.specialty.id),
       certifications: trainer.certifications.map(certificationForEditor),
       services: trainer.serviceOfferings.map((s: any) => ({
         id: s.id,
@@ -92,8 +93,8 @@ const trainerOnboardingSchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   travelRadius: z.number().min(5).max(100).default(25),
-  sports: z.array(z.string()).min(1),
-  specialties: z.array(z.string()).min(1),
+  sports: z.array(z.string().trim().min(1).max(128)).min(1).max(50),
+  specialties: z.array(z.string().trim().min(1).max(128)).min(1).max(100),
   certifications: z.array(trainerCertificationSchema).max(100).optional(),
   services: z.array(trainerServiceSchema).min(1).max(100),
   availability: z.array(z.object({
@@ -113,11 +114,7 @@ export async function PUT(req: NextRequest) {
     if (role !== 'TRAINER') return NextResponse.json({ error: 'Only trainers can access this' }, { status: 403 })
 
     const body = await req.json().catch(() => null)
-    const parsed = trainerOnboardingSchema.parse(body)
-    const data = {
-      ...parsed,
-      specialties: normalizeSpecialtySelections(parsed.specialties),
-    }
+    const data = trainerOnboardingSchema.parse(body)
 
     const trainer = await prisma.trainerProfile.findUnique({ where: { userId } })
     if (!trainer) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
@@ -133,7 +130,8 @@ export async function PUT(req: NextRequest) {
       if (data.revision ? current.updatedAt.toISOString() !== data.revision : await tx.serviceOffering.count({ where: { trainerProfileId: trainer.id } }) > 0) {
         throw new TrainerEditConflict('This profile changed or already has saved services. Reload the profile editor before saving.')
       }
-      const services = await saveTrainerServices(tx, trainer.id, data.services)
+      const selections = await resolveTrainerSelections(tx, data.sports, data.specialties)
+      const services = await saveTrainerServices(tx, trainer.id, data.services, new Set(selections.sportIds))
       const certifications = await saveTrainerCertifications(tx, trainer.id, data.certifications)
       const updated = await tx.trainerProfile.update({
         where: { id: trainer.id },
@@ -159,22 +157,12 @@ export async function PUT(req: NextRequest) {
       await tx.trainerSpecialty.deleteMany({ where: { trainerProfileId: trainer.id } })
       await tx.availabilitySlot.deleteMany({ where: { trainerProfileId: trainer.id, isAvailable: true, isRecurring: true, specificDate: null } })
 
-      for (const sportSlug of data.sports) {
-        const sport = await tx.sport.findUnique({ where: { slug: sportSlug } })
-        if (sport) {
-          await tx.trainerSport.create({
-            data: { trainerProfileId: trainer.id, sportId: sport.id },
-          })
-        }
+      for (const sportId of selections.sportIds) {
+        await tx.trainerSport.create({ data: { trainerProfileId: trainer.id, sportId } })
       }
 
-      for (const specSlug of data.specialties) {
-        const spec = await tx.specialty.findFirst({ where: { slug: specSlug } })
-        if (spec) {
-          await tx.trainerSpecialty.create({
-            data: { trainerProfileId: trainer.id, specialtyId: spec.id },
-          })
-        }
+      for (const specialtyId of selections.specialtyIds) {
+        await tx.trainerSpecialty.create({ data: { trainerProfileId: trainer.id, specialtyId } })
       }
 
       for (const slot of data.availability) {
@@ -188,7 +176,7 @@ export async function PUT(req: NextRequest) {
           },
         })
       }
-      return { services, certifications, revision: updated.updatedAt.toISOString() }
+      return { services, certifications, specialties: selections.specialtyIds, revision: updated.updatedAt.toISOString() }
     })
 
     return NextResponse.json({ success: true, ...result })

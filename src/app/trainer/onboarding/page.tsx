@@ -11,9 +11,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { SPORTS, TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
+import { TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
-import { getSpecialtyOptionsForSports, normalizeSpecialtySelections } from '@/lib/trainer'
+import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import { Loader2, ChevronLeft, ChevronRight, Check, Plus, Trash2 } from 'lucide-react'
 
 const STEPS = ['Sports', 'Profile', 'Services', 'Availability', 'Review']
@@ -32,10 +32,13 @@ export default function TrainerOnboardingPage() {
   const [minServicePrice, setMinServicePrice] = useState(1500)
   const [pricingError, setPricingError] = useState('')
   const [pricingLoaded, setPricingLoaded] = useState(false)
+  const [catalog, setCatalog] = useState<TrainerCatalogSport[]>([])
   useEffect(() => {
     fetch('/api/trainer/onboarding', { cache: 'no-store' }).then(async (response) => {
       if (!response.ok) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
       const data = await response.json()
+      if (!Array.isArray(data.catalog)) throw new Error('Unable to load sport catalog. Reload before continuing.')
+      setCatalog(data.catalog)
       if (!Number.isInteger(data.minServicePriceInCents)) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
       setMinServicePrice(data.minServicePriceInCents)
       setPricingLoaded(true)
@@ -62,7 +65,7 @@ export default function TrainerOnboardingPage() {
   const toggleSport = (slug: string) => {
     setSelectedSports((prev) => {
       const nextSports = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-      const allowedSpecialties = new Set(getSpecialtyOptionsForSports(nextSports).map((spec) => spec.slug))
+      const allowedSpecialties = new Set(catalogSpecialties(catalog, nextSports).map((spec) => spec.id))
       setSelectedSpecialties((current) => current.filter((spec) => allowedSpecialties.has(spec)))
       return nextSports
     })
@@ -74,7 +77,7 @@ export default function TrainerOnboardingPage() {
     )
   }
 
-  const availableSpecialties = getSpecialtyOptionsForSports(selectedSports)
+  const availableSpecialties = catalogSpecialties(catalog, selectedSports)
 
   const toggleDayAvailability = (day: number) => {
     const existing = availability.find(a => a.dayOfWeek === day)
@@ -102,7 +105,7 @@ export default function TrainerOnboardingPage() {
           yearsExperience: Number(profile.yearsExperience),
           travelRadius: Number(profile.travelRadius),
           sports: selectedSports,
-          specialties: normalizeSpecialtySelections(selectedSpecialties),
+          specialties: selectedSpecialties,
           certifications: certifications.filter(c => c.name),
           services: services.map(s => ({ ...s, priceInCents: Number(s.priceInCents), durationMinutes: Number(s.durationMinutes), maxParticipants: Number(s.maxParticipants) })),
           availability,
@@ -154,8 +157,8 @@ export default function TrainerOnboardingPage() {
             ))}
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-bold">{STEPS[step]}</h2>
-            <p className="text-sm text-muted-foreground">Step {step + 1} of {STEPS.length}</p>
+            <h2 className="text-lg font-bold text-gray-900">{STEPS[step]}</h2>
+            <p className="text-sm text-gray-600">Step {step + 1} of {STEPS.length}</p>
           </div>
         </div>
 
@@ -166,14 +169,15 @@ export default function TrainerOnboardingPage() {
               <div>
                 <Label className="text-base font-semibold">Which sports do you coach?</Label>
                 <div className="grid grid-cols-2 gap-3 mt-3">
-                  {SPORTS.map(sport => (
-                    <button key={sport.slug} type="button" onClick={() => toggleSport(sport.slug)}
-                      className={`p-4 rounded-lg border-2 text-left transition-colors ${selectedSports.includes(sport.slug) ? 'border-primary bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  {catalog.filter(sport => sport.isActive).map(sport => (
+                    <button key={sport.slug} type="button" aria-pressed={selectedSports.includes(sport.slug)} onClick={() => toggleSport(sport.slug)}
+                      className={`p-4 rounded-lg border-2 text-left transition-colors ${selectedSports.includes(sport.slug) ? 'border-primary bg-green-50 text-green-950' : 'border-gray-200 hover:border-gray-300'}`}>
                       <span className="text-2xl">{sport.icon}</span>
                       <div className="font-medium mt-1">{sport.name}</div>
                     </button>
                   ))}
                 </div>
+                {pricingLoaded && !catalog.some(sport => sport.isActive) && <p role="status">No sports are currently available.</p>}
               </div>
 
               {selectedSports.length > 0 && (
@@ -181,9 +185,9 @@ export default function TrainerOnboardingPage() {
                   <Label className="text-base font-semibold">What are your specialties?</Label>
                   <div className="flex flex-wrap gap-2 mt-3">
                     {availableSpecialties.map(spec => (
-                      <button key={spec.slug} type="button" onClick={() => toggleSpecialty(spec.slug)}
-                        className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedSpecialties.includes(spec.slug) ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-gray-300'}`}>
-                        {spec.name}
+                      <button key={spec.id} type="button" onClick={() => toggleSpecialty(spec.id)}
+                        className={`max-w-full break-words px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedSpecialties.includes(spec.id) ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-gray-300'}`}>
+                        {spec.name} ({spec.sportName})
                       </button>
                     ))}
                   </div>
@@ -325,8 +329,11 @@ export default function TrainerOnboardingPage() {
             <CardContent className="p-6 space-y-4">
               <h3 className="font-semibold">Review Your Profile</h3>
               <div className="space-y-3 text-sm">
-                <div><span className="text-muted-foreground">Sports:</span> {selectedSports.map(s => SPORTS.find(sp => sp.slug === s)?.name).join(', ')}</div>
-                <div><span className="text-muted-foreground">Specialties:</span> {selectedSpecialties.join(', ')}</div>
+                <div><span className="text-muted-foreground">Sports:</span> {selectedSports.map(s => catalog.find(sp => sp.slug === s)?.name).join(', ')}</div>
+                <div><span className="text-muted-foreground">Specialties:</span> {selectedSpecialties.map(id => {
+                  const specialty = availableSpecialties.find(option => option.id === id)
+                  return specialty ? `${specialty.name} (${specialty.sportName})` : 'Unavailable specialty'
+                }).join(', ')}</div>
                 <div><span className="text-muted-foreground">Name:</span> {profile.firstName} {profile.lastName}</div>
                 {profile.headline && <div><span className="text-muted-foreground">Headline:</span> {profile.headline}</div>}
                 <div><span className="text-muted-foreground">Experience:</span> {profile.yearsExperience} years</div>

@@ -1,6 +1,14 @@
 import { SPECIALTIES, slugify } from '@/lib/utils'
 import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
 
+export type TrainerCatalogSport = { id: string; slug: string; name: string; icon: string | null; isActive: boolean;
+  specialties: { id: string; slug: string; name: string }[] }
+
+export function catalogSpecialties(catalog: TrainerCatalogSport[], selectedSports: string[]) {
+  return catalog.filter((sport) => sport.isActive && selectedSports.includes(sport.slug)).flatMap((sport) =>
+    sport.specialties.map((specialty) => ({ ...specialty, sportName: sport.name })))
+}
+
 export function slugifySpecialty(value: string): string {
   return slugify(value)
 }

@@ -13,9 +13,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { SPORTS } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
-import { getSpecialtyOptionsForSports } from '@/lib/trainer'
+import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
   Building2, CreditCard, AlertTriangle, ArrowLeft,
@@ -100,6 +99,7 @@ function TrainerProfileContent() {
     slug: '', email: '', approvalStatus: '', stripeOnboardingComplete: false,
   })
   const [selectedSports, setSelectedSports] = useState<string[]>([])
+  const [catalog, setCatalog] = useState<TrainerCatalogSport[]>([])
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
   const [certifications, setCertifications] = useState<CertForm[]>([])
   const [services, setServices] = useState<ServiceForm[]>([])
@@ -132,6 +132,8 @@ function TrainerProfileContent() {
       const res = await fetch('/api/trainer/onboarding')
       if (!res.ok) throw new Error('Failed to fetch profile')
       const data = await res.json()
+      if (!Array.isArray(data.catalog)) throw new Error('Unable to load sport catalog')
+      setCatalog(data.catalog)
       setRevision(data.revision)
       setMinServicePrice(data.minServicePriceInCents ?? 1500)
       setProfile(data.profile)
@@ -141,6 +143,7 @@ function TrainerProfileContent() {
       setServices(data.services)
       setAvailability(data.availability)
     } catch (error) {
+      setRevision(null)
       console.error(error)
       toast({ title: 'Error', description: 'Failed to load profile', variant: 'destructive' })
     } finally {
@@ -184,6 +187,10 @@ function TrainerProfileContent() {
       toast({ title: 'Missing fields', description: 'Select at least one sport', variant: 'destructive' })
       return
     }
+    if (selectedSpecialties.length === 0) {
+      toast({ title: 'Missing fields', description: 'Select at least one specialty', variant: 'destructive' })
+      return
+    }
     if (services.length === 0 || !services[0].title) {
       toast({ title: 'Missing fields', description: 'Add at least one service', variant: 'destructive' })
       return
@@ -202,7 +209,7 @@ function TrainerProfileContent() {
           ...profile,
           revision,
           sports: selectedSports,
-          specialties: selectedSpecialties.length > 0 ? selectedSpecialties : selectedSports,
+          specialties: selectedSpecialties,
           certifications: certifications.filter(c => c.id || c.name.trim()).map(({ id, name, issuingOrg, credentialId }) => ({ id, name, issuingOrg, credentialId })),
           services: services.filter(s => s.title),
           availability,
@@ -215,6 +222,7 @@ function TrainerProfileContent() {
       const saved = await res.json()
       setServices(saved.services)
       setCertifications(saved.certifications)
+      setSelectedSpecialties(saved.specialties)
       setRevision(saved.revision)
       toast({ title: 'Profile saved', description: 'Your changes have been saved successfully.' })
     } catch (error: any) {
@@ -242,7 +250,7 @@ function TrainerProfileContent() {
   const toggleSport = (slug: string) => {
     setSelectedSports(prev => {
       const next = prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
-      const allowed = new Set(getSpecialtyOptionsForSports(next).map(s => s.slug))
+      const allowed = new Set(catalogSpecialties(catalog, next).map(s => s.id))
       setSelectedSpecialties(curr => curr.filter(s => allowed.has(s)))
       return next
     })
@@ -402,7 +410,7 @@ function TrainerProfileContent() {
                 <div>
                   <Label>Sports You Coach *</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {SPORTS.map(sport => (
+                    {catalog.filter(sport => sport.isActive || selectedSports.includes(sport.slug)).map(sport => (
                       <button
                         key={sport.slug}
                         onClick={() => toggleSport(sport.slug)}
@@ -412,26 +420,27 @@ function TrainerProfileContent() {
                             : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                         }`}
                       >
-                        {sport.icon} {sport.name}
+                        {sport.icon} {sport.name}{!sport.isActive ? ' (Unavailable)' : ''}
                       </button>
                     ))}
                   </div>
                 </div>
-                {getSpecialtyOptionsForSports(selectedSports).length > 0 && (
+                {catalog.length === 0 && <p role="status">No sports are currently available.</p>}
+                {catalogSpecialties(catalog, selectedSports).length > 0 && (
                   <div>
                     <Label>Specialties</Label>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {getSpecialtyOptionsForSports(selectedSports).map(spec => (
+                      {catalogSpecialties(catalog, selectedSports).map(spec => (
                         <button
-                          key={spec.slug}
-                          onClick={() => setSelectedSpecialties(prev => prev.includes(spec.slug) ? prev.filter(s => s !== spec.slug) : [...prev, spec.slug])}
-                          className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                            selectedSpecialties.includes(spec.slug)
+                          key={spec.id}
+                          onClick={() => setSelectedSpecialties(prev => prev.includes(spec.id) ? prev.filter(s => s !== spec.id) : [...prev, spec.id])}
+                          className={`max-w-full break-words rounded-full border px-3 py-1.5 text-xs transition ${
+                            selectedSpecialties.includes(spec.id)
                               ? 'border-emerald-500 bg-emerald-500/20 text-emerald-100'
                               : 'border-white/10 text-slate-400 hover:border-white/20'
                           }`}
                         >
-                          {spec.name}
+                          {spec.name} ({spec.sportName})
                         </button>
                       ))}
                     </div>

@@ -14,7 +14,7 @@ export const trainerServiceSchema = z.object({
 })
 
 // Caller holds the trainer lock, also acquired by reservation creation.
-export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerId: string, services: z.infer<typeof trainerServiceSchema>[]) {
+export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerId: string, services: z.infer<typeof trainerServiceSchema>[], allowedSportIds?: Set<string>) {
   const existing = await tx.serviceOffering.findMany({
     where: { trainerProfileId: trainerId }, include: { _count: { select: { bookings: true, packageItems: true } } },
   })
@@ -27,6 +27,9 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
   const saved = []
   for (const service of services) {
     const previous = service.id ? byId.get(service.id) : undefined
+    if (previous?.sportId && allowedSportIds && !allowedSportIds.has(previous.sportId)) {
+      throw new TrainerEditConflict('A retained service belongs to a removed sport. Keep that sport selected or remove the service.')
+    }
     const data = { title: service.title, description: service.description || null, durationMinutes: service.durationMinutes,
       priceInCents: service.priceInCents, type: service.type, maxParticipants: service.maxParticipants }
     const changed = previous && Object.entries(data).some(([key, value]) =>

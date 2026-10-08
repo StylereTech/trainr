@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET, PUT } from '@/app/api/trainer/onboarding/route'
 
-const mock = vi.hoisted(() => ({ session: vi.fn(), profile: vi.fn(), transaction: vi.fn(), query: vi.fn(), deleteSlots: vi.fn(), fees: vi.fn() }))
+const mock = vi.hoisted(() => ({ session: vi.fn(), profile: vi.fn(), transaction: vi.fn(), query: vi.fn(), deleteSlots: vi.fn(), fees: vi.fn(), catalog: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getServerSession: mock.session, authOptions: {} }))
-vi.mock('@/lib/prisma', () => ({ prisma: { trainerProfile: { findUnique: mock.profile }, feeConfig: { findMany: mock.fees }, $transaction: mock.transaction } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { trainerProfile: { findUnique: mock.profile }, feeConfig: { findMany: mock.fees }, sport: { findMany: mock.catalog }, $transaction: mock.transaction } }))
 let state: any
 let fail = false
 const revision = '2026-10-01T00:00:00.000Z'
@@ -24,7 +24,9 @@ beforeEach(() => {
       sports: [], specialties: [], certifications: [], user: { email: 'trainer@example.test' } },
     services: [first, second].map((service) => ({ ...service, trainerProfileId: 'trainer', isActive: true, sportId: 'sport', _count: { bookings: 0, packageItems: 0 } })),
     slots: input.availability.map((slot) => ({ ...slot, isRecurring: true, isAvailable: true, specificDate: null })),
+    catalog: [{ id: 'sport', slug: 'basketball', name: 'Basketball', icon: null, isActive: true, specialties: [{ id: 'specialty', slug: 'shooting', name: 'Shooting' }] }],
   }
+  mock.catalog.mockImplementation(async ({ where }: any) => structuredClone(state.catalog.filter((sport: any) => !where || (sport.isActive && where.slug.in.includes(sport.slug)))))
   state.slots.push({ dayOfWeek: null, startTime: '10:00', endTime: '11:00', isRecurring: false, isAvailable: false, specificDate: '2026-11-02' })
   mock.session.mockResolvedValue({ user: { id: 'trainer-user', role: 'TRAINER' } })
   mock.profile.mockImplementation(async () => ({ ...state.profile, serviceOfferings: state.services.filter((s: any) => s.isActive),
@@ -58,10 +60,9 @@ beforeEach(() => {
             return structuredClone(service)
           },
         },
-        trainerSport: { deleteMany: async () => {}, create: async () => {} },
-        trainerSpecialty: { deleteMany: async () => {}, create: async () => {} },
-        sport: { findUnique: async () => ({ id: 'sport' }) },
-        specialty: { findFirst: async () => ({ id: 'specialty' }) },
+        trainerSport: { deleteMany: async () => { state.profile.sports = [] }, create: async ({ data }: any) => { state.profile.sports.push({ sport: state.catalog.find((s: any) => s.id === data.sportId) }) } },
+        trainerSpecialty: { deleteMany: async () => { state.profile.specialties = [] }, create: async ({ data }: any) => { state.profile.specialties.push({ specialty: state.catalog.flatMap((s: any) => s.specialties).find((s: any) => s.id === data.specialtyId) }) } },
+        sport: { findMany: mock.catalog },
         certification: {
           findMany: async () => structuredClone(state.profile.certifications),
           deleteMany: async ({ where }: any) => { state.profile.certifications = state.profile.certifications.filter((cert: any) => !where.id.in.includes(cert.id)) },
@@ -83,6 +84,32 @@ beforeEach(() => {
 })
 
 describe('trainer profile edit integrity (transaction model)', () => {
+  it('returns actual catalog choices and canonical specialty IDs after save', async () => {
+    const saved = await (await save()).json()
+    expect(saved.specialties).toEqual(['specialty'])
+    const data = await (await GET(new Request('http://localhost/api/trainer/onboarding') as any)).json()
+    expect(data.catalog).toEqual(state.catalog)
+    expect(data.specialties).toEqual(['specialty'])
+  })
+  it.each([{ sports: ['unknown'] }, { sports: ['basketball', 'basketball'] }, { specialties: ['unknown'] }, { specialties: ['specialty', 'shooting'] }])('rejects invalid catalog links without partial saves %j', async (change) => {
+    expect((await save({ headline: 'Should roll back', ...change })).status).toBe(409)
+    expect(state.profile.updatedAt.toISOString()).toBe(revision)
+    expect(mock.deleteSlots).not.toHaveBeenCalled()
+  })
+  it('rejects an inactive sport', async () => {
+    state.catalog[0].isActive = false
+    expect((await save()).status).toBe(409)
+  })
+  it('does not orphan a retained sport-bound service', async () => {
+    state.services[0].sportId = 'removed-sport'
+    expect((await save()).status).toBe(409)
+    expect(state.services[0].isActive).toBe(true)
+  })
+  it('allows removing a service together with its unavailable sport while retaining its history', async () => {
+    state.services[0].sportId = 'removed-sport'
+    expect((await save({ services: [second] })).status).toBe(200)
+    expect(state.services[0]).toMatchObject({ sportId: 'removed-sport', isActive: false })
+  })
   const credential = { id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123',
     trainerProfileId: 'trainer', isVerified: true, issueDate: new Date('2020-01-01'), expiryDate: new Date('2030-01-01'), url: 'https://example.test/credential' }
   it('returns certification IDs, credential IDs and verification for the editor', async () => {

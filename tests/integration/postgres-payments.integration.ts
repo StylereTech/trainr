@@ -8,9 +8,12 @@ import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { defaultFeeValues, updateFeeConfiguration } from '@/lib/fee-config'
 import { saveTrainerCertifications } from '@/lib/trainer-certifications'
+import { GET as getTrainerProfile, PUT as putTrainerProfile } from '@/app/api/trainer/onboarding/route'
 
 // Only Stripe is simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
+const auth = vi.hoisted(() => ({ session: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getServerSession: auth.session, authOptions: {} }))
 vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: provider.create, retrieve: provider.retrieve } }, paymentIntents: { retrieve: provider.intent } } }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `http://localhost:3107${path}` }))
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
@@ -19,6 +22,7 @@ const createdParents: string[] = []
 const createdTrainers: string[] = []
 const createdCoupons: string[] = []
 const createdConfigs: string[] = []
+const createdSports: string[] = []
 let verifiedTarget = false
 
 beforeAll(async () => {
@@ -45,6 +49,7 @@ beforeEach(async () => {
   createdTrainers.push(trainer.id)
   fixture = { parent: parent.id, trainerUser: trainer.id, trainer: trainer.trainerProfile!.id,
     service: trainer.trainerProfile!.serviceOfferings[0].id, athletes: parent.parentProfile!.athletes.map((a) => a.id), date: '2030-11-04' }
+  auth.session.mockResolvedValue({ user: { id: trainer.id, role: 'TRAINER' } })
   const sessions = new Map<string, any>()
   provider.create.mockImplementation(async (parameters, options) => {
     const key = options.idempotencyKey
@@ -71,6 +76,7 @@ afterAll(async () => {
   await prisma.booking.deleteMany({ where: { trainerProfile: { userId: { in: createdTrainers } } } })
   await prisma.coupon.deleteMany({ where: { id: { in: createdCoupons } } })
   await prisma.user.deleteMany({ where: { id: { in: [...createdParents, ...createdTrainers] } } })
+  await prisma.sport.deleteMany({ where: { id: { in: createdSports } } })
   await Promise.all([prisma.$disconnect(), independent.$disconnect()])
 })
 
@@ -82,6 +88,58 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  async function profileInput() {
+    const sports = []
+    for (let i = 0; i < 2; i++) {
+      const slug = `audit-${randomUUID()}`
+      const sport = await prisma.sport.create({ data: { name: slug, slug, specialties: { create: { name: 'Defense', slug: 'defense' } } }, include: { specialties: true } })
+      createdSports.push(sport.id)
+      sports.push(sport)
+    }
+    const trainer = await prisma.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })
+    return { sports, input: { revision: trainer.updatedAt.toISOString(), firstName: 'Synthetic', lastName: 'Trainer', yearsExperience: 1, locationType: 'BOTH',
+      sports: sports.map((sport) => sport.slug), specialties: sports.map((sport) => sport.specialties[0].id),
+      services: [{ id: fixture.service, title: 'Synthetic session', priceInCents: 6000, durationMinutes: 60, type: 'INDIVIDUAL', maxParticipants: 1 }],
+      availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '17:00' }] } }
+  }
+  const submitProfile = (input: unknown) => putTrainerProfile(new Request('http://localhost/api/trainer/onboarding', { method: 'PUT', body: JSON.stringify(input) }) as any)
+
+  it('persists catalog IDs through actual profile handlers and rejects invalid links without changes', async () => {
+    const { input, sports } = await profileInput()
+    const response = await submitProfile(input)
+    expect(response.status).toBe(200)
+    const saved = await response.json()
+    const refreshed = await (await getTrainerProfile(new Request('http://localhost/api/trainer/onboarding') as any)).json()
+    expect(new Set(refreshed.specialties)).toEqual(new Set(input.specialties))
+    expect(refreshed.catalog.find((sport: any) => sport.id === sports[0].id).specialties[0].id).toBe(input.specialties[0])
+    const updatedAt = (await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).updatedAt
+    for (const change of [
+      { specialties: ['defense'] }, { sports: [sports[0].slug], specialties: [input.specialties[1]] },
+      { sports: ['nonexistent-synthetic-sport'] }, { specialties: [input.specialties[0], input.specialties[0]] },
+    ]) {
+      expect((await submitProfile({ ...input, revision: saved.revision, headline: 'Must not persist', ...change })).status).toBe(409)
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).updatedAt).toEqual(updatedAt)
+      expect(await independent.trainerSpecialty.count({ where: { trainerProfileId: fixture.trainer } })).toBe(2)
+    }
+    await prisma.sport.update({ where: { id: sports[0].id }, data: { isActive: false } })
+    expect((await submitProfile({ ...input, revision: saved.revision })).status).toBe(409)
+  })
+
+  it('rolls back profile and catalog links when later availability SQL fails', async () => {
+    const { input } = await profileInput()
+    expect(fixture.trainer).toMatch(/^[a-z0-9]+$/)
+    await independent.$executeRawUnsafe(`ALTER TABLE availability_slots ADD CONSTRAINT trainr_integration_availability_failure CHECK ("trainerProfileId" <> '${fixture.trainer}') NOT VALID`)
+    try {
+      expect((await submitProfile(input)).status).toBe(503)
+      expect(await independent.trainerSport.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+      expect(await independent.trainerSpecialty.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).updatedAt.toISOString()).toBe(input.revision)
+      expect(await independent.availabilitySlot.count({ where: { trainerProfileId: fixture.trainer } })).toBe(1)
+    } finally {
+      await independent.$executeRawUnsafe('ALTER TABLE availability_slots DROP CONSTRAINT trainr_integration_availability_failure')
+    }
+  })
+
   async function verifiedCredential() {
     return prisma.certification.create({ data: { trainerProfileId: fixture.trainer, name: 'Synthetic certification', issuingOrg: 'Example Org',
       credentialId: 'AUDIT-123', isVerified: true, issueDate: new Date('2020-01-01'), expiryDate: new Date('2035-01-01'), url: 'https://example.test/evidence' } })
