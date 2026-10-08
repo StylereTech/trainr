@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockPrisma = {
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
+  user: { findUnique: vi.fn() },
+  athleteCreateRequest: { findUnique: vi.fn(), create: vi.fn() },
   parentProfile: {
     findUnique: vi.fn(),
   },
   sport: {
     findMany: vi.fn(),
+    count: vi.fn(),
   },
   athleteProfile: {
     create: vi.fn(),
@@ -18,21 +23,23 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/auth', () => ({
   authOptions: {},
-  getServerSession: vi.fn().mockResolvedValue({
-    user: { id: 'parent-user-1', role: 'PARENT' },
-  }),
+  getRequestUser: vi.fn().mockResolvedValue({ id: 'parent-user-1', role: 'PARENT' }),
 }))
 
 describe('Parent athlete onboarding workflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPrisma.$transaction.mockImplementation(run => run(mockPrisma))
+    mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT', deletedAt: null })
+    mockPrisma.athleteCreateRequest.findUnique.mockResolvedValue(null)
+    mockPrisma.sport.count.mockResolvedValue(2)
   })
 
   it('accepts sport slugs from the parent UI and resolves them to sport ids before create', async () => {
     mockPrisma.parentProfile.findUnique.mockResolvedValue({ id: 'parent-profile-1' })
     mockPrisma.sport.findMany.mockResolvedValue([
-      { id: 'sport-football' },
-      { id: 'sport-basketball' },
+      { id: 'sport-football', slug: 'football' },
+      { id: 'sport-basketball', slug: 'basketball' },
     ])
     mockPrisma.athleteProfile.create.mockResolvedValue({
       id: 'athlete-1',
@@ -46,6 +53,7 @@ describe('Parent athlete onboarding workflow', () => {
         method: 'POST',
         body: JSON.stringify({
           firstName: 'Jaylen',
+          requestId: '72d06c97-77f0-4a29-a4cf-8c55f0666a7f',
           lastName: 'Carter',
           dateOfBirth: '2014-08-10',
           skillLevel: 'BEGINNER',
@@ -63,7 +71,7 @@ describe('Parent athlete onboarding workflow', () => {
           { slug: { in: ['football', 'basketball'] } },
         ],
       },
-      select: { id: true },
+      select: { id: true, slug: true },
     })
     expect(mockPrisma.athleteProfile.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -89,6 +97,7 @@ describe('Parent athlete onboarding workflow', () => {
         method: 'POST',
         body: JSON.stringify({
           firstName: 'Jaylen',
+          requestId: '72d06c97-77f0-4a29-a4cf-8c55f0666a7f',
           lastName: 'Carter',
           dateOfBirth: '2014-08-10',
           skillLevel: 'BEGINNER',

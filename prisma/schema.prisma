@@ -70,6 +70,7 @@ model ParentProfile {
 
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   athletes AthleteProfile[]
+  athleteRequests AthleteCreateRequest[]
   bookings Booking[]  @relation("ParentBookings")
   reviews  Review[]   @relation("ParentReviews")
   favorites Favorite[]
@@ -181,8 +182,23 @@ model AthleteProfile {
   parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
   sports        AthleteSport[]
   bookings      Booking[]
+  createRequests AthleteCreateRequest[]
 
   @@map("athlete_profiles")
+}
+
+model AthleteCreateRequest {
+  parentProfileId String
+  requestId String
+  payloadHash String
+  athleteProfileId String?
+  createdAt DateTime @default(now())
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  athleteProfile AthleteProfile? @relation(fields: [athleteProfileId], references: [id], onDelete: SetNull)
+
+  @@id([parentProfileId, requestId])
+  @@index([athleteProfileId])
+  @@map("athlete_create_requests")
 }
 
 // ==================

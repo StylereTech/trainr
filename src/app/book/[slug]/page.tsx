@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
+import { AthleteEditor } from '@/components/shared/AthleteEditor'
+import { z } from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -56,6 +58,7 @@ interface Athlete {
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const bookingAthletesSchema = z.object({ athletes: z.array(z.object({ id: z.string(), firstName: z.string(), lastName: z.string(), sports: z.array(z.object({ sport: z.object({ name: z.string() }) })) })) })
 
 export default function BookingPage() {
   const params = useParams()
@@ -70,8 +73,9 @@ export default function BookingPage() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(true)
   const [showAddAthlete, setShowAddAthlete] = useState(false)
-  const [addingAthlete, setAddingAthlete] = useState(false)
-  const [newAthlete, setNewAthlete] = useState({ firstName: '', lastName: '', dateOfBirth: '', sports: [] as string[] })
+  const [athleteSavePending, setAthleteSavePending] = useState(false)
+  const [athleteError, setAthleteError] = useState('')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   const [selectedService, setSelectedService] = useState('')
   const [selectedAthlete, setSelectedAthlete] = useState('')
@@ -81,23 +85,33 @@ export default function BookingPage() {
   const [couponCode, setCouponCode] = useState('')
 
   useEffect(() => {
+    let active = true
+    setLoading(true)
+    setAthleteError('')
     Promise.all([
       fetch(`/api/trainers/${slug}`).then((r) => r.json()),
-      fetch('/api/athletes').then((r) => {
+      fetch('/api/athletes', { cache: 'no-store', signal: AbortSignal.timeout(15000) }).then(async (r) => {
         if (r.status === 401) {
-          setIsAuthenticated(false)
+          if (active) setIsAuthenticated(false)
           return { athletes: [] }
         }
-        return r.json()
+        if (!r.ok) throw new Error(r.status === 403 ? 'A parent account is required to book.' : 'Athletes could not be loaded. Please retry.')
+        if (active) setIsAuthenticated(true)
+        return bookingAthletesSchema.parse(await r.json())
+      }).catch(error => {
+        if (active) setAthleteError(error instanceof z.ZodError ? 'Athletes could not be loaded. Please retry.' : error.message || 'Athletes could not be loaded. Please retry.')
+        return { athletes: [] }
       }),
     ])
       .then(([trainerData, athletesData]) => {
+        if (!active) return
         setTrainer(trainerData)
-        setAthletes(athletesData.athletes || [])
+        setAthletes(athletesData.athletes)
       })
       .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [slug])
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [slug, loadAttempt])
 
   const service = trainer?.serviceOfferings.find((s) => s.id === selectedService)
   const athlete = athletes.find((a) => a.id === selectedAthlete)
@@ -127,43 +141,6 @@ export default function BookingPage() {
     : 'Choose a date'
 
   const completedSteps = [selectedService, selectedAthlete, selectedDate && selectedTime].filter(Boolean).length
-
-  const handleAddAthlete = async () => {
-    if (!newAthlete.firstName || !newAthlete.lastName || !newAthlete.dateOfBirth || newAthlete.sports.length === 0) {
-      toast({ title: 'Missing fields', description: 'Fill in name, date of birth, and select at least one sport.', variant: 'destructive' })
-      return
-    }
-    setAddingAthlete(true)
-    try {
-      const res = await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newAthlete, skillLevel: 'BEGINNER' }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast({ title: 'Error', description: data.error || 'Could not add athlete', variant: 'destructive' })
-        return
-      }
-      const created: Athlete = { id: data.id, firstName: data.firstName, lastName: data.lastName, sports: data.sports || [] }
-      setAthletes((prev) => [...prev, created])
-      setSelectedAthlete(created.id)
-      setShowAddAthlete(false)
-      setNewAthlete({ firstName: '', lastName: '', dateOfBirth: '', sports: [] })
-      toast({ title: 'Athlete added!', description: `${created.firstName} is ready for booking.` })
-    } catch {
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
-    } finally {
-      setAddingAthlete(false)
-    }
-  }
-
-  const toggleNewAthleteSport = (slug: string) => {
-    setNewAthlete((prev) => ({
-      ...prev,
-      sports: prev.sports.includes(slug) ? prev.sports.filter((s) => s !== slug) : [...prev.sports, slug],
-    }))
-  }
 
   const handleSubmit = async () => {
     if (!selectedService || !selectedAthlete || !selectedDate || !selectedTime) {
@@ -360,7 +337,7 @@ export default function BookingPage() {
                 <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">2</span> Match the athlete</h2>
               </CardHeader>
               <CardContent>
-                {!isAuthenticated ? (
+                {athleteError ? <div role="alert" className="space-y-3 text-sm"><p>{athleteError}</p><Button variant="outline" onClick={() => setLoadAttempt(value => value + 1)}>Retry athletes</Button></div> : !isAuthenticated ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center">
                     <p className="mb-4 text-sm text-slate-600">Sign in or create an account to book a session.</p>
                     <div className="flex items-center justify-center gap-3">
@@ -406,51 +383,12 @@ export default function BookingPage() {
                         <PlusCircle className="h-4 w-4" /> {athletes.length > 0 ? 'Add another athlete' : 'Add your athlete to continue'}
                       </button>
                     ) : (
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 ring-1 ring-emerald-100">
+                      <div className="border-t border-slate-300 pt-4 text-slate-900">
                         <div className="mb-4 flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-slate-900">Quick add athlete</h3>
-                          <button type="button" onClick={() => setShowAddAthlete(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-4 w-4" /></button>
+                          <button type="button" aria-label="Close athlete form" disabled={athleteSavePending} onClick={() => setShowAddAthlete(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-50"><X className="h-4 w-4" /></button>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <Label className="text-xs text-slate-300">First name</Label>
-                            <Input value={newAthlete.firstName} onChange={(e) => setNewAthlete({ ...newAthlete, firstName: e.target.value })} placeholder="First name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-slate-300">Last name</Label>
-                            <Input value={newAthlete.lastName} onChange={(e) => setNewAthlete({ ...newAthlete, lastName: e.target.value })} placeholder="Last name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
-                          </div>
-                        </div>
-                        <div className="mt-3">
-                          <Label className="text-xs text-slate-300">Date of birth</Label>
-                          <Input type="date" value={newAthlete.dateOfBirth} onChange={(e) => setNewAthlete({ ...newAthlete, dateOfBirth: e.target.value })} className="mt-1 h-10 w-full border-white/10 bg-slate-950/60 text-white sm:w-48" />
-                        </div>
-                        <div className="mt-3">
-                          <Label className="text-xs text-slate-700">Sport(s)</Label>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {SPORTS.map((sport) => {
-                              const active = newAthlete.sports.includes(sport.slug)
-                              return (
-                                <button
-                                  key={sport.slug}
-                                  type="button"
-                                  onClick={() => toggleNewAthleteSport(sport.slug)}
-                                  className={`rounded-full border px-3 py-1.5 text-xs transition ${active ? 'border-emerald-500 bg-emerald-100 font-medium text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
-                                >
-                                  {sport.icon} {sport.name}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="mt-4 gradient-primary border-0 text-white"
-                          disabled={addingAthlete}
-                          onClick={handleAddAthlete}
-                        >
-                          {addingAthlete ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Saving...</> : 'Save & select'}
-                        </Button>
+                        <AthleteEditor onPendingChange={setAthleteSavePending} onSaved={created => { setAthletes(previous => [...previous.filter(item => item.id !== created.id), created]); setSelectedAthlete(created.id); setShowAddAthlete(false); setAthleteSavePending(false) }} />
                       </div>
                     )}
                   </div>

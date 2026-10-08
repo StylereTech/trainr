@@ -45,14 +45,17 @@ export const parentProfileSchema = z.object({
 })
 
 export const athleteProfileSchema = z.object({
-  firstName: z.string().min(1, 'First name required'),
-  lastName: z.string().min(1, 'Last name required'),
-  dateOfBirth: z.string().min(1, 'Date of birth required'),
+  firstName: z.string().trim().min(1, 'First name required').max(50),
+  lastName: z.string().trim().min(1, 'Last name required').max(50),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be YYYY-MM-DD').refine(value => {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return Number(value.slice(0, 4)) > 0 && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= new Date().toISOString().slice(0, 10)
+  }, 'Date of birth must be a valid date that is not in the future'),
   gender: z.enum(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']).optional(),
   skillLevel: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']).default('BEGINNER'),
-  sports: z.array(z.string()).min(1, 'Select at least one sport'),
-  goals: z.array(z.string()).optional(),
-  notes: z.string().optional(),
+  sports: z.array(z.string().trim().min(1).max(128)).min(1, 'Select at least one sport').max(20).refine(values => new Set(values).size === values.length, 'Duplicate sport selections'),
+  goals: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  notes: z.string().trim().max(2000).default(''),
 })
 
 export const serviceOfferingSchema = z.object({

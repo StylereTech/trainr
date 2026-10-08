@@ -130,7 +130,7 @@ export default function ParentDashboard() {
                         {a.firstName[0]}{a.lastName[0]}
                       </div>
                       <div>
-                        <div className="font-medium text-white">{a.firstName} {a.lastName}</div>
+                        <Link href={`/parent/athletes/${a.id}`} className="break-words font-medium text-white underline">{a.firstName} {a.lastName}</Link>
                         <div className="text-xs text-slate-400">{a.sports.map(s => s.sport.name).join(', ') || 'No sports yet'}</div>
                       </div>
                     </div>
