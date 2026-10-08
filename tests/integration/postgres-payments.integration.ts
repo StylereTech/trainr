@@ -14,6 +14,8 @@ import { GET as searchTrainers } from '@/app/api/search/route'
 import { getPublicTrainerBySlug } from '@/lib/trainer-detail'
 import { applyTrainerAdminAction } from '@/lib/trainer-admin-actions'
 import { PATCH as patchTrainerDecision } from '@/app/api/admin/trainers/[id]/route'
+import { readDashboardBookings } from '@/lib/dashboard-bookings'
+import { dashboardResponseSchema } from '@/lib/dashboard-contract'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -99,6 +101,66 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  async function dashboardRows() {
+    const parent = await prisma.parentProfile.findUniqueOrThrow({ where: { userId: fixture.parent } })
+    const statuses = [...Array(12).fill('PENDING'), ...Array(13).fill('CONFIRMED'), ...Array(8).fill('COMPLETED'), 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] as Array<'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'RESCHEDULED'>
+    await prisma.booking.createMany({ data: statuses.map((status, index) => ({ parentProfileId: parent.id, trainerProfileId: fixture.trainer, athleteProfileId: fixture.athletes[0], serviceOfferingId: fixture.service,
+      date: new Date(Date.UTC(2030, 10, index + 1)), startTime: '09:00', endTime: '10:00', status, totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 })) })
+  }
+  it('counts all owned bookings independently of parent page and includes rescheduled history', async () => {
+    await dashboardRows()
+    const actor = { id: fixture.parent, role: 'PARENT' }
+    const first = await readDashboardBookings(actor, 'upcoming', 1, 10)
+    const last = await readDashboardBookings(actor, 'upcoming', 3, 10)
+    expect(first.counts).toEqual({ PENDING: 12, CONFIRMED: 13, COMPLETED: 8, CANCELLED: 1, NO_SHOW: 1, RESCHEDULED: 1 })
+    expect(first.bookings).toHaveLength(10)
+    expect(last.bookings).toHaveLength(5)
+    expect(last.pagination).toEqual({ page: 3, total: 25, totalPages: 3, limit: 10 })
+    expect(first.reviewsToLeave).toBe(8)
+    expect(first.bookings.some(row => last.bookings.some(other => row.id === other.id))).toBe(false)
+    expect(first.bookings[0].date.getTime()).toBeLessThan(last.bookings[0].date.getTime())
+    const past = await readDashboardBookings(actor, 'past', 1, 10)
+    expect(past.pagination.total).toBe(11)
+    expect(past.bookings[0].status).toBe('RESCHEDULED')
+    expect(dashboardResponseSchema.safeParse(JSON.parse(JSON.stringify(past))).success).toBe(true)
+  })
+  it('counts trainer views across all pages without returning other accounts or provider identifiers', async () => {
+    await dashboardRows()
+    const result = await readDashboardBookings({ id: fixture.trainerUser, role: 'TRAINER' }, 'all', 1, 10)
+    expect(result.pagination.total).toBe(36)
+    expect(result.reviewsToLeave).toBe(0)
+    expect(result.bookings.every(row => row.athleteProfile.lastName === 'Athlete 0')).toBe(true)
+    for (const row of result.bookings) {
+      expect(Object.keys(row.trainerProfile).sort()).toEqual(['firstName', 'lastName', 'paymentReady'])
+      expect(row.parentProfile.user).not.toHaveProperty('passwordHash')
+      expect(row.athleteProfile).not.toHaveProperty('dateOfBirth')
+    }
+    expect(JSON.stringify(result)).not.toContain('acct_synthetic')
+  })
+  it('clamps an emptied last page and returns a true empty account without invented counts', async () => {
+    const empty = await readDashboardBookings({ id: fixture.parent, role: 'PARENT' }, 'past', 999, 10)
+    expect(empty.pagination).toEqual({ page: 1, total: 0, totalPages: 0, limit: 10 })
+    await dashboardRows()
+    const result = await readDashboardBookings({ id: fixture.trainerUser, role: 'TRAINER' }, 'pending', 99, 10)
+    expect(result.pagination.page).toBe(2)
+    expect(result.bookings).toHaveLength(2)
+    await prisma.booking.updateMany({ where: { id: { in: result.bookings.map(row => row.id) } }, data: { status: 'CONFIRMED' } })
+    const refreshed = await readDashboardBookings({ id: fixture.trainerUser, role: 'TRAINER' }, 'pending', 2, 10)
+    expect(refreshed.pagination.page).toBe(1)
+    expect(refreshed.counts).toMatchObject({ PENDING: 10, CONFIRMED: 15 })
+  })
+  it('returns persisted refund distinctions without provider identities or invented earnings', async () => {
+    const booking = await reserve()
+    const paid = await pendingPayment(booking.id)
+    await prisma.payment.update({ where: { id: paid.id }, data: { status: 'PARTIALLY_REFUNDED', refundAmountInCents: 1000, refundPendingAmountInCents: 2000, refundFailedCount: 1, refundsVerifiedAt: new Date(), stripePaymentIntentId: 'pi_private' } })
+    const result = await readDashboardBookings({ id: fixture.parent, role: 'PARENT' }, 'upcoming', 1, 10)
+    expect(result.bookings[0].payment).toMatchObject({ refundAmountInCents: 1000, refundPendingAmountInCents: 2000, refundFailedCount: 1, refundsVerifiedAt: expect.any(Date) })
+    expect(JSON.stringify(result)).not.toContain('pi_private')
+    expect(result).not.toHaveProperty('totalEarnings')
+  })
+  it.each([{ role: 'ADMIN', view: 'all', code: 403 }, { role: 'PARENT', view: 'all', code: 400 }, { role: 'TRAINER', view: 'past', code: 400 }, { role: 'PARENT', view: 'upcoming', code: 404 }])('denies unauthorized/mismatched dashboard %j', async scenario => {
+    await expect(readDashboardBookings({ id: 'missing-profile', role: scenario.role }, scenario.view as any, 1, 10)).rejects.toMatchObject({ status: scenario.code })
+  })
   async function reviewFixture() {
     const admin = await prisma.user.create({ data: { email: `${randomUUID()}-admin@example.test`, passwordHash: 'not-a-login', role: 'ADMIN' } })
     createdAdmins.push(admin.id)

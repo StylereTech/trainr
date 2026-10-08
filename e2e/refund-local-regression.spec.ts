@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/local-auth'
+import { dashboardFixture } from './fixtures/dashboard'
 const local = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL || '')
 test.skip(!local || !process.env.LOCAL_E2E_SECRET, 'Requires explicit disposable local authentication fixtures.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
@@ -19,6 +20,7 @@ for (const width of [1440, 390]) {
         await page.route('**/api/**', async route => {
           const path = new URL(route.request().url()).pathname
           if (path === '/api/auth/session') return route.continue()
+          if (path === '/api/dashboard/bookings') return route.fulfill({ json: dashboardFixture([booking()], route.request().url()) })
           if (path === '/api/bookings' || path === '/api/admin/bookings') return route.fulfill(failList ? { status: 503, json: { error: 'Synthetic list unavailable' } } : { json: { bookings: [booking()], pagination: { total: 1, page: 1, totalPages: 1 } } })
           if (path === '/api/admin/refunds') {
             refreshes++

@@ -16,29 +16,17 @@ import {
   DollarSign,
   Loader2,
   Settings,
-  Sparkles,
-  TrendingUp,
+  RefreshCw,
   Wallet,
   XCircle,
 } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
-import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
-
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  endTime: string
-  status: string
-  totalAmountInCents: number
-  trainerPayoutInCents: number
-  notes: string | null
-  payment?: RefundSummaryPayment | null
-  serviceOffering: { title: string; durationMinutes: number }
-  parentProfile: { user: { email: string } }
-  athleteProfile: { firstName: string; lastName: string }
-}
+import { RefundSummary } from '@/components/shared/RefundSummary'
+import { dashboardResponseSchema, payoutBalanceSchema } from '@/lib/dashboard-contract'
+import { useRemoteData } from '@/lib/use-remote-data'
+import { BookingPager } from '@/components/shared/BookingPager'
+import { TrainerBalance } from '@/components/shared/TrainerBalance'
 
 interface StripeConnectStatus {
   providerConfigured: boolean
@@ -56,8 +44,14 @@ export default function TrainerDashboard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('pending')
+  const [page, setPage] = useState(1)
+  const dashboard = useRemoteData(`/api/dashboard/bookings?view=${view}&page=${page}&limit=10`, dashboardResponseSchema)
+  const balance = useRemoteData('/api/trainer/wallet', payoutBalanceSchema)
+  const bookings = dashboard.data?.bookings || []
+  const [actionBusy, setActionBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [needsReload, setNeedsReload] = useState(false)
   const [stripeStatus, setStripeStatus] = useState<StripeConnectStatus | null>(null)
   const [stripeStatusLoading, setStripeStatusLoading] = useState(true)
   const [stripeStatusError, setStripeStatusError] = useState('')
@@ -87,16 +81,6 @@ export default function TrainerDashboard() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/bookings')
-      .then((r) => r.json())
-      .then((data) => {
-        setBookings(data.bookings || [])
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
     void loadStripeStatus()
   }, [loadStripeStatus])
 
@@ -123,39 +107,25 @@ export default function TrainerDashboard() {
     router.replace('/trainer/dashboard')
   }, [searchParams, router, loadStripeStatus, toast])
 
+  const reloadAfterAction = async () => {
+    if (await dashboard.reload()) { setNeedsReload(false); setActionError('') }
+  }
   const handleAction = async (bookingId: string, action: string) => {
+    if (actionBusy || needsReload) return
+    setActionBusy(true)
+    setActionError('')
+    setNeedsReload(true)
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        toast({ title: 'Error', description: d.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: `Booking ${action === 'confirm' ? 'confirmed' : action === 'complete' ? 'completed' : 'updated'}` })
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === bookingId
-            ? {
-                ...b,
-                status:
-                  action === 'confirm'
-                    ? 'CONFIRMED'
-                    : action === 'complete'
-                      ? 'COMPLETED'
-                      : action === 'cancel'
-                        ? 'CANCELLED'
-                        : 'NO_SHOW',
-              }
-            : b,
-        ),
-      )
-    } catch {
-      toast({ title: 'Error', variant: 'destructive' })
-    }
+      const response = await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(15000) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Booking update could not be verified.')
+      if (await dashboard.reload()) {
+        setNeedsReload(false)
+        toast({ title: 'Booking updated' })
+      } else setActionError('Update received, but current booking state could not be loaded. Reload before another action.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Booking update could not be verified. Reload before another action.')
+    } finally { setActionBusy(false) }
   }
 
   const handleStripeConnect = async () => {
@@ -200,10 +170,11 @@ export default function TrainerDashboard() {
   const confirmedBookings = bookings.filter((b) => b.status === 'CONFIRMED')
   const completedBookings = bookings.filter((b) => b.status === 'COMPLETED')
 
-  const totalEarnings = completedBookings.reduce((sum, b) => sum + b.trainerPayoutInCents, 0)
-  const upcomingCount = pendingBookings.length + confirmedBookings.length
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+  if (dashboard.loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+
+  if (!dashboard.data) return <div role="alert" className="container py-10 text-rose-200">Unable to load current bookings.<Button variant="outline" onClick={() => void reloadAfterAction()}><RefreshCw className="mr-2 h-4 w-4" />Retry bookings</Button></div>
+  const counts = dashboard.data.counts
 
   const tabItems = {
     pending: pendingBookings,
@@ -218,12 +189,10 @@ export default function TrainerDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="container max-w-6xl py-8 md:py-10">
-        <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] md:p-7">
+        <div className="border-b border-white/10 pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <Badge className="border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10"><Sparkles className="mr-1 h-3.5 w-3.5" /> Trainer operations</Badge>
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Manage requests, earnings, and delivery with less friction.</h1>
-              <p className="mt-3 text-sm leading-7 text-slate-300 md:text-base">The trainer dashboard now mirrors the premium public surfaces so your operating view feels as polished as your profile.</p>
+              <h1 className="text-2xl font-semibold">Trainer dashboard</h1>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Link href="/trainer/profile?tab=payouts"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><DollarSign className="mr-1 h-4 w-4" />Payouts</Button></Link>
@@ -233,16 +202,16 @@ export default function TrainerDashboard() {
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Pending requests', value: pendingBookings.length, icon: Clock },
-              { label: 'Upcoming sessions', value: upcomingCount, icon: Calendar },
-              { label: 'Completed sessions', value: completedBookings.length, icon: CheckCircle2 },
-              { label: 'Total earnings', value: formatCurrency(totalEarnings), icon: DollarSign },
+              { label: 'Pending requests', value: counts.PENDING, icon: Clock },
+              { label: 'Open bookings', value: counts.PENDING + counts.CONFIRMED, icon: Calendar },
+              { label: 'Completed sessions', value: counts.COMPLETED, icon: CheckCircle2 },
             ].map((item) => (
-              <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
+              <div key={item.label} className="border-l border-white/10 p-4">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300"><item.icon className="h-4 w-4 text-emerald-300" /> {item.label}</div>
                 <div className="mt-2 text-3xl font-semibold text-white">{item.value}</div>
               </div>
             ))}
+            <TrainerBalance {...balance} />
           </div>
         </div>
 
@@ -315,12 +284,13 @@ export default function TrainerDashboard() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="pending" className="mt-6">
+        {actionError && <div role="alert" className="mt-4 text-rose-200">{actionError}<Button variant="outline" disabled={actionBusy} onClick={() => void reloadAfterAction()}><RefreshCw className="mr-2 h-4 w-4" />Reload bookings</Button></div>}
+        <Tabs value={view} onValueChange={value => { setView(value); setPage(1) }} className="mt-6">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
-            <TabsTrigger value="pending">Pending ({pendingBookings.length})</TabsTrigger>
-            <TabsTrigger value="confirmed">Confirmed ({confirmedBookings.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedBookings.length})</TabsTrigger>
-            <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({counts.PENDING})</TabsTrigger>
+            <TabsTrigger value="confirmed">Confirmed ({counts.CONFIRMED})</TabsTrigger>
+            <TabsTrigger value="completed">Completed ({counts.COMPLETED})</TabsTrigger>
+            <TabsTrigger value="all">All ({Object.values(counts).reduce((sum, count) => sum + count, 0)})</TabsTrigger>
           </TabsList>
 
           {(['pending', 'confirmed', 'completed', 'all'] as const).map((tab) => (
@@ -336,6 +306,7 @@ export default function TrainerDashboard() {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-sm">{b.parentProfile.user.email.split('@')[0]}</span>
                             <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
+                            <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                           </div>
                           <RefundSummary payment={b.payment} />
                           <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
@@ -354,14 +325,14 @@ export default function TrainerDashboard() {
                           <div className="flex flex-wrap gap-2">
                             {b.status === 'PENDING' && (
                               <>
-                                <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}><CheckCircle2 className="mr-1 h-3 w-3" />Confirm</Button>
-                                <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}><XCircle className="mr-1 h-3 w-3" />Decline</Button>
+                                <Button size="sm" className="gradient-primary border-0 text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'confirm')}><CheckCircle2 className="mr-1 h-3 w-3" />Confirm</Button>
+                                <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'cancel')}><XCircle className="mr-1 h-3 w-3" />Decline</Button>
                               </>
                             )}
                             {b.status === 'CONFIRMED' && (
                               <>
-                                <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'complete')}><CheckCircle2 className="mr-1 h-3 w-3" />Complete</Button>
-                                <Button size="sm" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white" onClick={() => handleAction(b.id, 'no_show')}>No-show</Button>
+                                <Button size="sm" className="gradient-primary border-0 text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'complete')}><CheckCircle2 className="mr-1 h-3 w-3" />Complete</Button>
+                                <Button size="sm" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'no_show')}>No-show</Button>
                               </>
                             )}
                           </div>
@@ -375,10 +346,7 @@ export default function TrainerDashboard() {
           ))}
         </Tabs>
 
-        <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
-          <div className="inline-flex items-center gap-2 font-semibold text-white"><TrendingUp className="h-4 w-4 text-emerald-300" /> Premium trainer workflow pass complete</div>
-          <p className="mt-2 max-w-2xl">Request actions, payout math, and mobile booking rows now align visually with the broader Trainr redesign rather than the older admin-lite UI.</p>
-        </div>
+        <BookingPager pagination={dashboard.data.pagination} onPage={setPage} />
       </div>
     </div>
   )

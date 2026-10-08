@@ -1,5 +1,11 @@
 # Production Audit Checkpoint
 
+## Dashboard Checkpoint: 2026-10-08 09:10 UTC
+
+Baseline `0dfd7a19e9155facc7be7a95e41cb741fb5ba0be` plus this commit. Fixed first-page-only dashboard counts/history, failed reads masquerading as empty accounts, fabricated earnings totals and uncertain trainer action recovery. Added role-scoped snapshot pagination and explicit provider balance/error states. Final **634 unit tests / 34 files, 114 real local PostgreSQL tests, 47 desktop/mobile browser tests, lint, typecheck and production build passed**. Eight screenshots inspected; synthetic-record counts independently zero and local services stopped. [Exact steps, accounts, initial failures, retest evidence and remaining limits](DASHBOARD_DATA_INTEGRITY_REPORT.md).
+
+No main promotion, production migration or real Stripe payment/refund/transfer/payout occurred. Provider reads are simulated in local browser tests; production remains separate older code. Full registration/athlete/timezone/cancellation/security/staging and live money-flow gates remain open. This checkpoint is not production signoff; the full audit goal stays active.
+
 ## Final Refund Checkpoint: 2026-10-08 08:35 UTC
 
 Baseline `0cfb4f550b88271d273bb4e744e44ca82fedfbf6` plus this commit. Final **613 unit tests / 33 files, 106 real local PostgreSQL tests, 39 desktop/mobile browser tests, lint, typecheck and production build passed**. Fixed refund lifecycle reconciliation, admin refresh, misleading payout row labels and screenshot-proven mobile trainer-tab overlap. Final screenshots and tab geometry assertions verified. Disk-full failures were proven from build/PostgreSQL logs, resolved by clearing only in-checkout build cache, and rerun. Independent synthetic-record counts all zero; local app/database stopped. [Exact evidence, migration requirements, provider simulation limits and open work](REFUND_RECONCILIATION_REPORT.md).

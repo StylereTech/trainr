@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/local-auth'
+import { dashboardFixture } from './fixtures/dashboard'
 
 const origin = process.env.BASE_URL || ''
 const secret = process.env.LOCAL_E2E_SECRET || ''
@@ -49,6 +50,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
             return route.fulfill({ status: 201, json: saved })
           }
           if (path === '/api/bookings') return route.fulfill({ json: { bookings: saved ? [saved] : [] } })
+          if (path === '/api/dashboard/bookings') return route.fulfill({ json: dashboardFixture(saved ? [saved] : [], route.request().url()) })
           if (path === '/api/payments/checkout') {
             checkoutCalls++
             return route.fulfill({ status: 503, json: { error: 'Fixture checkout unavailable. Booking remains unpaid.' } })

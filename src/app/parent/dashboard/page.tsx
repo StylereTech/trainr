@@ -7,41 +7,16 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, Users, Heart, Star, Plus, Clock, Loader2, CreditCard, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react'
+import { Calendar, Users, Star, Plus, Clock, Loader2, CreditCard, RefreshCw } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
-import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
-
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  endTime: string
-  status: string
-  totalAmountInCents: number
-  notes: string | null
-  payment?: RefundSummaryPayment | null
-  serviceOffering: { title: string; durationMinutes: number }
-  trainerProfile: {
-    firstName: string
-    lastName: string
-    stripeAccountId: string | null
-    stripeOnboardingComplete: boolean
-    sports: { sport: { name: string; icon: string | null } }[]
-  }
-  athleteProfile: { firstName: string; lastName: string }
-  review: { id: string } | null
-}
-
-interface Athlete {
-  id: string
-  firstName: string
-  lastName: string
-  sports: { sport: { name: string } }[]
-}
+import { RefundSummary } from '@/components/shared/RefundSummary'
+import { dashboardResponseSchema, type DashboardBooking as Booking, athletesResponseSchema } from '@/lib/dashboard-contract'
+import { useRemoteData } from '@/lib/use-remote-data'
+import { BookingPager } from '@/components/shared/BookingPager'
 
 function isTrainerPaymentReady(booking: Booking) {
-  return Boolean(booking.trainerProfile.stripeAccountId) && booking.trainerProfile.stripeOnboardingComplete
+  return booking.trainerProfile.paymentReady
 }
 
 function canStartCheckout(booking: Booking) {
@@ -52,20 +27,13 @@ function canStartCheckout(booking: Booking) {
 export default function ParentDashboard() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [athletes, setAthletes] = useState<Athlete[]>([])
-  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('upcoming')
+  const [page, setPage] = useState(1)
+  const dashboard = useRemoteData(`/api/dashboard/bookings?view=${view}&page=${page}&limit=10`, dashboardResponseSchema)
+  const athleteData = useRemoteData('/api/athletes', athletesResponseSchema)
+  const bookings = dashboard.data?.bookings || []
+  const athletes = athleteData.data?.athletes || []
   const [startingCheckoutId, setStartingCheckoutId] = useState<string | null>(null)
-
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/bookings').then(r => r.json()),
-      fetch('/api/athletes').then(r => r.json()),
-    ]).then(([bookingsData, athletesData]) => {
-      setBookings(bookingsData.bookings || [])
-      setAthletes(athletesData.athletes || [])
-    }).catch(console.error).finally(() => setLoading(false))
-  }, [])
 
   useEffect(() => {
     const paymentState = searchParams.get('payment')
@@ -103,35 +71,33 @@ export default function ParentDashboard() {
   }
 
   const upcomingBookings = bookings.filter(b => ['PENDING', 'CONFIRMED'].includes(b.status))
-  const pastBookings = bookings.filter(b => ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(b.status))
+  const pastBookings = bookings.filter(b => ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'].includes(b.status))
 
-  if (loading) {
+  if (dashboard.loading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
+
+  if (!dashboard.data) return <div role="alert" className="container py-10 text-rose-200">Unable to load current bookings.<Button variant="outline" onClick={() => void dashboard.reload()}><RefreshCw className="mr-2 h-4 w-4" />Retry bookings</Button></div>
+  const counts = dashboard.data.counts
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="container max-w-6xl py-8 md:py-10">
-        <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] md:p-7">
+        <div className="border-b border-white/10 pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <Badge className="border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">
-                <Sparkles className="mr-1 h-3.5 w-3.5" /> Parent command center
-              </Badge>
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Manage athletes, bookings, and payments without the chaos.</h1>
-              <p className="mt-3 text-sm leading-7 text-slate-300 md:text-base">The dashboard now reads like a premium family control panel with cleaner trust signals, faster payment cues, and calmer mobile spacing.</p>
+              <h1 className="text-2xl font-semibold">Parent dashboard</h1>
             </div>
             <Link href="/browse"><Button className="gradient-primary w-full border-0 text-white sm:w-auto"><Users className="mr-2 h-4 w-4" />Find Trainers</Button></Link>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
-              { label: 'Upcoming sessions', value: upcomingBookings.length, icon: Calendar },
-              { label: 'Athletes saved', value: athletes.length, icon: Users },
-              { label: 'Reviews to leave', value: pastBookings.filter(b => b.status === 'COMPLETED' && !b.review).length, icon: Star },
-              { label: 'Saved favorites', value: 0, icon: Heart },
+              { label: 'Open bookings', value: counts.PENDING + counts.CONFIRMED, icon: Calendar },
+              { label: 'Athletes saved', value: athleteData.loading ? 'Loading' : athleteData.error ? 'Unavailable' : athletes.length, icon: Users },
+              { label: 'Reviews to leave', value: dashboard.data.reviewsToLeave, icon: Star },
             ].map((item) => (
-              <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
+              <div key={item.label} className="border-l border-white/10 p-4">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300"><item.icon className="h-4 w-4 text-emerald-300" /> {item.label}</div>
                 <div className="mt-2 text-3xl font-semibold text-white">{item.value}</div>
               </div>
@@ -148,7 +114,7 @@ export default function ParentDashboard() {
             <Link href="/parent/athletes/new"><Button variant="outline" size="sm" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Plus className="mr-1 h-4 w-4" />Add Athlete</Button></Link>
           </CardHeader>
           <CardContent>
-            {athletes.length === 0 ? (
+            {athleteData.loading ? <Loader2 aria-label="Loading athletes" className="h-5 w-5 animate-spin" /> : athleteData.error ? <div role="alert">Unable to load athletes.<Button variant="outline" onClick={() => void athleteData.reload()}><RefreshCw className="mr-2 h-4 w-4" />Retry athletes</Button></div> : athletes.length === 0 ? (
               <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-slate-950/45 py-10 text-center">
                 <Users className="mx-auto mb-3 h-12 w-12 text-slate-500" />
                 <h3 className="font-semibold text-white">No athletes yet</h3>
@@ -175,10 +141,10 @@ export default function ParentDashboard() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="upcoming" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2 rounded-2xl bg-slate-900 p-2 sm:w-auto">
-            <TabsTrigger value="upcoming">Upcoming ({upcomingBookings.length})</TabsTrigger>
-            <TabsTrigger value="past">Past ({pastBookings.length})</TabsTrigger>
+        <Tabs value={view} onValueChange={value => { setView(value); setPage(1) }} className="mt-6">
+          <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-slate-900 p-2 sm:w-auto">
+            <TabsTrigger value="upcoming">Open ({counts.PENDING + counts.CONFIRMED})</TabsTrigger>
+            <TabsTrigger value="past">Past ({counts.COMPLETED + counts.CANCELLED + counts.NO_SHOW + counts.RESCHEDULED})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upcoming" className="mt-4">
@@ -193,6 +159,7 @@ export default function ParentDashboard() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
+                          <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
@@ -206,7 +173,7 @@ export default function ParentDashboard() {
                         {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : 'Awaiting payment'}</div>}
                         {canStartCheckout(b) && (
                           isTrainerPaymentReady(b) ? (
-                            <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={startingCheckoutId === b.id}>
+                            <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={!!startingCheckoutId}>
                               {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
                             </Button>
                           ) : (
@@ -241,6 +208,7 @@ export default function ParentDashboard() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
+                          <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
@@ -262,15 +230,7 @@ export default function ParentDashboard() {
           </TabsContent>
         </Tabs>
 
-        <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 font-semibold text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Parent dashboard refinement complete</div>
-              <p className="mt-2 max-w-2xl">Key actions, payment cues, and athlete management now share the same premium dark-shell language as browse, profiles, and booking.</p>
-            </div>
-            <Link href="/browse" className="inline-flex items-center text-emerald-300 hover:text-emerald-200">Browse trainers <ArrowRight className="ml-1 h-4 w-4" /></Link>
-          </div>
-        </div>
+        <BookingPager pagination={dashboard.data.pagination} onPage={setPage} />
       </div>
     </div>
   )
