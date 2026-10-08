@@ -16,7 +16,7 @@ beforeEach(() => {
   mock.user.mockResolvedValue({ id: 'parent', role: 'PARENT', email: 'parent@example.test' })
   mock.booking.mockResolvedValue({
     id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' },
-    trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true },
+    trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true, isActive: true, approvalStatus: 'APPROVED' },
   })
   mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
   mock.checkout.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/test', paymentId: 'payment' })
@@ -28,6 +28,14 @@ async function send(body = JSON.stringify({ bookingId: 'booking' })) {
 }
 
 describe('checkout route boundaries', () => {
+  it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('blocks checkout for a trainer who is %s before contacting Stripe', async status => {
+    const booking = await mock.booking()
+    booking.trainerProfile = { ...booking.trainerProfile, ...(status === 'INACTIVE' ? { isActive: false } : { approvalStatus: status }) }
+    mock.booking.mockResolvedValue(booking)
+    expect((await send()).status).toBe(409)
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
   it('passes only the authenticated buyer and verified trainer destination to checkout', async () => {
     expect((await send()).status).toBe(200)
     expect(mock.checkout).toHaveBeenCalledWith('booking', { id: 'parent', role: 'PARENT', email: 'parent@example.test' }, 'acct_ready')

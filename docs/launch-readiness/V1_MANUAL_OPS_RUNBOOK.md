@@ -39,6 +39,8 @@
 
 ## Trainer Payouts
 
+Trainer eligibility changes: review fresh trainer data and submit its exact `updatedAt` as `revision` to `PATCH /api/admin/trainers/[id]`. Reload/review after a 409 or uncertain response; do not blindly repeat a mutation. Approval, audit and applicable notification commit together. Suspension/deactivation stop new application reservations/checkouts, but do **not** expire already-issued Stripe sessions, cancel existing bookings or issue refunds. Inspect open provider objects and reconcile any late funds under the cancellation procedure above. [Tested behavior and limits](TRAINER_APPROVAL_INTEGRITY_REPORT.md).
+
 1. The intended v1 path is the destination charge to the connected Stripe account, followed by Stripe-managed bank payout according to the verified account configuration.
 2. Do **not** pay again from the legacy wallet or mark an old withdrawal request paid as a substitute. Those mutation endpoints are disabled on the audit branch. Recorded trainer share is not a second disbursement instruction.
 3. Reconcile the platform charge, destination transfer, connected balance and payout separately. A transferred amount is not proof that a bank payout settled.

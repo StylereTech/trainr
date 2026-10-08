@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { applyTrainerAdminAction, TrainerAdminActionError, trainerAdminActionSchema } from '@/lib/trainer-admin-actions'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -50,74 +51,14 @@ export async function PATCH(
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const adminUserId = session.user.id
-  const { id } = await params
-  const body = await req.json()
-  const { action, reason, featured, isActive } = body
-
-  const trainer = await prisma.trainerProfile.findUnique({
-    where: { id },
-    include: { user: true },
-  })
-  if (!trainer) return NextResponse.json({ error: 'Trainer not found' }, { status: 404 })
-
-  let updateData: any = {}
-
-  if (action === 'approve') {
-    updateData.approvalStatus = 'APPROVED'
-    updateData.approvedAt = new Date()
-    updateData.rejectedReason = null
-  } else if (action === 'reject') {
-    if (!reason) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
-    updateData.approvalStatus = 'REJECTED'
-    updateData.rejectedReason = reason
-  } else if (action === 'suspend') {
-    if (!reason) return NextResponse.json({ error: 'Reason required for suspension' }, { status: 400 })
-    updateData.approvalStatus = 'SUSPENDED'
-    updateData.rejectedReason = reason
-  } else if (action === 'feature') {
-    updateData.featured = featured ?? true
-  } else if (action === 'toggle_active') {
-    updateData.isActive = isActive ?? !trainer.isActive
-  } else {
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  try {
+    const input = trainerAdminActionSchema.safeParse(await req.json().catch(() => null))
+    if (!input.success) return NextResponse.json({ error: 'A valid decision and current profile revision are required' }, { status: 400 })
+    const { id } = await params
+    return NextResponse.json(await applyTrainerAdminAction(id, session.user.id, input.data))
+  } catch (error) {
+    if (error instanceof TrainerAdminActionError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error('Trainer approval transaction failed')
+    return NextResponse.json({ error: 'Unable to save the trainer decision. Reload before retrying.' }, { status: 503 })
   }
-
-  const updated = await prisma.trainerProfile.update({
-    where: { id },
-    data: updateData,
-  })
-
-  // Log admin action
-  await prisma.adminAction.create({
-    data: {
-      adminUserId,
-      actionType: action,
-      targetType: 'TRAINER',
-      targetId: id,
-      description: `${action} trainer ${trainer.firstName} ${trainer.lastName}`,
-      metadata: { reason: reason || null, previousStatus: trainer.approvalStatus },
-    },
-  })
-
-  // Notify trainer
-  const notificationMessages: Record<string, { title: string; message: string }> = {
-    approve: { title: 'Application Approved! 🎉', message: 'Your trainer application has been approved. You can now start receiving bookings!' },
-    reject: { title: 'Application Update', message: `Your trainer application was not approved. Reason: ${reason}` },
-    suspend: { title: 'Account Suspended', message: `Your account has been suspended. Reason: ${reason}` },
-  }
-
-  if (notificationMessages[action]) {
-    await prisma.notification.create({
-      data: {
-        userId: trainer.userId,
-        type: `TRAINER_${action.toUpperCase()}`,
-        title: notificationMessages[action].title,
-        message: notificationMessages[action].message,
-        data: { trainerId: id, action },
-      },
-    })
-  }
-
-  return NextResponse.json(updated)
 }

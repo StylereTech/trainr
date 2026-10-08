@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
       return NextResponse.json({ error: 'Booking cannot be paid in its current state' }, { status: 409 })
     }
+    if (!booking.trainerProfile.isActive || booking.trainerProfile.approvalStatus !== 'APPROVED') {
+      return NextResponse.json({ error: 'Trainer is not available for checkout. Contact support about this booking.' }, { status: 409 })
+    }
     const accountId = booking.trainerProfile.stripeAccountId
     if (!accountId) return NextResponse.json({ error: 'Trainer must finish Stripe setup before checkout' }, { status: 400 })
     const account = await stripe.accounts.retrieve(accountId)

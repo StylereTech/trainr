@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-08 checkout eligibility update: ineligible trainer states now block new/resumed checkout URLs. A provider session created while the trainer is concurrently suspended/deactivated is retained for reconciliation, and later payment evidence remains recordable. **40 local SQL tests passed; Stripe simulated.** Existing URLs are not automatically expired or refunded, so this is not complete suspension/cancellation enforcement or money-flow signoff. [Full evidence and remaining gates](TRAINER_APPROVAL_INTEGRITY_REPORT.md).
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles

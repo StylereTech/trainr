@@ -12,6 +12,8 @@ import { GET as getTrainerProfile, PUT as putTrainerProfile } from '@/app/api/tr
 import { GET as browseTrainers } from '@/app/api/trainers/route'
 import { GET as searchTrainers } from '@/app/api/search/route'
 import { getPublicTrainerBySlug } from '@/lib/trainer-detail'
+import { applyTrainerAdminAction } from '@/lib/trainer-admin-actions'
+import { PATCH as patchTrainerDecision } from '@/app/api/admin/trainers/[id]/route'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -26,6 +28,7 @@ const createdTrainers: string[] = []
 const createdCoupons: string[] = []
 const createdConfigs: string[] = []
 const createdSports: string[] = []
+const createdAdmins: string[] = []
 let verifiedTarget = false
 
 beforeAll(async () => {
@@ -82,7 +85,8 @@ afterAll(async () => {
   await prisma.review.deleteMany({ where: { trainerProfile: { userId: { in: createdTrainers } } } })
   await prisma.booking.deleteMany({ where: { trainerProfile: { userId: { in: createdTrainers } } } })
   await prisma.coupon.deleteMany({ where: { id: { in: createdCoupons } } })
-  await prisma.user.deleteMany({ where: { id: { in: [...createdParents, ...createdTrainers] } } })
+  await prisma.adminAction.deleteMany({ where: { adminUserId: { in: createdAdmins } } })
+  await prisma.user.deleteMany({ where: { id: { in: [...createdParents, ...createdTrainers, ...createdAdmins] } } })
   await prisma.sport.deleteMany({ where: { id: { in: createdSports } } })
   await Promise.all([prisma.$disconnect(), independent.$disconnect()])
 })
@@ -95,6 +99,137 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  async function reviewFixture() {
+    const admin = await prisma.user.create({ data: { email: `${randomUUID()}-admin@example.test`, passwordHash: 'not-a-login', role: 'ADMIN' } })
+    createdAdmins.push(admin.id)
+    const trainer = await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { approvalStatus: 'PENDING', approvedAt: null } })
+    auth.session.mockResolvedValue({ user: { id: admin.id, role: 'ADMIN' } })
+    return { admin: admin.id, revision: trainer.updatedAt.toISOString() }
+  }
+
+  it('commits approval, audit and notification through the actual route before allowing a reservation', async () => {
+    const review = await reviewFixture()
+    await expect(reserve()).rejects.toMatchObject({ status: 409 })
+    const response = await patchTrainerDecision(new Request('http://localhost/api/admin/trainers/fixture', {
+      method: 'PATCH', body: JSON.stringify({ action: 'approve', revision: review.revision }),
+    }) as any, { params: Promise.resolve({ id: fixture.trainer }) })
+    expect(response.status).toBe(200)
+    const trainer = await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })
+    expect(trainer.approvalStatus).toBe('APPROVED')
+    expect(trainer.approvedAt).not.toBeNull()
+    expect(trainer.updatedAt.toISOString()).not.toBe(review.revision)
+    expect(await independent.adminAction.count({ where: { adminUserId: review.admin, targetId: fixture.trainer } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: fixture.trainerUser, type: 'TRAINER_APPROVE' } })).toBe(1)
+    await expect(reserve()).resolves.toMatchObject({ status: 'PENDING' })
+  })
+
+  it.each(['audit', 'notification'] as const)('rolls approval back when the actual %s constraint rejects the write, then retries cleanly', async failure => {
+    const review = await reviewFixture()
+    const table = failure === 'audit' ? 'admin_actions' : 'notifications'
+    const column = failure === 'audit' ? 'targetId' : 'userId'
+    const value = failure === 'audit' ? fixture.trainer : fixture.trainerUser
+    await independent.$executeRawUnsafe(`ALTER TABLE ${table} ADD CONSTRAINT trainr_integration_approval_failure CHECK ("${column}" <> '${value}') NOT VALID`)
+    try {
+      await expect(applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })).rejects.toThrow()
+      expect(await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).toMatchObject({ approvalStatus: 'PENDING', approvedAt: null, updatedAt: new Date(review.revision) })
+      expect(await independent.adminAction.count({ where: { adminUserId: review.admin } })).toBe(0)
+      expect(await independent.notification.count({ where: { userId: fixture.trainerUser } })).toBe(0)
+      await expect(reserve()).rejects.toMatchObject({ status: 409 })
+    } finally {
+      await independent.$executeRawUnsafe(`ALTER TABLE ${table} DROP CONSTRAINT trainr_integration_approval_failure`)
+    }
+    await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })
+    expect(await independent.adminAction.count({ where: { adminUserId: review.admin } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: fixture.trainerUser } })).toBe(1)
+  })
+
+  it('serializes competing real approval decisions and rejects the stale reviewer', async () => {
+    const review = await reviewFixture()
+    const results = await Promise.allSettled([
+      applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision }),
+      applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'reject', reason: 'Missing details', revision: review.revision }),
+    ])
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { status: 409 } })
+    expect(await independent.adminAction.count({ where: { adminUserId: review.admin } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: fixture.trainerUser } })).toBe(1)
+  })
+
+  it('rejects a trainer edited after review without approving the newer content', async () => {
+    const review = await reviewFixture()
+    await independent.trainerProfile.update({ where: { id: fixture.trainer }, data: { headline: 'New content after review', updatedAt: new Date(Date.parse(review.revision) + 1000) } })
+    await expect(applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })).rejects.toMatchObject({ status: 409 })
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).approvalStatus).toBe('PENDING')
+    expect(await independent.adminAction.count({ where: { adminUserId: review.admin } })).toBe(0)
+  })
+
+  it('rejects an admin token after its actual database role is revoked', async () => {
+    const review = await reviewFixture()
+    await independent.user.update({ where: { id: review.admin }, data: { role: 'PARENT' } })
+    const response = await patchTrainerDecision(new Request('http://localhost/api/admin/trainers/fixture', {
+      method: 'PATCH', body: JSON.stringify({ action: 'approve', revision: review.revision }),
+    }) as any, { params: Promise.resolve({ id: fixture.trainer }) })
+    expect(response.status).toBe(403)
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).approvalStatus).toBe('PENDING')
+    expect(await independent.adminAction.count({ where: { adminUserId: review.admin } })).toBe(0)
+  })
+
+  it.each(['suspend', 'deactivate'] as const)('%s prevents new reservations without silently cancelling existing bookings', async decision => {
+    const review = await reviewFixture()
+    const approved = await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })
+    const existing = await reserve()
+    const revision = approved.updatedAt.toISOString()
+    await applyTrainerAdminAction(fixture.trainer, review.admin, decision === 'suspend'
+      ? { action: 'suspend', revision, reason: 'Synthetic review hold' }
+      : { action: 'toggle_active', revision, isActive: false })
+    await expect(reserve(1, '10:00')).rejects.toMatchObject({ status: 409 })
+    await expect(startOrResumeCheckout(existing.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('not available for checkout')
+    expect(await independent.payment.count({ where: { bookingId: existing.id } })).toBe(0)
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(await independent.booking.count({ where: { trainerProfileId: fixture.trainer } })).toBe(1)
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: existing.id } })).status).toBe('PENDING')
+  })
+
+  it('does not return a previously saved checkout URL after suspension', async () => {
+    const review = await reviewFixture()
+    const approved = await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })
+    const booking = await reserve()
+    await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    const before = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+    await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'suspend', revision: approved.updatedAt.toISOString(), reason: 'Synthetic hold' })
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('not available for checkout')
+    const after = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+    expect(after.stripeCheckoutSessionId).toBe(before.stripeCheckoutSessionId)
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    expect(provider.retrieve).not.toHaveBeenCalled()
+  })
+
+  it.each(['suspend', 'deactivate'] as const)('retains provider identity after a concurrent %s and can still record later payment evidence', async decision => {
+    const review = await reviewFixture()
+    const approved = await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'approve', revision: review.revision })
+    const booking = await reserve()
+    const create = provider.create.getMockImplementation()!
+    provider.create.mockImplementation(async (...args) => {
+      const session = await create(...args)
+      const revision = approved.updatedAt.toISOString()
+      await applyTrainerAdminAction(fixture.trainer, review.admin, decision === 'suspend'
+        ? { action: 'suspend', revision, reason: 'Synthetic hold during checkout' }
+        : { action: 'toggle_active', revision, isActive: false })
+      return session
+    })
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('no longer available')
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+    const attempt = await independent.checkoutAttempt.findFirstOrThrow({ where: { paymentId: payment.id } })
+    expect(payment.stripeCheckoutSessionId).toBeTruthy()
+    expect(attempt.stripeCheckoutSessionId).toBe(payment.stripeCheckoutSessionId)
+    expect(payment.status).toBe('PENDING')
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    await applyPaymentEvidence({ bookingId: booking.id, paymentId: payment.id, attemptId: attempt.id,
+      sessionId: payment.stripeCheckoutSessionId!, intentId: 'pi_synthetic_late_payment', amount: 6000, currency: 'usd', outcome: 'paid' })
+    expect((await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('SUCCEEDED')
+    expect(await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).toMatchObject(decision === 'suspend' ? { approvalStatus: 'SUSPENDED' } : { isActive: false })
+  })
+
   it('keeps populated private trainer and parent fields out of actual public query responses', async () => {
     const city = `audit-${randomUUID()}`
     const trainer = await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: {

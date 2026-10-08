@@ -27,7 +27,7 @@ beforeEach(() => {
   state = {
     booking: { id: 'booking', status: 'PENDING', totalAmountInCents: 10000, platformFeeInCents: 1500, trainerPayoutInCents: 8500,
       date: new Date('2026-11-01'), startTime: '09:00', parentProfile: { id: 'parent-profile', userId: 'parent' },
-      trainerProfile: { id: 'trainer', userId: 'trainer-user', stripeAccountId: 'acct_ready', firstName: 'Test', lastName: 'Trainer' },
+      trainerProfile: { id: 'trainer', userId: 'trainer-user', stripeAccountId: 'acct_ready', firstName: 'Test', lastName: 'Trainer', isActive: true, approvalStatus: 'APPROVED' },
       athleteProfile: { id: 'athlete' }, serviceOffering: { id: 'service', title: 'Training' } },
     payment: null, attempts: [], notifications: [],
   }
@@ -103,6 +103,36 @@ afterEach(() => vi.useRealTimers())
 const checkout = (user = buyer) => startOrResumeCheckout('booking', user, 'acct_ready')
 
 describe('durable checkout attempts', () => {
+  it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('does not create payment/attempt records for an ineligible trainer: %s', async status => {
+    if (status === 'INACTIVE') state.booking.trainerProfile.isActive = false
+    else state.booking.trainerProfile.approvalStatus = status
+    await expect(checkout()).rejects.toThrow('not available for checkout')
+    expect(state.payment).toBeNull()
+    expect(state.attempts).toHaveLength(0)
+    expect(mock.create).not.toHaveBeenCalled()
+  })
+  it('does not resume a known checkout after suspension', async () => {
+    await checkout()
+    state.booking.trainerProfile.approvalStatus = 'SUSPENDED'
+    await expect(checkout()).rejects.toThrow('not available for checkout')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+    expect(mock.retrieve).not.toHaveBeenCalled()
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+  })
+  it.each(['suspend', 'deactivate'])('preserves the session identity but withholds its URL when an admin can %s during the provider call', async action => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementation(async (...args) => {
+      const session = await create(...args)
+      if (action === 'suspend') state.booking.trainerProfile.approvalStatus = 'SUSPENDED'
+      else state.booking.trainerProfile.isActive = false
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('no longer available')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.attempts[0].stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.payment.status).toBe('PENDING')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
   it.each([0, 1, 49, 50.5, 100000000])('rejects an invalid existing booking total %s before persisting or contacting Stripe', async (total) => {
     Object.assign(state.booking, { totalAmountInCents: total, platformFeeInCents: 0, trainerPayoutInCents: total })
     await expect(checkout()).rejects.toThrow('amounts are invalid')

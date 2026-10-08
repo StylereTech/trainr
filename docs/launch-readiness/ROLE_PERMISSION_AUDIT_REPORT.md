@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-08 trainer-decision update: the mutation checks and holds the administrator's actual database role inside its transaction. Tests keep a synthetic ADMIN session after database role revocation and verify 403 without changes. Missing/non-admin sessions and malformed inputs also reject. **This is scoped to trainer-decision writes, not a completed platform-wide session/revocation audit.** [Source, exact steps and retest proof](TRAINER_APPROVAL_INTEGRITY_REPORT.md).
+
 2026-10-08 public-data update: anonymous browse/search now query explicit public trainer/relation fields; public reviews no longer query parent account/email identifiers, and both profile pages display anonymous parent attribution. Source baseline `83fba060b23a73af95732668c2904422092a3127` plus this commit. **29 focused tests and 29 real local PostgreSQL tests passed**, with populated synthetic private fields, hidden reviews and inactive trainers. Exact steps, production-sample limits and final build/browser proof are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). This does not complete the broader permission/privileged-session audit or prove production remediation.
 
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.

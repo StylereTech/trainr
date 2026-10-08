@@ -15,6 +15,7 @@ const RECOVERY_WINDOW_MS = 23 * 60 * 60 * 1000
 async function lockedBooking(tx: Prisma.TransactionClient, bookingId: string) {
   await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
   await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
+  await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ${bookingId}) FOR SHARE`
   return tx.booking.findUnique({
     where: { id: bookingId },
     include: { parentProfile: true, trainerProfile: true, athleteProfile: true, serviceOffering: true, payment: true },
@@ -76,6 +77,9 @@ async function prepare(bookingId: string, buyer: Buyer, accountId: string, expir
     const booking = await lockedBooking(tx, bookingId)
     assertPayable(booking, buyer, accountId)
     if (!booking) throw new CheckoutConflict('Booking not found.')
+    if (!booking.trainerProfile.isActive || booking.trainerProfile.approvalStatus !== 'APPROVED') {
+      throw new CheckoutConflict('Trainer is not available for checkout. Contact support about this booking.')
+    }
     let payment = booking.payment || await tx.payment.create({
       data: { bookingId, amountInCents: booking.totalAmountInCents, platformFeeInCents: booking.platformFeeInCents, trainerPayoutInCents: booking.trainerPayoutInCents },
     })
@@ -135,7 +139,7 @@ function validateSession(session: Stripe.Checkout.Session, bookingId: string, pa
 }
 
 async function rememberSession(bookingId: string, buyer: Buyer, accountId: string, sessionId: string, attemptId: string | null) {
-  await prisma.$transaction(async (tx) => {
+  const trainerEligible = await prisma.$transaction(async (tx) => {
     const booking = await lockedBooking(tx, bookingId)
     assertPayable(booking, buyer, accountId)
     if (!booking?.payment) throw new CheckoutConflict('Payment record not found.')
@@ -148,7 +152,10 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
     }
     if (current) await tx.checkoutAttempt.update({ where: { id: current.id }, data: { stripeCheckoutSessionId: sessionId } })
     await tx.payment.update({ where: { id: booking.payment.id }, data: { stripeCheckoutSessionId: sessionId } })
+    return booking.trainerProfile.isActive && booking.trainerProfile.approvalStatus === 'APPROVED'
   })
+  // Keep the provider identity even if eligibility changed while Stripe was responding.
+  if (!trainerEligible) throw new CheckoutConflict('Trainer is no longer available for checkout. Contact support to reconcile this booking.')
 }
 
 export async function startOrResumeCheckout(bookingId: string, buyer: Buyer, accountId: string) {
