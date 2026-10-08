@@ -34,7 +34,7 @@ export default function SignInPage() {
       })
 
       if (result?.error) {
-        toast({ title: 'Error', description: 'Invalid email or password', variant: 'destructive' })
+        toast({ title: 'Sign-in unavailable', description: 'Check your credentials or try again later.', variant: 'destructive' })
       } else {
         const sessionRes = await fetch('/api/auth/session')
         const session = sessionRes.ok ? await sessionRes.json() : null

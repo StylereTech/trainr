@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 3 requests per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`forgot-pw:${ip}`, 3, 15 * 60 * 1000)
+    const rl = await rateLimit(`forgot-pw:${ip}`, 3, 15 * 60 * 1000)
+    if (rl.unavailable) return NextResponse.json({ error: 'Account recovery is temporarily unavailable' }, { status: 503 })
     if (!rl.allowed) {
       return NextResponse.json(
         { message },

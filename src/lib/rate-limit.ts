@@ -1,87 +1,57 @@
-/**
- * Simple in-memory sliding-window rate limiter.
- * Good enough for single-instance deployments.
- * For multi-instance, swap to Redis.
- */
-
-interface RateLimitEntry {
-  timestamps: number[]
-}
-
-const store = new Map<string, RateLimitEntry>()
-
-// Clean up stale entries every 5 minutes
-const CLEANUP_INTERVAL = 5 * 60 * 1000
-let lastCleanup = Date.now()
-
-function cleanup(windowMs: number) {
-  const now = Date.now()
-  if (now - lastCleanup < CLEANUP_INTERVAL) return
-  lastCleanup = now
-  const cutoff = now - windowMs * 2
-  for (const [key, entry] of store) {
-    if (entry.timestamps.length === 0 || entry.timestamps[entry.timestamps.length - 1] < cutoff) {
-      store.delete(key)
-    }
-  }
-}
+import { createHmac } from 'node:crypto'
+import { isIP } from 'node:net'
+import type { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 export interface RateLimitResult {
   allowed: boolean
   remaining: number
   resetMs: number
+  unavailable?: boolean
 }
 
-/**
- * Check and consume a rate limit token.
- *
- * @param key - Unique key (e.g., "register:192.168.1.1" or "messages:user-id")
- * @param maxRequests - Maximum requests in the window
- * @param windowMs - Window size in milliseconds
- */
-export function rateLimit(
-  key: string,
-  maxRequests: number,
-  windowMs: number
-): RateLimitResult {
-  cleanup(windowMs)
+export function rateLimitKey(key: string, maxRequests: number, windowMs: number) {
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret || Buffer.byteLength(secret) < 32) throw new Error('Rate limit key unavailable')
+  if (!key || key.length > 512 || !Number.isInteger(maxRequests) || maxRequests < 1 || maxRequests > 1000 ||
+      !Number.isInteger(windowMs) || windowMs < 1000 || windowMs > 86400000) throw new Error('Invalid rate limit policy')
+  return createHmac('sha256', secret).update(JSON.stringify(['trainr-rate-limit-v1', key, maxRequests, windowMs])).digest('hex')
+}
 
-  const now = Date.now()
-  const cutoff = now - windowMs
-  let entry = store.get(key)
-
-  if (!entry) {
-    entry = { timestamps: [] }
-    store.set(key, entry)
-  }
-
-  // Remove expired timestamps
-  entry.timestamps = entry.timestamps.filter((t) => t > cutoff)
-
-  if (entry.timestamps.length >= maxRequests) {
-    const oldestInWindow = entry.timestamps[0]
-    return {
-      allowed: false,
-      remaining: 0,
-      resetMs: oldestInWindow + windowMs - now,
-    }
-  }
-
-  entry.timestamps.push(now)
-  return {
-    allowed: true,
-    remaining: maxRequests - entry.timestamps.length,
-    resetMs: windowMs,
+export async function rateLimit(key: string, maxRequests: number, windowMs: number, database: PrismaClient = prisma): Promise<RateLimitResult> {
+  try {
+    const keyHash = rateLimitKey(key, maxRequests, windowMs)
+    // Separate bounded cleanup avoids holding unrelated bucket locks in the consume transaction.
+    await database.$executeRaw`DELETE FROM rate_limit_buckets WHERE "keyHash" IN (
+      SELECT "keyHash" FROM rate_limit_buckets WHERE "expiresAt" <= clock_timestamp()
+      ORDER BY "expiresAt", "keyHash" LIMIT 100 FOR UPDATE SKIP LOCKED
+    )`
+    return await database.$transaction(async tx => {
+      // The upsert acquires the shared row lock before reading the database clock.
+      await tx.$executeRaw`INSERT INTO rate_limit_buckets ("keyHash", hits, "expiresAt")
+        VALUES (${keyHash}, ARRAY[]::timestamptz[], clock_timestamp())
+        ON CONFLICT ("keyHash") DO UPDATE SET "keyHash" = EXCLUDED."keyHash"`
+      const [row] = await tx.$queryRaw<Array<{ hits: Date[]; now: Date }>>`
+        SELECT hits, clock_timestamp() AS now FROM rate_limit_buckets WHERE "keyHash" = ${keyHash}`
+      const now = row.now.getTime()
+      const hits = row.hits.filter(hit => hit.getTime() > now - windowMs)
+      const allowed = hits.length < maxRequests
+      if (allowed) hits.push(row.now)
+      await tx.rateLimitBucket.update({ where: { keyHash }, data: { hits, expiresAt: new Date(hits[hits.length - 1].getTime() + windowMs) } })
+      return { allowed, remaining: Math.max(0, maxRequests - hits.length), resetMs: Math.max(1, hits[0].getTime() + windowMs - now) }
+    }, { maxWait: 2000, timeout: 5000 })
+  } catch {
+    console.error('Rate limit persistence unavailable')
+    return { allowed: false, remaining: 0, resetMs: 1000, unavailable: true }
   }
 }
 
-/**
- * Extract client IP from request headers.
- */
-export function getClientIp(req: Request): string {
-  const forwarded = req.headers.get('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0].trim()
-  const real = req.headers.get('x-real-ip')
-  if (real) return real
+export function getClientIp(req: { headers: { get(name: string): string | null } }): string {
+  // Untrusted headers outside the configured platform share a conservative bucket.
+  if (process.env.VERCEL !== '1') return 'unknown'
+  const value = req.headers.get('x-vercel-forwarded-for')?.trim() || ''
+  const version = isIP(value)
+  if (version === 4) return value
+  if (version === 6 && !value.includes('%')) return new URL(`http://[${value}]/`).hostname.slice(1, -1)
   return 'unknown'
 }

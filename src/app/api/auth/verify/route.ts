@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!rateLimit(`verify:${getClientIp(req)}`, 10, 60_000).allowed) return NextResponse.json({ error: 'Try again later' }, { status: 429 })
+    const limit = await rateLimit(`verify:${getClientIp(req)}`, 10, 60_000)
+    if (limit.unavailable) return NextResponse.json({ error: 'Verification is temporarily unavailable' }, { status: 503 })
+    if (!limit.allowed) return NextResponse.json({ error: 'Try again later' }, { status: 429 })
     const { token } = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).parse(await req.json())
     const tokenHash = hashAccountToken('verification', token)
 

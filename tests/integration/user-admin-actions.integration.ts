@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrismaClient, type User } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { applyUserAdminAction } from '@/lib/user-admin-actions'
@@ -7,6 +7,8 @@ import { applyTrainerAdminAction } from '@/lib/trainer-admin-actions'
 import { resolveSessionUser } from '@/lib/session-user'
 import { authOptions } from '@/lib/auth'
 import { hash } from 'bcryptjs'
+
+vi.mock('@/lib/rate-limit', () => ({ rateLimit: () => ({ allowed: true }), getClientIp: () => 'synthetic' }))
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 const ids: string[] = []

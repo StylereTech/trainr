@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 registrations per minute per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`register:${ip}`, 5, 60_000)
+    const rl = await rateLimit(`register:${ip}`, 5, 60_000)
+    if (rl.unavailable) return NextResponse.json({ error: 'Registration is temporarily unavailable' }, { status: 503 })
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many registration attempts. Please try again later.' },

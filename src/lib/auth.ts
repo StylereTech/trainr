@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import { getServerSession as _gss } from "next-auth/next"
 import type { NextRequest } from 'next/server'
 import { resolveSessionUser } from '@/lib/session-user'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const authDebugEnabled = process.env.AUTH_DEBUG === 'true'
 
@@ -21,7 +22,7 @@ export const authOptions: any = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials: any) {
+      async authorize(credentials: any, req: { headers?: Record<string, string> } = {}) {
         authDebug('authorize:start', {
           provider: 'credentials',
           hasEmail: !!credentials?.email,
@@ -33,8 +34,14 @@ export const authOptions: any = {
           return null
         }
 
+        const email = credentials.email.trim().toLowerCase()
+        if (email.length > 254 || Buffer.byteLength(credentials.password, 'utf8') > 72) return null
+        const ip = getClientIp({ headers: new Headers(req.headers) })
+        if (!(await rateLimit(`login-ip:${ip}`, 30, 15 * 60_000)).allowed) return null
+        if (!(await rateLimit(`login-account:${email}`, 10, 15 * 60_000)).allowed) return null
+
         const user: any = await prisma.user.findUnique({
-          where: { email: credentials.email.trim().toLowerCase() },
+          where: { email },
           include: {
             parentProfile: { select: { id: true } },
             trainerProfile: { select: { id: true } },

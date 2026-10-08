@@ -22,7 +22,7 @@ for (const width of [1440, 390]) {
     test(`real ${role} registration and explicit email verification at ${width}px`, async ({ page, localAuth }, testInfo) => {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 })
       const clientIp = `192.0.2.${(width === 390 ? 10 : 20) + (role === 'PARENT' ? 1 : 2)}`
-      await page.setExtraHTTPHeaders({ 'x-forwarded-for': clientIp })
+      await page.setExtraHTTPHeaders({ 'x-vercel-forwarded-for': clientIp })
       const email = `browser-registration-${randomUUID()}@example.test`
       try {
         await page.goto(`/auth/signup?role=${role.toLowerCase()}`)
@@ -64,7 +64,7 @@ for (const width of [1440, 390]) {
         await page.screenshot({ path: testInfo.outputPath('verification-persisted.png') })
         await page.getByRole('link', { name: 'Continue to dashboard' }).click()
         await expect(page).toHaveURL(new RegExp(`/${role.toLowerCase()}/dashboard$`))
-        expect((await page.request.post('/api/auth/forgot-password', { data: { email }, headers: { 'x-forwarded-for': clientIp } })).status()).toBe(200)
+        expect((await page.request.post('/api/auth/forgot-password', { data: { email }, headers: { 'x-vercel-forwarded-for': clientIp } })).status()).toBe(200)
         const recovery = await localAuth.database.user.findUniqueOrThrow({ where: { email } })
         expect(recovery.resetPasswordToken).toBeTruthy()
         const resetToken = deriveAccountToken('reset', user.id, recovery.resetPasswordTokenSeed!, process.env.LOCAL_E2E_SECRET)
