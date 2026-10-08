@@ -41,7 +41,11 @@ The existing booking schema is now strict. Unsupported fields return 400 with `U
 
 ## Publication
 
-Source commit/push and hosted/live observations follow after publication. Freshly fetched main remained `2067e743c54ffee669cd484f26dc472b157f1881`; no production promotion or settings change occurred.
+- Source committed/pushed as `af208b9dfb0e2e963b43e54e9974f2d2ee7b00cf`, `fix: reject unsupported package semantics in booking requests`, on `codex/payment-readiness-20261006`. Freshly fetched main remained `2067e743c54ffee669cd484f26dc472b157f1881`; no production promotion or settings change occurred.
+- Hosted [Actions run 37837407434](https://github.com/StylereTech/trainr/actions/runs/37837407434): `migrations` (113517876595) and `check` (113517876916) both failed with **zero steps executed**. Exact annotation on each: `The job was not started because your account is locked due to a billing issue.` No hosted pass is claimed.
+- Source Vercel status was **pending**, `Vercel is deploying your app`, with [deployment status](https://vercel.com/styleres-projects/trainr/6oxRQKihU4gEv2HH8yADKnV2iRLv). A usable preview, configured staging database and production promotion are not proven by that status.
+- Anonymous post-push live smoke at **2026-10-08 20:10:18-20 UTC**: `/api/health` 200 (`ok: true`, `dbConnected: true`); tokenless `/api/auth/verify` 400; `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect`, `/api/admin/bookings`, `/api/notifications` 401; `/notifications` 404. Health and anonymous-denial expectations passed; inbox/live parity failed. No production package/booking write or real payment was attempted, so the new validation is not marked verified live.
+- This documentation follow-up records publication only. Package implementation and the full audit goal remain incomplete.
 
 ## Required Next Work
 
