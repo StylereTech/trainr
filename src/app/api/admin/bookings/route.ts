@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getRequestUser } from '@/lib/auth'
+import { applyBookingAction, BookingActionError, bookingActionSchema } from '@/lib/booking-actions'
+import { z } from 'zod'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -58,45 +61,16 @@ export async function GET(req: NextRequest) {
 
 // PATCH /api/admin/bookings — Admin booking actions
 export async function PATCH(req: NextRequest) {
-  const session = await requireAdmin()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const adminUserId = session.user.id
-  const body = await req.json()
-  const { bookingId, action, reason } = body
-
-  if (!bookingId || !action) return NextResponse.json({ error: 'bookingId and action required' }, { status: 400 })
-
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-    include: { trainerProfile: true, parentProfile: true },
-  })
-  if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
-
-  let updateData: any = {}
-  const validActions: Record<string, string> = {
-    confirm: 'CONFIRMED',
-    complete: 'COMPLETED',
-    cancel: 'CANCELLED',
-    no_show: 'NO_SHOW',
+  try {
+    const user = await getRequestUser(req)
+    if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const input = bookingActionSchema.extend({ bookingId: z.string().trim().min(1).max(128) }).safeParse(await req.json().catch(() => null))
+    if (!input.success) return NextResponse.json({ error: 'Invalid booking action or reason' }, { status: 400 })
+    return NextResponse.json(await applyBookingAction(input.data.bookingId, user, input.data))
+  } catch (error) {
+    if (error instanceof BookingActionError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error('Admin booking action transaction failed')
+    return NextResponse.json({ error: 'Failed to update booking. Refresh before retrying.' }, { status: 503 })
   }
-
-  if (!validActions[action]) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-  updateData.status = validActions[action]
-  if (action === 'cancel') updateData.cancellationReason = reason || 'Cancelled by admin'
-
-  const updated = await prisma.booking.update({ where: { id: bookingId }, data: updateData })
-
-  await prisma.adminAction.create({
-    data: {
-      adminUserId,
-      actionType: `BOOKING_${action.toUpperCase()}`,
-      targetType: 'BOOKING',
-      targetId: bookingId,
-      description: `Admin ${action} booking ${bookingId}`,
-      metadata: { reason: reason || null },
-    },
-  })
-
-  return NextResponse.json(updated)
 }
