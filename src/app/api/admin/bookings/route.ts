@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getRequestUser } from '@/lib/auth'
 import { applyBookingAction, BookingActionError, bookingActionSchema } from '@/lib/booking-actions'
+import { closeCancelledCheckout } from '@/lib/checkout-attempts'
 import { z } from 'zod'
 
 async function requireAdmin() {
@@ -67,7 +68,8 @@ export async function PATCH(req: NextRequest) {
     if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const input = bookingActionSchema.extend({ bookingId: z.string().trim().min(1).max(128) }).safeParse(await req.json().catch(() => null))
     if (!input.success) return NextResponse.json({ error: 'Invalid booking action or reason' }, { status: 400 })
-    return NextResponse.json(await applyBookingAction(input.data.bookingId, user, input.data))
+    const booking = await applyBookingAction(input.data.bookingId, user, input.data)
+    return NextResponse.json({ ...booking, ...(input.data.action === 'cancel' ? { checkoutClosure: await closeCancelledCheckout(input.data.bookingId) } : {}) })
   } catch (error) {
     if (error instanceof BookingActionError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Admin booking action transaction failed')

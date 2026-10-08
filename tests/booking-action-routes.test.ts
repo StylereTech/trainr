@@ -3,7 +3,8 @@ import { PATCH as patchBooking } from '@/app/api/bookings/[id]/route'
 import { PATCH as patchAdmin } from '@/app/api/admin/bookings/route'
 import { BookingActionError } from '@/lib/booking-actions'
 
-const mock = vi.hoisted(() => ({ user: vi.fn(), apply: vi.fn() }))
+const mock = vi.hoisted(() => ({ user: vi.fn(), apply: vi.fn(), close: vi.fn() }))
+vi.mock('@/lib/checkout-attempts', () => ({ closeCancelledCheckout: mock.close }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 vi.mock('@/lib/booking-actions', async (original) => ({ ...await original<object>(), applyBookingAction: mock.apply }))
@@ -11,6 +12,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mock.user.mockResolvedValue({ id: 'actor', role: 'ADMIN' })
   mock.apply.mockResolvedValue({ id: 'booking', status: 'CANCELLED' })
+  mock.close.mockResolvedValue('review_required')
 })
 for (const route of ['booking', 'admin']) {
   const request = (body: unknown = { bookingId: 'booking', action: 'cancel' }) => {
@@ -21,9 +23,13 @@ for (const route of ['booking', 'admin']) {
     mock.user.mockResolvedValue(null)
     expect((await request()).status).toBe(401)
     expect(mock.apply).not.toHaveBeenCalled()
+    expect(mock.close).not.toHaveBeenCalled()
   })
   it(`${route}: delegates to the shared transition helper`, async () => {
-    expect((await request()).status).toBe(200)
+    const response = await request()
+    expect(response.status).toBe(200)
+    expect((await response.json()).checkoutClosure).toBe('review_required')
+    expect(mock.close).toHaveBeenCalledWith('booking')
     expect(mock.apply).toHaveBeenCalledWith('booking', { id: 'actor', role: 'ADMIN' }, expect.objectContaining({ action: 'cancel' }))
   })
   it.each([null, { action: 'refund' }, { action: 'cancel', reason: 123 }, { action: 'cancel', reason: 'x'.repeat(2001) }])(`${route}: rejects malformed body %j`, async (body) => {
@@ -33,6 +39,7 @@ for (const route of ['booking', 'admin']) {
   it(`${route}: preserves transition conflict status`, async () => {
     mock.apply.mockRejectedValue(new BookingActionError('Payment required', 409))
     expect((await request()).status).toBe(409)
+    expect(mock.close).not.toHaveBeenCalled()
   })
   it(`${route}: never exposes raw persistence diagnostics`, async () => {
     mock.apply.mockRejectedValue(new Error('secret database password'))

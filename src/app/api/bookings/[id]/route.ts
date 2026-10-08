@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
 import { applyBookingAction, BookingActionError, bookingActionSchema } from '@/lib/booking-actions'
+import { closeCancelledCheckout } from '@/lib/checkout-attempts'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -9,7 +10,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const input = bookingActionSchema.safeParse(await req.json().catch(() => null))
     if (!input.success) return NextResponse.json({ error: 'Invalid booking action or reason' }, { status: 400 })
     const { id } = await params
-    return NextResponse.json(await applyBookingAction(id, user, input.data))
+    const booking = await applyBookingAction(id, user, input.data)
+    return NextResponse.json({ ...booking, ...(input.data.action === 'cancel' ? { checkoutClosure: await closeCancelledCheckout(id) } : {}) })
   } catch (error) {
     if (error instanceof BookingActionError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Booking action transaction failed')

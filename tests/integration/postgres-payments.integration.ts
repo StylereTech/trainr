@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { createBooking } from '@/lib/booking-creation'
 import { applyBookingAction } from '@/lib/booking-actions'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
-import { startOrResumeCheckout } from '@/lib/checkout-attempts'
+import { closeCancelledCheckout, startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { defaultFeeValues, updateFeeConfiguration } from '@/lib/fee-config'
 import { saveTrainerCertifications } from '@/lib/trainer-certifications'
 import { GET as getTrainerProfile, PUT as putTrainerProfile } from '@/app/api/trainer/onboarding/route'
@@ -19,10 +19,10 @@ import { dashboardResponseSchema } from '@/lib/dashboard-contract'
 import { ensureConnectAccount } from '@/lib/connect-accounts'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
-const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
+const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), intent: vi.fn() }))
 const auth = vi.hoisted(() => ({ session: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getServerSession: auth.session, authOptions: {} }))
-vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: provider.create, retrieve: provider.retrieve } }, paymentIntents: { retrieve: provider.intent } } }))
+vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: provider.create, retrieve: provider.retrieve, expire: provider.expire } }, paymentIntents: { retrieve: provider.intent } } }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `http://localhost:3107${path}` }))
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let fixture: { parent: string; trainerUser: string; trainer: string; service: string; sport: string; athletes: string[]; date: string }
@@ -70,6 +70,12 @@ beforeEach(async () => {
     return sessions.get(key)
   })
   provider.retrieve.mockImplementation(async (id) => Array.from(sessions.values()).find((session) => session.id === id))
+  provider.expire.mockImplementation(async (id) => {
+    const session = Array.from(sessions.values()).find((value) => value.id === id)
+    if (!session || session.status !== 'open') throw new Error('not open')
+    Object.assign(session, { status: 'expired', url: null })
+    return session
+  })
 })
 
 afterEach(async () => {
@@ -102,6 +108,86 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it('expires saved checkout after cancellation and repeats without duplicate notices or replacement', async () => {
+    const booking = await reserve()
+    const result = await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+    const notices = await prisma.notification.count({ where: { userId: { in: [fixture.parent, fixture.trainerUser] } } })
+    expect(await closeCancelledCheckout(booking.id)).toBe('closed')
+    await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+    expect(await closeCancelledCheckout(booking.id)).toBe('closed')
+    const stored = await independent.payment.findUniqueOrThrow({ where: { id: result.paymentId }, include: { checkoutAttempts: true, booking: true } })
+    expect(stored.checkoutAttempts).toHaveLength(1)
+    expect(stored.booking.status).toBe('CANCELLED')
+    expect(stored.status).toBe('PENDING')
+    expect(stored.stripeCheckoutSessionId).toBe(stored.checkoutAttempts[0].stripeCheckoutSessionId)
+    expect(provider.expire).toHaveBeenCalledTimes(1)
+    expect(await prisma.notification.count({ where: { userId: { in: [fixture.parent, fixture.trainerUser] } } })).toBe(notices)
+  })
+  it('recovers and expires the original creation after an ambiguous provider response', async () => {
+    const booking = await reserve()
+    const create = provider.create.getMockImplementation()!
+    provider.create.mockImplementationOnce(async (...args) => { await create(...args); throw new Error('lost create response') })
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('lost create')
+    await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+    expect(await closeCancelledCheckout(booking.id)).toBe('closed')
+    expect(provider.create.mock.calls[0][1].idempotencyKey).toBe(provider.create.mock.calls[1][1].idempotencyKey)
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id }, include: { checkoutAttempts: true } })
+    expect(payment.checkoutAttempts).toHaveLength(1)
+    expect(payment.stripeCheckoutSessionId).toBeTruthy()
+    expect((await provider.retrieve(payment.stripeCheckoutSessionId)).status).toBe('expired')
+  })
+  it('retains and closes the provider identity if cancellation commits while creation is in flight', async () => {
+    const booking = await reserve()
+    const create = provider.create.getMockImplementation()!
+    provider.create.mockImplementationOnce(async (...args) => {
+      const session = await create(...args)
+      await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+      return session
+    })
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('cannot be paid')
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+    expect(payment.stripeCheckoutSessionId).toBeTruthy()
+    expect((await provider.retrieve(payment.stripeCheckoutSessionId)).status).toBe('expired')
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CANCELLED')
+  })
+  it('keeps cancellation committed through an expire outage and recovers on retry', async () => {
+    const booking = await reserve()
+    await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    await applyBookingAction(booking.id, { id: fixture.trainerUser, role: 'TRAINER' }, { action: 'cancel' })
+    provider.expire.mockRejectedValueOnce(new Error('synthetic outage'))
+    expect(await closeCancelledCheckout(booking.id)).toBe('review_required')
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CANCELLED')
+    expect(await closeCancelledCheckout(booking.id)).toBe('closed')
+  })
+  it('reconciles payment winning the expire race without reopening the reservation', async () => {
+    const booking = await reserve()
+    await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+    provider.expire.mockImplementationOnce(async id => {
+      const session = await provider.retrieve(id)
+      Object.assign(session, { status: 'complete', payment_status: 'paid', payment_intent: `pi_${randomUUID()}` })
+      throw new Error('already completed')
+    })
+    expect(await closeCancelledCheckout(booking.id)).toBe('review_required')
+    const stored = await independent.booking.findUniqueOrThrow({ where: { id: booking.id }, include: { payment: true } })
+    expect(stored.status).toBe('CANCELLED')
+    expect(stored.payment?.status).toBe('SUCCEEDED')
+    expect(stored.payment?.refundAmountInCents).toBe(0)
+  })
+  it('does not report closed using money state read before a concurrent webhook', async () => {
+    const booking = await reserve()
+    const { paymentId } = await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+    await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+    const expire = provider.expire.getMockImplementation()!
+    provider.expire.mockImplementationOnce(async (...args) => {
+      const session = await expire(...args)
+      await applyPaymentEvidence({ bookingId: booking.id, paymentId, sessionId: session.id, intentId: `pi_${randomUUID()}`, amount: 6000, currency: 'usd', outcome: 'paid' })
+      return session
+    })
+    expect(await closeCancelledCheckout(booking.id)).toBe('review_required')
+    expect((await independent.payment.findUniqueOrThrow({ where: { id: paymentId } })).status).toBe('SUCCEEDED')
+  })
   it.each(['paid', 'checkout-attempt'])('does not initialize a replacement for an unlinked trainer with %s history', async kind => {
     const booking = await reserve()
     const payment = await pendingPayment(booking.id)

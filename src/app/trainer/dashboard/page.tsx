@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
+import { checkoutClosureMessage } from '@/lib/checkout-closure-message'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
@@ -81,7 +82,7 @@ export default function TrainerDashboard() {
       if (!response.ok) throw new Error(result.error || 'Booking update could not be verified.')
       if (await dashboard.reload()) {
         setNeedsReload(false)
-        toast({ title: 'Booking updated' })
+        toast({ title: 'Booking updated', ...(action === 'cancel' ? { description: checkoutClosureMessage(result.checkoutClosure) } : {}) })
       } else setActionError('Update received, but current booking state could not be loaded. Reload before another action.')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Booking update could not be verified. Reload before another action.')

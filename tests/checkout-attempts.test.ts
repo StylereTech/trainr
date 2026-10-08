@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { startOrResumeCheckout } from '@/lib/checkout-attempts'
+import { closeCancelledCheckout, startOrResumeCheckout } from '@/lib/checkout-attempts'
 
-const mock = vi.hoisted(() => ({ transaction: vi.fn(), create: vi.fn(), retrieve: vi.fn(), intent: vi.fn(), query: vi.fn() }))
+const mock = vi.hoisted(() => ({ transaction: vi.fn(), create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), intent: vi.fn(), query: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
-vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: mock.create, retrieve: mock.retrieve } }, paymentIntents: { retrieve: mock.intent } } }))
+vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: mock.create, retrieve: mock.retrieve, expire: mock.expire } }, paymentIntents: { retrieve: mock.intent } } }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `https://trainr.test${path}` }))
 
 const buyer = { id: 'parent', email: 'parent@example.test' }
@@ -97,10 +97,148 @@ beforeEach(() => {
     return structuredClone(sessions.get(id))
   })
   mock.intent.mockResolvedValue({ status: 'canceled' })
+  mock.expire.mockImplementation(async (id) => {
+    const session = sessions.get(id)
+    if (!session || session.status !== 'open') throw new Error('not open')
+    session.status = 'expired'
+    session.url = null
+    return structuredClone(session)
+  })
 })
 afterEach(() => vi.useRealTimers())
 
 const checkout = (user = buyer) => startOrResumeCheckout('booking', user, 'acct_ready')
+
+describe('cancelled checkout closure', () => {
+  const cancel = async () => { state.booking.status = 'CANCELLED'; return closeCancelledCheckout('booking') }
+  it('does not touch Stripe for a booking that is not cancelled', async () => {
+    expect(await closeCancelledCheckout('booking')).toBe('review_required')
+    expect(mock.create).not.toHaveBeenCalled()
+    expect(mock.retrieve).not.toHaveBeenCalled()
+  })
+  it('needs no provider action when checkout was never started', async () => {
+    expect(await cancel()).toBe('not_required')
+    expect(mock.create).not.toHaveBeenCalled()
+  })
+  it('expires a saved open session and safely repeats closure', async () => {
+    await checkout()
+    expect(await cancel()).toBe('closed')
+    expect(await cancel()).toBe('closed')
+    expect(mock.expire).toHaveBeenCalledTimes(1)
+    expect(mock.expire.mock.calls[0][2]).toMatchObject({ idempotencyKey: 'trainr-cancel-cs_1', timeout: 8000, maxNetworkRetries: 0 })
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.payment.status).toBe('PENDING')
+    await expect(checkout()).rejects.toThrow('cannot be paid')
+  })
+  it('recovers an accepted but unsaved session using only the original key', async () => {
+    failAfterAccept = true
+    await expect(checkout()).rejects.toThrow('timed out')
+    expect(await cancel()).toBe('closed')
+    expect(accepted.size).toBe(1)
+    expect(state.attempts).toHaveLength(1)
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+  })
+  it('preserves and expires the session when cancellation wins during creation', async () => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementation(async (...args) => {
+      const session = await create(...args)
+      state.booking.status = 'CANCELLED'
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('cannot be paid')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(sessions.get('cs_1').status).toBe('expired')
+  })
+  it('requires review rather than replaying an aged-out creation key', async () => {
+    failAfterAccept = true
+    await expect(checkout()).rejects.toThrow()
+    state.attempts[0].createdAt = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    expect(await cancel()).toBe('review_required')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
+  it('requires review for unknown legacy activity with no durable attempt', async () => {
+    state.payment = pendingPayment()
+    expect(await cancel()).toBe('review_required')
+    expect(mock.create).not.toHaveBeenCalled()
+  })
+  it.each(['intent', 'amount', 'fee', 'destination', 'metadata'])('does not recover creation with inconsistent saved %s', async mismatch => {
+    failAfterAccept = true
+    await expect(checkout()).rejects.toThrow()
+    const saved = state.attempts[0].parameters
+    if (mismatch === 'intent') state.payment.stripePaymentIntentId = 'pi_unlinked'
+    if (mismatch === 'amount') saved.line_items[0].price_data.unit_amount++
+    if (mismatch === 'fee') saved.payment_intent_data.application_fee_amount++
+    if (mismatch === 'destination') saved.payment_intent_data.transfer_data.destination = 'acct_other'
+    if (mismatch === 'metadata') saved.metadata.paymentId = 'other'
+    expect(await cancel()).toBe('review_required')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
+  it('does not claim closure when expiry permits recovered checkouts', async () => {
+    await checkout()
+    sessions.get('cs_1').after_expiration = { recovery: { enabled: true } }
+    expect(await cancel()).toBe('review_required')
+  })
+  it('retrieves after an ambiguous expire response and recognizes actual expiry', async () => {
+    await checkout()
+    const expire = mock.expire.getMockImplementation()!
+    mock.expire.mockImplementation(async (...args) => { await expire(...args); throw new Error('lost response') })
+    expect(await cancel()).toBe('closed')
+  })
+  it('does not claim closure during a provider outage', async () => {
+    await checkout()
+    mock.retrieve.mockRejectedValue(new Error('private-provider-diagnostic'))
+    expect(await cancel()).toBe('review_required')
+    expect(state.booking.status).toBe('CANCELLED')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+  })
+  it('rechecks database money state after expiry rather than reporting a stale closure', async () => {
+    await checkout()
+    const expire = mock.expire.getMockImplementation()!
+    mock.expire.mockImplementation(async (...args) => {
+      const session = await expire(...args)
+      state.payment.status = 'SUCCEEDED'
+      state.payment.stripePaymentIntentId = 'pi_late'
+      return session
+    })
+    expect(await cancel()).toBe('review_required')
+    expect(state.payment.status).toBe('SUCCEEDED')
+  })
+  it.each(['processing', 'requires_payment_method', 'succeeded'])('does not treat an unresolved intent (%s) as closed', async status => {
+    await checkout()
+    sessions.get('cs_1').payment_intent = 'pi_1'
+    mock.intent.mockResolvedValue({ id: 'pi_1', status })
+    expect(await cancel()).toBe('review_required')
+  })
+  it('accepts a matching canceled intent only after session expiry', async () => {
+    await checkout()
+    sessions.get('cs_1').payment_intent = 'pi_1'
+    mock.intent.mockResolvedValue({ id: 'pi_1', status: 'canceled' })
+    expect(await cancel()).toBe('closed')
+  })
+  it.each(['metadata', 'amount', 'identity'])('does not mutate mismatched provider %s', async mismatch => {
+    await checkout()
+    const session = sessions.get('cs_1')
+    if (mismatch === 'metadata') session.metadata.bookingId = 'other'
+    if (mismatch === 'amount') session.amount_total++
+    if (mismatch === 'identity') session.id = 'other'
+    expect(await cancel()).toBe('review_required')
+    expect(mock.expire).not.toHaveBeenCalled()
+  })
+  it('keeps payment processing under review without expiring or refunding it', async () => {
+    await checkout()
+    sessions.get('cs_1').status = 'complete'
+    expect(await cancel()).toBe('review_required')
+    expect(mock.expire).not.toHaveBeenCalled()
+  })
+  it('records a late paid observation without reopening a cancelled booking', async () => {
+    await checkout()
+    Object.assign(sessions.get('cs_1'), { status: 'complete', payment_status: 'paid', payment_intent: 'pi_1' })
+    expect(await cancel()).toBe('review_required')
+    expect(state.booking.status).toBe('CANCELLED')
+    expect(state.payment.status).toBe('SUCCEEDED')
+    expect(mock.expire).not.toHaveBeenCalled()
+  })
+})
 
 describe('durable checkout attempts', () => {
   it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('does not create payment/attempt records for an ineligible trainer: %s', async status => {

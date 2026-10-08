@@ -38,7 +38,7 @@ export default function ParentDashboard() {
   useEffect(() => {
     const paymentState = searchParams.get('payment')
     if (paymentState === 'cancelled') {
-      toast({ title: 'Checkout cancelled', description: 'You can return and complete payment any time.', variant: 'destructive' })
+      toast({ title: 'Checkout left unfinished', description: 'Check the current booking and payment status before trying again.', variant: 'destructive' })
     }
   }, [searchParams, toast])
 

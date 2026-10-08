@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
+import { checkoutClosureMessage } from '@/lib/checkout-closure-message'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { Loader2, Calendar, Sparkles, RefreshCw } from 'lucide-react'
+import { Loader2, Calendar, RefreshCw } from 'lucide-react'
 import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 
 interface Booking {
@@ -37,6 +38,9 @@ export default function AdminBookings() {
   const [total, setTotal] = useState(0)
   const [loadError, setLoadError] = useState('')
   const [refundError, setRefundError] = useState('')
+  const [actionBusy, setActionBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [needsReload, setNeedsReload] = useState(false)
   const [refreshingRefundId, setRefreshingRefundId] = useState<string | null>(null)
   const limit = 20
 
@@ -73,28 +77,31 @@ export default function AdminBookings() {
   }
 
   const handleAction = async (bookingId: string, action: string) => {
-    const res = await fetch('/api/admin/bookings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId, action }),
-    })
-    if (res.ok) {
-      toast({ title: `Booking ${action}ed` })
-      fetchBookings()
-    } else {
+    if (actionBusy || needsReload) return
+    setActionBusy(true)
+    setNeedsReload(true)
+    setActionError('')
+    try {
+      const res = await fetch('/api/admin/bookings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, action }), signal: AbortSignal.timeout(15000),
+      })
       const data = await res.json()
-      toast({ title: 'Error', description: data.error, variant: 'destructive' })
-    }
+      if (!res.ok) throw new Error(data.error || 'Booking action could not be verified.')
+      if (!await fetchBookings()) throw new Error('Current booking state could not be loaded. Reload before another action.')
+      setNeedsReload(false)
+      toast({ title: 'Booking updated', ...(action === 'cancel' ? { description: checkoutClosureMessage(data.checkoutClosure) } : {}) })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Booking action could not be verified. Reload before another action.')
+    } finally { setActionBusy(false) }
   }
 
   const totalPages = Math.ceil(total / limit)
 
   return (
     <div className="space-y-6 text-white">
-      <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.16),_transparent_32%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 md:p-7">
-        <Badge className="border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10"><Sparkles className="mr-1 h-3.5 w-3.5" /> Booking operations</Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Manage platform bookings in a cleaner, mobile-safe command view.</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">Rows now stack with stronger hierarchy, fee math stays readable on small screens, and actions no longer feel visually detached from the premium Trainr system.</p>
+      <div className="border-b border-white/10 pb-5">
+        <h1 className="text-2xl font-semibold">Bookings</h1>
       </div>
 
       <Card className="border-white/10 bg-white/[0.04] text-white">
@@ -117,6 +124,7 @@ export default function AdminBookings() {
       </Card>
 
       {refundError && <p role="alert" className="border-l-2 border-rose-400 p-3 text-sm text-rose-200">{refundError}</p>}
+      {actionError && <div role="alert" className="border-l-2 border-rose-400 p-3 text-sm text-rose-200">{actionError}<Button variant="outline" disabled={actionBusy} onClick={async () => { if (await fetchBookings()) { setNeedsReload(false); setActionError('') } }}><RefreshCw className="mr-2 h-4 w-4" />Reload booking state</Button></div>}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-emerald-300" /></div>
       ) : loadError ? (
@@ -140,7 +148,7 @@ export default function AdminBookings() {
                     <RefundSummary payment={b.payment} />
                     <div className="mt-2 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
-                      <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString()}</span>
+                      <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                       <span>{b.startTime} – {b.endTime}</span>
                       <span>Booked {new Date(b.createdAt).toLocaleDateString()}</span>
                     </div>
@@ -153,19 +161,20 @@ export default function AdminBookings() {
                       {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                     </div>
                     <div className="flex flex-wrap gap-2 xl:justify-end">
+                      {b.status === 'CANCELLED' && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => void handleAction(b.id, 'cancel')}><RefreshCw className="mr-2 h-4 w-4" />Reconcile checkout</Button>}
                       {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId} onClick={() => void refreshRefunds(b.id)}>
                         {refreshingRefundId === b.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh refunds
                       </Button>}
                       {b.status === 'PENDING' && (
                         <>
-                          <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>
-                          <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}
                       {b.status === 'CONFIRMED' && (
                         <>
-                          <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'complete')}>Complete</Button>
-                          <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'complete')}>Complete</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}
                     </div>

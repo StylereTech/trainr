@@ -131,7 +131,7 @@ function objectId(value: string | { id: string } | null) {
 }
 
 function validateSession(session: Stripe.Checkout.Session, bookingId: string, paymentId: string, amount: number, attemptId?: string) {
-  if (session.mode !== 'payment' || session.currency !== 'usd' || session.amount_total !== amount ||
+  if (!session.id || session.mode !== 'payment' || session.currency !== 'usd' || session.amount_total !== amount ||
       session.metadata?.bookingId !== bookingId || session.metadata?.paymentId !== paymentId ||
       (attemptId && session.metadata?.checkoutAttemptId !== attemptId)) {
     throw new CheckoutConflict('Stripe checkout identity or amount requires reconciliation.')
@@ -139,10 +139,12 @@ function validateSession(session: Stripe.Checkout.Session, bookingId: string, pa
 }
 
 async function rememberSession(bookingId: string, buyer: Buyer, accountId: string, sessionId: string, attemptId: string | null) {
-  const trainerEligible = await prisma.$transaction(async (tx) => {
+  const recorded = await prisma.$transaction(async (tx) => {
     const booking = await lockedBooking(tx, bookingId)
-    assertPayable(booking, buyer, accountId)
     if (!booking?.payment) throw new CheckoutConflict('Payment record not found.')
+    if (booking.parentProfile.userId !== buyer.id || booking.trainerProfile.stripeAccountId !== accountId) {
+      throw new CheckoutConflict('Checkout ownership or destination changed. Contact support.')
+    }
     const current = await tx.checkoutAttempt.findFirst({ where: { paymentId: booking.payment.id }, orderBy: { sequence: 'desc' } })
     if (attemptId && (!current || current.id !== attemptId || current.retiredAt)) throw new CheckoutConflict('Checkout attempt has changed. Refresh before retrying.')
     if (!attemptId && current) throw new CheckoutConflict('Legacy checkout has been replaced.')
@@ -152,10 +154,90 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
     }
     if (current) await tx.checkoutAttempt.update({ where: { id: current.id }, data: { stripeCheckoutSessionId: sessionId } })
     await tx.payment.update({ where: { id: booking.payment.id }, data: { stripeCheckoutSessionId: sessionId } })
-    return booking.trainerProfile.isActive && booking.trainerProfile.approvalStatus === 'APPROVED'
+    return booking
   })
-  // Keep the provider identity even if eligibility changed while Stripe was responding.
-  if (!trainerEligible) throw new CheckoutConflict('Trainer is no longer available for checkout. Contact support to reconcile this booking.')
+  // Save the provider identity even when cancellation wins the external-call race.
+  if (recorded.status === 'CANCELLED') await closeCancelledCheckout(bookingId)
+  assertPayable(recorded, buyer, accountId)
+  if (!recorded.trainerProfile.isActive || recorded.trainerProfile.approvalStatus !== 'APPROVED') throw new CheckoutConflict('Trainer is no longer available for checkout. Contact support to reconcile this booking.')
+}
+
+export type CheckoutClosure = 'closed' | 'not_required' | 'review_required'
+
+export async function closeCancelledCheckout(bookingId: string): Promise<CheckoutClosure> {
+  try {
+    const snapshot = await prisma.$transaction(async tx => {
+      const booking = await lockedBooking(tx, bookingId)
+      if (!booking || booking.status !== 'CANCELLED') throw new CheckoutConflict('Booking is not cancelled')
+      const attempt = booking.payment ? await tx.checkoutAttempt.findFirst({ where: { paymentId: booking.payment.id }, orderBy: { sequence: 'desc' } }) : null
+      return { booking, attempt }
+    })
+    const { booking, attempt } = snapshot
+    const payment = booking.payment
+    if (!payment) return 'not_required'
+    if (payment.amountInCents === 0 && !payment.stripeCheckoutSessionId && !payment.stripePaymentIntentId && !attempt) return 'not_required'
+    const knownId = attempt?.stripeCheckoutSessionId || payment.stripeCheckoutSessionId
+    if (attempt?.stripeCheckoutSessionId && payment.stripeCheckoutSessionId && attempt.stripeCheckoutSessionId !== payment.stripeCheckoutSessionId) return 'review_required'
+    const saved = attempt?.parameters as unknown as Stripe.Checkout.SessionCreateParams | undefined
+    const expectedAttemptId = saved?.metadata?.checkoutAttemptId === attempt?.id ? attempt?.id : undefined
+    const options = { timeout: 8000, maxNetworkRetries: 0 }
+    let session: Stripe.Checkout.Session
+    if (knownId) session = await stripe.checkout.sessions.retrieve(knownId, {}, options)
+    else {
+      // Recover only the original durable request, never a replacement or an aged-out key.
+      if (!attempt || attempt.retiredAt || !expectedAttemptId || Date.now() - attempt.createdAt.getTime() >= RECOVERY_WINDOW_MS ||
+          !['PENDING', 'FAILED'].includes(payment.status) || payment.stripePaymentIntentId || payment.stripeChargeId || payment.stripeTransferId ||
+          saved?.metadata?.bookingId !== bookingId || saved.metadata.paymentId !== payment.id || saved.mode !== 'payment' ||
+          saved.line_items?.length !== 1 || saved.line_items[0].quantity !== 1 || saved.line_items[0].price_data?.unit_amount !== payment.amountInCents ||
+          saved.line_items[0].price_data?.currency !== 'usd' || saved.payment_intent_data?.application_fee_amount !== payment.platformFeeInCents ||
+          saved.payment_intent_data?.transfer_data?.destination !== booking.trainerProfile.stripeAccountId) return 'review_required'
+      session = await stripe.checkout.sessions.create(saved, { ...options, idempotencyKey: `trainr-checkout-${attempt.id}` })
+    }
+    const validate = (observed: Stripe.Checkout.Session) => {
+      validateSession(observed, bookingId, payment.id, payment.amountInCents, expectedAttemptId)
+      if ((knownId && observed.id !== knownId) || (payment.stripePaymentIntentId && objectId(observed.payment_intent) !== payment.stripePaymentIntentId)) throw new CheckoutConflict('Checkout identity changed')
+    }
+    validate(session)
+    // External requests are outside SQL locks; recheck identity before saving recovery.
+    await prisma.$transaction(async tx => {
+      const current = await lockedBooking(tx, bookingId)
+      if (!current?.payment || current.status !== 'CANCELLED' || current.payment.id !== payment.id) throw new CheckoutConflict('Cancellation changed')
+      const latest = await tx.checkoutAttempt.findFirst({ where: { paymentId: payment.id }, orderBy: { sequence: 'desc' } })
+      if (latest?.id !== attempt?.id || (latest?.stripeCheckoutSessionId && latest.stripeCheckoutSessionId !== session.id) ||
+          (current.payment.stripeCheckoutSessionId && current.payment.stripeCheckoutSessionId !== session.id)) throw new CheckoutConflict('Checkout identity changed')
+      if (latest) await tx.checkoutAttempt.update({ where: { id: latest.id }, data: { stripeCheckoutSessionId: session.id } })
+      await tx.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } })
+    })
+    const sessionId = session.id
+    if (session.status === 'open' && session.payment_status === 'unpaid') {
+      try { session = await stripe.checkout.sessions.expire(sessionId, {}, { ...options, idempotencyKey: `trainr-cancel-${sessionId}` }) }
+      catch { session = await stripe.checkout.sessions.retrieve(sessionId, {}, options) }
+      validate(session)
+      if (session.id !== sessionId) return 'review_required'
+    }
+    if (session.payment_status === 'paid') {
+      await applyPaymentEvidence({ bookingId, paymentId: payment.id, attemptId: expectedAttemptId, sessionId, intentId: objectId(session.payment_intent),
+        amount: session.amount_total, currency: session.currency, outcome: 'paid' })
+      return 'review_required'
+    }
+    if (session.status !== 'expired' || session.payment_status !== 'unpaid' || session.after_expiration?.recovery?.enabled) return 'review_required'
+    const intentId = objectId(session.payment_intent)
+    if (intentId) {
+      const intent = await stripe.paymentIntents.retrieve(intentId, {}, options)
+      if (intent.id !== intentId || intent.status !== 'canceled') return 'review_required'
+    }
+    return await prisma.$transaction(async tx => {
+      const latest = await lockedBooking(tx, bookingId)
+      const current = latest?.payment
+      if (latest?.status !== 'CANCELLED' || !current || current.id !== payment.id || current.stripeCheckoutSessionId !== sessionId ||
+          current.amountInCents !== payment.amountInCents || !['PENDING', 'FAILED'].includes(current.status) || current.stripeChargeId || current.stripeTransferId ||
+          current.refundAmountInCents > 0 || current.refundPendingAmountInCents > 0 || (current.stripePaymentIntentId && current.stripePaymentIntentId !== intentId)) return 'review_required'
+      return 'closed'
+    })
+  } catch {
+    // Booking cancellation remains committed; an unknown provider outcome is not closure.
+    return 'review_required'
+  }
 }
 
 export async function startOrResumeCheckout(bookingId: string, buyer: Buyer, accountId: string) {
