@@ -1,205 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { isStripeAccountReady } from '@/lib/stripe-account'
-import {
-  createAccountLink,
-  createConnectedAccount,
-  createDashboardLink,
-  mapStripeError,
-  stripe,
-  stripeRuntimeStatus,
-} from '@/lib/stripe'
+import { createAccountLink, createDashboardLink, stripeRuntimeStatus } from '@/lib/stripe'
+import { toAbsoluteAppUrl } from '@/lib/app-url'
+import { ConnectAccountError, currentConnectTrainer, ensureConnectAccount, verifiedConnectAccount } from '@/lib/connect-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-function getBaseUrl(request: NextRequest) {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL
-  if (configured) {
-    return configured.replace(/\/$/, '')
-  }
-
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3001'
-  const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https')
-  return `${proto}://${host}`
-}
-
-async function getTrainerProfileOrResponse(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { trainerProfile: true },
-  })
-
-  if (!user || user.role !== 'TRAINER') {
-    return {
-      response: NextResponse.json({ error: 'Trainer account required' }, { status: 403 }) as NextResponse,
-    }
-  }
-
-  if (!user.trainerProfile) {
-    return {
-      response: NextResponse.json({ error: 'Trainer profile not found' }, { status: 404 }) as NextResponse,
-    }
-  }
-
-  return {
-    user,
-    trainerProfile: user.trainerProfile,
-  }
-}
+const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
+const failure = (error: unknown) => error instanceof ConnectAccountError ? json({ error: error.message }, error.status) : json({ error: 'Unable to verify Stripe setup. Please retry; your existing account has not been replaced.' }, 503)
 
 export async function GET(request: NextRequest) {
   try {
-    const requestUser = await getRequestUser(request)
-    if (!requestUser?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const trainerState = await getTrainerProfileOrResponse(requestUser.id)
-    if ('response' in trainerState) return trainerState.response
-
-    const runtimeStatus = stripeRuntimeStatus()
-    const { trainerProfile } = trainerState
-
-    let chargesEnabled: boolean | null = null
-    let payoutsEnabled: boolean | null = null
-    let providerError = ''
-
-    if (runtimeStatus.secretConfigured && trainerProfile.stripeAccountId) {
+    const actor = await getRequestUser(request)
+    if (!actor) return json({ error: 'Unauthorized' }, 401)
+    if (actor.role !== 'TRAINER') return json({ error: 'Trainer account required' }, 403)
+    const trainer = await currentConnectTrainer(actor.id)
+    const runtime = stripeRuntimeStatus()
+    const result = { providerConfigured: runtime.secretConfigured, publishableKeyConfigured: runtime.publishableConfigured,
+      stripeAccountId: trainer.stripeAccountId, stripeOnboardingComplete: false, chargesEnabled: null as boolean | null,
+      payoutsEnabled: null as boolean | null, detailsSubmitted: null as boolean | null, providerError: '', dashboardSupported: false,
+      onboardingSupported: runtime.secretConfigured && !trainer.stripeAccountId }
+    if (runtime.secretConfigured && trainer.stripeAccountId) {
       try {
-        const account = await stripe.accounts.retrieve(trainerProfile.stripeAccountId)
-        chargesEnabled = account.charges_enabled
-        payoutsEnabled = account.payouts_enabled
-
-        const onboardingComplete = isStripeAccountReady(account)
-        if (onboardingComplete !== trainerProfile.stripeOnboardingComplete) {
-          await prisma.trainerProfile.update({
-            where: { id: trainerProfile.id },
-            data: { stripeOnboardingComplete: onboardingComplete },
-          })
-          trainerProfile.stripeOnboardingComplete = onboardingComplete
-        }
+        const account = await verifiedConnectAccount(actor.id, trainer.stripeAccountId)
+        result.chargesEnabled = account.charges_enabled
+        result.payoutsEnabled = account.payouts_enabled
+        result.detailsSubmitted = account.details_submitted
+        result.stripeOnboardingComplete = isStripeAccountReady(account)
+        result.dashboardSupported = account.type === 'express' && result.stripeOnboardingComplete
+        result.onboardingSupported = account.type === 'express' && !result.stripeOnboardingComplete
+        if (account.type !== 'express') result.providerError = 'This Stripe account requires support for dashboard access. Its identity has been preserved.'
       } catch (error) {
-        providerError = mapStripeError(error, 'Unable to refresh Stripe account status').detail
+        if (error instanceof ConnectAccountError && error.status === 403) throw error
+        result.providerError = 'Current Stripe status could not be verified. Retry or contact support; your existing account has been preserved.'
       }
     }
-
-    return NextResponse.json({
-      providerConfigured: runtimeStatus.secretConfigured,
-      publishableKeyConfigured: runtimeStatus.publishableConfigured,
-      stripeAccountId: trainerProfile.stripeAccountId,
-      stripeOnboardingComplete: trainerProfile.stripeOnboardingComplete,
-      chargesEnabled,
-      payoutsEnabled,
-      providerError,
-      dashboardSupported: Boolean(trainerProfile.stripeAccountId && trainerProfile.stripeOnboardingComplete),
-      onboardingSupported: runtimeStatus.secretConfigured,
-      baseUrl: getBaseUrl(request),
-    })
-  } catch (error) {
-    const normalized = mapStripeError(error, 'Failed to load Stripe payment status')
-    return NextResponse.json({ error: normalized.message, detail: normalized.detail }, { status: normalized.status })
-  }
+    return json(result)
+  } catch (error) { return failure(error) }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const requestUser = await getRequestUser(request)
-    if (!requestUser?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const runtimeStatus = stripeRuntimeStatus()
-    if (!runtimeStatus.secretConfigured) {
-      return NextResponse.json({ error: 'Stripe is not configured on this runtime' }, { status: 503 })
-    }
-
-    const trainerState = await getTrainerProfileOrResponse(requestUser.id)
-    if ('response' in trainerState) return trainerState.response
-
-    const { user, trainerProfile } = trainerState
-    const baseUrl = getBaseUrl(request)
-
-    let accountId = trainerProfile.stripeAccountId
-    let onboardingComplete = trainerProfile.stripeOnboardingComplete
-
-    if (accountId) {
-      try {
-        const account = await stripe.accounts.retrieve(accountId)
-        onboardingComplete = isStripeAccountReady(account)
-
-        if (account.type !== 'express' && !onboardingComplete) {
-          const replacement = await createConnectedAccount(user.id, user.email)
-          accountId = replacement.id
-          onboardingComplete = false
-          await prisma.trainerProfile.update({
-            where: { id: trainerProfile.id },
-            data: {
-              stripeAccountId: replacement.id,
-              stripeOnboardingComplete: false,
-            },
-          })
-        } else if (onboardingComplete !== trainerProfile.stripeOnboardingComplete) {
-          await prisma.trainerProfile.update({
-            where: { id: trainerProfile.id },
-            data: { stripeOnboardingComplete: onboardingComplete },
-          })
-        }
-      } catch (error) {
-        const normalized = mapStripeError(error, 'Unable to refresh Stripe account')
-
-        if (normalized.message === 'Trainer payment account needs reconnection before checkout can continue') {
-          accountId = null
-          onboardingComplete = false
-          await prisma.trainerProfile.update({
-            where: { id: trainerProfile.id },
-            data: {
-              stripeAccountId: null,
-              stripeOnboardingComplete: false,
-            },
-          })
-        } else {
-          return NextResponse.json({ error: normalized.message, detail: normalized.detail }, { status: normalized.status })
-        }
-      }
-    }
-
-    if (!accountId) {
-      const account = await createConnectedAccount(user.id, user.email)
-      accountId = account.id
-      onboardingComplete = false
-      await prisma.trainerProfile.update({
-        where: { id: trainerProfile.id },
-        data: {
-          stripeAccountId: account.id,
-          stripeOnboardingComplete: false,
-        },
-      })
-    }
-
-    if (onboardingComplete) {
-      const dashboardLink = await createDashboardLink(accountId)
-      return NextResponse.json({
-        dashboardUrl: dashboardLink.url,
-        stripeAccountId: accountId,
-        stripeOnboardingComplete: true,
-      })
-    }
-
-    const accountLink = await createAccountLink(
-      accountId,
-      `${baseUrl}/trainer/dashboard?stripe=complete`,
-      `${baseUrl}/trainer/dashboard?stripe=refresh`,
-    )
-
-    return NextResponse.json({
-      onboardingUrl: accountLink.url,
-      stripeAccountId: accountId,
-      stripeOnboardingComplete: false,
-    })
-  } catch (error) {
-    const normalized = mapStripeError(error, 'Failed to create Stripe account link')
-    return NextResponse.json({ error: normalized.message, detail: normalized.detail }, { status: normalized.status })
-  }
+    const actor = await getRequestUser(request)
+    if (!actor) return json({ error: 'Unauthorized' }, 401)
+    if (actor.role !== 'TRAINER') return json({ error: 'Trainer account required' }, 403)
+    if (!stripeRuntimeStatus().secretConfigured) return json({ error: 'Stripe is not configured on this runtime' }, 503)
+    const initial = await currentConnectTrainer(actor.id)
+    const accountId = await ensureConnectAccount(actor.id)
+    const account = await verifiedConnectAccount(actor.id, accountId)
+    if (account.type !== 'express') throw new ConnectAccountError('This existing Stripe account requires support. Automatic replacement is disabled.')
+    const ready = isStripeAccountReady(account)
+    const link = ready ? await createDashboardLink(accountId) : await createAccountLink(accountId,
+      toAbsoluteAppUrl('/trainer/dashboard?stripe=complete'), toAbsoluteAppUrl('/trainer/dashboard?stripe=refresh'))
+    const current = await currentConnectTrainer(actor.id)
+    if (current.stripeAccountId !== accountId || current.user.sessionVersion !== initial.user.sessionVersion) throw new ConnectAccountError('Account access changed. Reload before continuing.')
+    return json({ [ready ? 'dashboardUrl' : 'onboardingUrl']: link.url, stripeAccountId: accountId, stripeOnboardingComplete: ready })
+  } catch (error) { return failure(error) }
 }

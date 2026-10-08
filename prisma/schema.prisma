@@ -123,8 +123,20 @@ model TrainerProfile {
   favorites       Favorite[]
   wallet          TrainerWallet?
   phoneLeads      TrainerPhoneLead[]
+  connectAttempt ConnectAccountAttempt?
 
   @@map("trainer_profiles")
+}
+
+model ConnectAccountAttempt {
+  id               String @id @default(cuid())
+  trainerProfileId String @unique
+  email            String?
+  createdAt        DateTime @default(now())
+  stripeAccountId  String? @unique
+  trainerProfile   TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@map("connect_account_attempts")
 }
 
 model TrainerPhoneLead {

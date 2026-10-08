@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   notification: { createMany: vi.fn() },
   wallet: { update: vi.fn(), create: vi.fn() },
 }))
-vi.mock('@/lib/auth', () => ({ authOptions: {}, getServerSession: mocks.session }))
+vi.mock('@/lib/auth', () => ({ authOptions: {}, getServerSession: mocks.session, getRequestUser: async () => (await mocks.session())?.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction: mocks.transaction,
   trainerProfile: mocks.trainer, booking: mocks.booking, payment: mocks.payment,
@@ -59,12 +59,12 @@ describe('Stripe account readiness', () => {
   })
 
   it('revokes cached readiness when the trainer status endpoint sees disabled payouts', async () => {
-    mocks.trainer.findUnique.mockResolvedValue({ id: 'trainer', stripeAccountId: 'acct_test', stripeOnboardingComplete: true })
-    mocks.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
+    mocks.trainer.findUnique.mockResolvedValue({ id: 'trainer', isActive: true, user: { role: 'TRAINER', deletedAt: null, sessionVersion: 0 }, stripeAccountId: 'acct_test', stripeOnboardingComplete: true })
+    mocks.account.mockResolvedValue({ id: 'acct_test', type: 'express', details_submitted: true, charges_enabled: true, payouts_enabled: false })
     const { GET } = await import('@/app/api/trainer/stripe-connect/route')
     const response = await GET(new Request('http://localhost/api/trainer/stripe-connect') as any)
     expect((await response.json()).onboardingComplete).toBe(false)
-    expect(mocks.trainer.update).toHaveBeenCalledWith({ where: { id: 'trainer' }, data: { stripeOnboardingComplete: false } })
+    expect(mocks.trainer.updateMany).toHaveBeenCalledWith({ where: { id: 'trainer', stripeAccountId: 'acct_test' }, data: { stripeOnboardingComplete: false } })
   })
 })
 

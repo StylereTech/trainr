@@ -76,13 +76,13 @@ export function mapStripeError(error: unknown, fallbackMessage = 'Stripe request
   }
 }
 
-export async function createConnectedAccount(trainerId: string, email: string) {
+export async function createConnectedAccount(trainerId: string, email: string, idempotencyKey: string) {
   const account = await stripe.accounts.create({
     type: 'express',
     country: 'US',
     email,
     metadata: { trainerId },
-  })
+  }, { idempotencyKey, timeout: 15000, maxNetworkRetries: 0 })
   return account
 }
 

@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency } from '@/lib/utils'
+import { stripeRedirect } from '@/lib/connect-contract'
 import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
@@ -241,10 +242,10 @@ function TrainerProfileContent() {
   const handleStripeConnect = async () => {
     setConnectingStripe(true)
     try {
-      const res = await fetch('/api/payments/connect', { method: 'POST' })
+      const res = await fetch('/api/payments/connect', { method: 'POST', signal: AbortSignal.timeout(20000) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      const url = data.dashboardUrl || data.onboardingUrl
+      const url = stripeRedirect(data.dashboardUrl || data.onboardingUrl)
       if (!url) throw new Error('Stripe did not return an account link')
       window.location.href = url
     } catch (error: any) {

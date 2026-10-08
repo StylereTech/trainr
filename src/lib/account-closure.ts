@@ -25,6 +25,7 @@ export async function closeAccount(tx: Prisma.TransactionClient, userId: string)
   }
   if (user.trainerProfile) {
     const trainerProfileId = user.trainerProfile.id
+    await tx.connectAccountAttempt.updateMany({ where: { trainerProfileId }, data: { email: null } })
     await tx.trainerProfile.update({ where: { id: trainerProfileId }, data: {
       firstName: 'Deleted', lastName: 'Trainer', slug: `deleted-trainer-${trainerProfileId}`,
       headline: null, bio: null, phone: null, address: null, city: null, state: null, zipCode: null,

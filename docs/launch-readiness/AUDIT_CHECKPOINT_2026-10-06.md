@@ -1,5 +1,11 @@
 # Production Audit Checkpoint
 
+## Connect Identity Checkpoint: 2026-10-08 UTC
+
+Baseline `0eab36674bbbfaf75d84d0671f0ca30869771a16` plus this commit. Removed automatic replacement of existing Stripe accounts; unified both setup routes behind a durable idempotent creation attempt; blocked legacy payment history without an account from being treated as new. Fresh provider status drives readiness. Closed/revoked users are denied while inactive listings retain financial dashboard access. Added an additive migration, applied only to guarded local SQL. [Exact findings, routes, accounts, recovery procedure, initial failures and publication proof](CONNECT_ACCOUNT_IDENTITY_REPORT.md).
+
+Final **644 unit tests, 134 real PostgreSQL tests, 51 desktop/mobile browser tests, lint, typecheck and production build passed**. One preceding browser run had two unrelated desktop timeouts; both passed three unchanged repetitions and the complete 51-case rerun passed in 2.9 minutes. Cause remains unproven; traces retained and risk documented. Test fixtures were removed and local services stopped. Main remains `2067e743c54ffee669cd484f26dc472b157f1881`; no production migration/promotion or real Stripe money movement. Full checkout/Connect/transfer/refund/payout proof, isolated staging, registration/athlete/timezone/cancellation/security and correct-project rollout gates remain open. Goal active, production/money-flow signoff HOLD.
+
 ## Dashboard Checkpoint: 2026-10-08 09:10 UTC
 
 Baseline `0dfd7a19e9155facc7be7a95e41cb741fb5ba0be` plus this commit. Fixed first-page-only dashboard counts/history, failed reads masquerading as empty accounts, fabricated earnings totals and uncertain trainer action recovery. Added role-scoped snapshot pagination and explicit provider balance/error states. Final **634 unit tests / 34 files, 114 real local PostgreSQL tests, 47 desktop/mobile browser tests, lint, typecheck and production build passed**. Eight screenshots inspected; synthetic-record counts independently zero and local services stopped. [Exact steps, accounts, initial failures, retest evidence and remaining limits](DASHBOARD_DATA_INTEGRITY_REPORT.md).

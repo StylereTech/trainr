@@ -22,7 +22,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
           totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, notes: `Synthetic row ${index}`, payment: { create: { amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, status: 'SUCCEEDED' } } } })
         await localAuth.signIn(role === 'PARENT' ? parent : trainer)
         // Only external Stripe observations are simulated; booking/athlete reads and mutations are real HTTP + SQL.
-        await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false } }))
+        await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, providerError: '', dashboardSupported: false, onboardingSupported: true } }))
         let balanceReads = 0
         await page.route('**/api/trainer/wallet', route => { balanceReads++; return route.fulfill({ json: { source: 'stripe', connected: true, currency: 'usd', wallet: { availableBalance: 2500, pendingBalance: 1100 } } }) })
         await page.goto(`/${role.toLowerCase()}/dashboard`)
@@ -90,7 +90,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       let bookingFailure = true, detailFailure = true
       await page.route('**/api/dashboard/bookings?*', route => bookingFailure ? route.fulfill({ status: 503, json: { error: 'Synthetic read failure' } }) : route.continue())
       await page.route('**/api/athletes', route => detailFailure ? route.fulfill({ json: {} }) : route.continue())
-      await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false } }))
+      await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, providerError: '', dashboardSupported: false, onboardingSupported: true } }))
       await page.route('**/api/trainer/wallet', route => detailFailure ? route.fulfill({ status: 503, json: { error: 'Synthetic provider unavailable' } }) : route.fulfill({ json: { source: 'stripe', connected: true, currency: 'usd', wallet: { availableBalance: -2500, pendingBalance: 1000 } } }))
       await page.goto(`/${role.toLowerCase()}/dashboard`)
       await expect(page.getByRole('alert').filter({ hasText: 'Unable to load current bookings.' })).toBeVisible()

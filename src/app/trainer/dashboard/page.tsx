@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,18 +27,7 @@ import { dashboardResponseSchema, payoutBalanceSchema } from '@/lib/dashboard-co
 import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { TrainerBalance } from '@/components/shared/TrainerBalance'
-
-interface StripeConnectStatus {
-  providerConfigured: boolean
-  publishableKeyConfigured: boolean
-  stripeAccountId: string | null
-  stripeOnboardingComplete: boolean
-  chargesEnabled: boolean | null
-  payoutsEnabled: boolean | null
-  providerError: string
-  dashboardSupported: boolean
-  onboardingSupported: boolean
-}
+import { connectStatusSchema, stripeRedirect } from '@/lib/connect-contract'
 
 export default function TrainerDashboard() {
   const router = useRouter()
@@ -52,37 +41,8 @@ export default function TrainerDashboard() {
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [needsReload, setNeedsReload] = useState(false)
-  const [stripeStatus, setStripeStatus] = useState<StripeConnectStatus | null>(null)
-  const [stripeStatusLoading, setStripeStatusLoading] = useState(true)
-  const [stripeStatusError, setStripeStatusError] = useState('')
+  const { data: stripeStatus, loading: stripeStatusLoading, error: stripeStatusError, reload: loadStripeStatus } = useRemoteData('/api/payments/connect', connectStatusSchema)
   const [launchingStripe, setLaunchingStripe] = useState(false)
-
-  const loadStripeStatus = useCallback(async () => {
-    try {
-      setStripeStatusLoading(true)
-      setStripeStatusError('')
-
-      const res = await fetch('/api/payments/connect', { cache: 'no-store' })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setStripeStatus(null)
-        setStripeStatusError(data.error || 'Unable to load Stripe payout status right now.')
-        return
-      }
-
-      setStripeStatus(data)
-    } catch {
-      setStripeStatus(null)
-      setStripeStatusError('Unable to load Stripe payout status right now.')
-    } finally {
-      setStripeStatusLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadStripeStatus()
-  }, [loadStripeStatus])
 
   useEffect(() => {
     const stripeState = searchParams.get('stripe')
@@ -131,7 +91,7 @@ export default function TrainerDashboard() {
   const handleStripeConnect = async () => {
     try {
       setLaunchingStripe(true)
-      const res = await fetch('/api/payments/connect', { method: 'POST' })
+      const res = await fetch('/api/payments/connect', { method: 'POST', signal: AbortSignal.timeout(20000) })
       const data = await res.json()
 
       if (!res.ok) {
@@ -144,7 +104,7 @@ export default function TrainerDashboard() {
         return
       }
 
-      const redirectUrl = data.dashboardUrl || data.onboardingUrl
+      const redirectUrl = stripeRedirect(data.dashboardUrl || data.onboardingUrl)
       if (!redirectUrl) {
         toast({
           title: 'Stripe setup unavailable',
@@ -183,7 +143,8 @@ export default function TrainerDashboard() {
     all: bookings,
   }
 
-  const stripeReady = Boolean(stripeStatus?.stripeOnboardingComplete)
+  const stripeUnknown = !stripeStatus || !!stripeStatusError || !!stripeStatus.providerError || !stripeStatus.providerConfigured
+  const stripeReady = !stripeUnknown && !!stripeStatus?.stripeOnboardingComplete && stripeStatus.chargesEnabled === true && stripeStatus.payoutsEnabled === true
   const stripeStarted = Boolean(stripeStatus?.stripeAccountId)
 
   return (
@@ -220,11 +181,13 @@ export default function TrainerDashboard() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-3xl">
                 <div className="inline-flex items-center gap-2 font-semibold text-white"><Wallet className="h-4 w-4 text-emerald-300" /> Stripe payout setup</div>
-                <p className="mt-2 text-sm leading-6 text-slate-300">Parents cannot complete checkout until your Stripe payout setup is live. This gives trainers a self-serve path instead of leaving payment blocked.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">Stripe account status</p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {stripeStatusLoading ? (
                     <Badge className="border border-white/10 bg-white/5 text-slate-200"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Checking Stripe</Badge>
+                  ) : stripeUnknown ? (
+                    <Badge className="border border-amber-400/30 bg-amber-400/10 text-amber-100"><AlertTriangle className="mr-1 h-3 w-3" />Stripe status unverified</Badge>
                   ) : stripeReady ? (
                     <Badge className="border border-emerald-400/30 bg-emerald-400/10 text-emerald-100"><CheckCircle2 className="mr-1 h-3 w-3" />Payments ready</Badge>
                   ) : stripeStarted ? (
@@ -248,13 +211,10 @@ export default function TrainerDashboard() {
 
                 {stripeStatusError && <p className="mt-3 text-sm text-rose-300">{stripeStatusError}</p>}
                 {!stripeStatusError && stripeStatus && !stripeStatus.providerConfigured && (
-                  <p className="mt-3 text-sm text-rose-300">Stripe is not configured on this runtime yet, so trainer onboarding cannot finish here until the env is repaired.</p>
+                  <p className="mt-3 text-sm text-rose-300">Stripe setup is currently unavailable. Contact support.</p>
                 )}
                 {!stripeStatusError && stripeStatus?.providerError && (
                   <p className="mt-3 text-sm text-amber-200">{stripeStatus.providerError}</p>
-                )}
-                {!stripeStatusError && stripeStatus?.providerConfigured && !stripeReady && (
-                  <p className="mt-3 text-sm text-slate-300">Start or resume Stripe onboarding here, then come back. Once charges and payouts are enabled, parents can pay normally.</p>
                 )}
               </div>
 
@@ -262,7 +222,7 @@ export default function TrainerDashboard() {
                 <Button
                   className="gradient-primary border-0 text-white"
                   onClick={handleStripeConnect}
-                  disabled={launchingStripe || stripeStatusLoading || !stripeStatus?.providerConfigured}
+                  disabled={launchingStripe || stripeStatusLoading || stripeUnknown || !(stripeStatus?.dashboardSupported || stripeStatus?.onboardingSupported)}
                 >
                   {launchingStripe ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Opening Stripe...</>
@@ -274,6 +234,7 @@ export default function TrainerDashboard() {
                     <><ArrowRight className="mr-2 h-4 w-4" />Start Stripe setup</>
                   )}
                 </Button>
+                <Button variant="outline" disabled={stripeStatusLoading || launchingStripe} onClick={() => void loadStripeStatus()}><RefreshCw className="mr-2 h-4 w-4" />Refresh Stripe status</Button>
                 <Link href="/trainer/profile">
                   <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
                     <Settings className="mr-2 h-4 w-4" />Review trainer profile

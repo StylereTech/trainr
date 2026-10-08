@@ -16,6 +16,7 @@ import { applyTrainerAdminAction } from '@/lib/trainer-admin-actions'
 import { PATCH as patchTrainerDecision } from '@/app/api/admin/trainers/[id]/route'
 import { readDashboardBookings } from '@/lib/dashboard-bookings'
 import { dashboardResponseSchema } from '@/lib/dashboard-contract'
+import { ensureConnectAccount } from '@/lib/connect-accounts'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -101,6 +102,15 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it.each(['paid', 'checkout-attempt'])('does not initialize a replacement for an unlinked trainer with %s history', async kind => {
+    const booking = await reserve()
+    const payment = await pendingPayment(booking.id)
+    if (kind === 'paid') await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    else await prisma.checkoutAttempt.create({ data: { paymentId: payment.id, sequence: 1, parameters: {} } })
+    await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { stripeAccountId: null } })
+    await expect(ensureConnectAccount(fixture.trainerUser)).rejects.toThrow('Existing payment history')
+    expect(await prisma.connectAccountAttempt.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+  })
   async function dashboardRows() {
     const parent = await prisma.parentProfile.findUniqueOrThrow({ where: { userId: fixture.parent } })
     const statuses = [...Array(12).fill('PENDING'), ...Array(13).fill('CONFIRMED'), ...Array(8).fill('COMPLETED'), 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] as Array<'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'RESCHEDULED'>
