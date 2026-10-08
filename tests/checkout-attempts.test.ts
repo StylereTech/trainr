@@ -29,6 +29,7 @@ function pendingPayment() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mock.query.mockResolvedValue([])
   failSave = false
   failAfterAccept = false
   sessions = new Map()

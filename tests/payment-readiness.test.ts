@@ -39,6 +39,7 @@ vi.mock('@/lib/stripe', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.query.mockResolvedValue([])
   mocks.transaction.mockImplementation(async (run) => run({
     $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
     checkoutAttempt: { findFirst: async () => null },

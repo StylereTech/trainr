@@ -21,6 +21,7 @@ let state: any
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mock.query.mockResolvedValue([])
   state = {
     id: 'booking', status: 'PENDING', totalAmountInCents: 7500, date: new Date('2026-11-01'),
     payment: {

@@ -119,13 +119,15 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
         data: notificationData,
       })
     }
-    if (newFinancialReview) {
+    if (newFinancialReview || (newlyPaid && needsReview)) {
       // Lock recipients only after provider reads; revocation must not win between selection and delivery.
       const admins = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM users WHERE role = 'ADMIN' AND "deletedAt" IS NULL ORDER BY id FOR SHARE`
       for (const admin of admins) {
         if (notifications.some(item => item.userId === admin.id)) continue
         notifications.push({ userId: admin.id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Stripe payment needs review',
-          message: 'Review the current dispute, transfer reversal or fee refund in Stripe. Check evidence deadlines and reconcile the customer and trainer balances before issuing money movement.', data: notificationData })
+          message: settlement.requiresReview
+            ? 'Review the current dispute, transfer reversal or fee refund in Stripe. Check evidence deadlines and reconcile the customer and trainer balances before issuing money movement.'
+            : 'Payment arrived for a cancelled or rescheduled booking. The booking has not been reopened. Review the payment in Stripe and reconcile the customer and trainer balances before issuing money movement.', data: notificationData })
       }
     }
     if (notifications.length) await tx.notification.createMany({ data: notifications })

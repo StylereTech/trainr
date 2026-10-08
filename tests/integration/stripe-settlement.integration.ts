@@ -203,13 +203,14 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     expect((await webhook('charge.dispute.created', undefined, object)).status).toBe(200)
     expect((await booking()).status).toBe('PENDING')
   })
-  it('notifies only active admins and rolls the whole observation back when an admin notice fails', async () => {
+  it.each(['reversal', 'late'])('notifies only active admins and rolls back a %s observation when an admin notice fails', async mode => {
     const active = await prisma.user.create({ data: { email: `active-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); users.push(active.id)
     const deleted = await prisma.user.create({ data: { email: `deleted-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login', deletedAt: new Date() } }); users.push(deleted.id)
     expect(verified).toBe(true)
     expect(active.id).toMatch(/^[a-z0-9]+$/)
     await independent.$executeRawUnsafe(`ALTER TABLE notifications ADD CONSTRAINT financial_admin_notification_failure CHECK ("userId" <> '${active.id}') NOT VALID`)
-    f.transfer.amount_reversed = 1000
+    if (mode === 'reversal') f.transfer.amount_reversed = 1000
+    else await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
     try {
       expect((await webhook('transfer.reversed', undefined, f.transfer)).status).toBe(503)
       expect((await payment()).status).toBe('PENDING')
@@ -221,9 +222,11 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     await webhook('transfer.reversed', undefined, f.transfer)
     expect(await independent.notification.count({ where: { userId: active.id, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
     expect(await independent.notification.count({ where: { userId: deleted.id } })).toBe(0)
-    expect((await booking()).status).toBe('PENDING')
+    expect((await booking()).status).toBe(mode === 'late' ? 'CANCELLED' : 'PENDING')
   })
-  it.each(['role', 'deactivation'])('does not disclose a new review to an admin whose %s change commits while delivery waits', async change => {
+  it.each([
+    ['role', 'reversal'], ['deactivation', 'reversal'], ['role', 'late'], ['deactivation', 'late'],
+  ])('does not disclose a review after admin %s commits while %s delivery waits', async (change, mode) => {
     const admin = await prisma.user.create({ data: { email: `race-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); users.push(admin.id)
     let release!: () => void
     let ready!: (pid: number) => void
@@ -237,7 +240,8 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
       await untilReleased
     }, { timeout: 15000 })
     const holder = await locked
-    f.transfer.amount_reversed = 1000
+    if (mode === 'reversal') f.transfer.amount_reversed = 1000
+    else await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
     const delivery = webhook('transfer.reversed', undefined, f.transfer)
     let response: Awaited<typeof delivery>
     try {
@@ -349,11 +353,23 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     expect((await booking()).status).toBe(mode === 'valid' ? 'CONFIRMED' : 'PENDING')
   })
   it.each(['CANCELLED', 'RESCHEDULED'] as const)('records genuine late settlement without reopening %s', async status => {
+    const admin = await prisma.user.create({ data: { email: `late-admin-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); users.push(admin.id)
     await prisma.booking.update({ where: { id: f.booking.id }, data: { status } })
-    expect((await webhook()).status).toBe(200)
+    const responses = await Promise.all([webhook(), webhook()])
+    expect(responses.map(response => response.status)).toEqual([200, 200])
+    expect((await webhook('payment_intent.succeeded', undefined, f.intent)).status).toBe(200)
     expect((await booking()).status).toBe(status)
     expect((await payment()).stripeTransferId).toBe(f.transfer.id)
+    expect(await notices()).toHaveLength(2)
     expect((await notices()).every(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
+    const inbox = await readNotifications(admin, { page: 1, limit: 50, view: 'all' })
+    expect(inbox.notifications).toHaveLength(1)
+    expect(inbox.notifications[0]).toMatchObject({ type: 'PAYMENT_REVIEW_REQUIRED', bookingId: f.booking.id,
+      message: expect.stringContaining('cancelled or rescheduled') })
+    await changeNotifications(admin, { ids: [inbox.notifications[0].id], read: true })
+    expect((await webhook()).status).toBe(200)
+    expect((await readNotifications(admin, { page: 1, limit: 50, view: 'unread' })).unreadCount).toBe(0)
+    expect((await booking()).status).toBe(status)
   })
   it.each(['dispute', 'reversal', 'fee-refund'])('withholds confirmation for %s, records financial identities, and requests review', async mode => {
     if (mode === 'dispute') {
