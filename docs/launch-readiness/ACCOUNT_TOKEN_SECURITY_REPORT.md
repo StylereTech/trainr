@@ -6,7 +6,7 @@
 - Baseline commit: `f2c9fff915e586b9b13c638691e6ce985fa31d80`, branch `codex/payment-readiness-20261006`; working tree was clean. Previous goal turn published booking-retry fixes and evidence, so it made concrete progress.
 - Environment: local production build, guarded disposable PostgreSQL `trainr_audit_20261008` at loopback port 55439. Accounts use `registration-<UUID>@example.test`, `session-<UUID>@example.test` and `browser-registration-<UUID>@example.test`; no customer/demo credentials.
 - Finding P1: verification and password-reset bearer tokens were stored directly in `users`. A database disclosure could expose usable account links before expiry. Existing single-use SQL predicates and session revocation were retained.
-- Status: local hardening in progress; full production and money-flow signoff remains **HOLD**. No real Stripe/email delivery, production migration or main promotion is established by this report.
+- Status: hardening verified locally and published to the audit branch; full production and money-flow signoff remains **HOLD**. No real Stripe/email delivery, production migration or main promotion is established by this report.
 
 ## Implementation
 
@@ -48,4 +48,12 @@ Focused SQL: **32 tests / 2 files passed in 13.39 seconds**. Intentional unique/
 - Visually inspected retained synthetic evidence: [desktop verification](evidence/account-tokens-20261008/desktop-verification.png), [mobile verification](evidence/account-tokens-20261008/mobile-verification.png). No token is displayed. The tests also assert image loading and no horizontal overflow.
 - Complete built-app browser regression: **74 tests / 16 files passed**, run sequentially with one fresh browser per file to limit system-drive use. Completed by **2026-10-08 15:52:27 UTC**; orchestrator exit 0, `FILES_RUN=16`, `FAILED_FILES=` empty. No skips, assertion weakening, extended timeouts or retries. Covers registration/session, admin, athletes, booking/retry/cancellation, trainer catalog/certifications, Connect status, dashboards, fees, public profiles, refund display and trainer approval/profile editing.
 - Final SQL guard inspection at 15:52:27 UTC confirmed the disposable database identity and **zero** users, athletes, athlete request records, booking request records, bookings, payments, Connect attempts, admin actions and notifications. Token state was cleared with synthetic user cleanup. The local Next server and disposable PostgreSQL were then stopped.
-- Push and read-only live results follow after actual completion. No production claim is implied by the local checks.
+
+## Publication And Live Read-Only Smoke
+
+- Published source/evidence commit: [`75b1d4449ee935dd900a7f2d978745736b8df428`](https://github.com/StylereTech/trainr/commit/75b1d4449ee935dd900a7f2d978745736b8df428), `fix: protect account recovery tokens at rest`. Push succeeded; independent `git ls-remote` matched this SHA on `codex/payment-readiness-20261006`. Main remained `2067e743c54ffee669cd484f26dc472b157f1881`. This follow-up records publication evidence only.
+- [GitHub Actions run 37804464868](https://github.com/StylereTech/trainr/actions/runs/37804464868) failed with **zero executed steps**. Exact annotation: "The job was not started because your account is locked due to a billing issue." This is an external hosted-CI blocker, not a hosted code/test result.
+- [Vercel preview](https://vercel.com/styleres-projects/trainr/3nTupbaN8d9TzggMNDVj2yaT6M7b) was pending when checked after push. No successful preview deployment is claimed.
+- Anonymous production GET smoke, **2026-10-08 15:53 UTC**, no account or cookie: `/api/health` returned 200 with `ok:true, dbConnected:true`. `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect` and `/api/admin/bookings` each returned 401 Unauthorized as expected.
+- Production `GET /api/auth/verify` returned **400**, `Verification token required`, unlike the audited branch's anonymous GET contract (401). This does not verify the new account workflow live and is consistent with the previously identified older deployment. No production token was supplied or consumed.
+- No production mutation, main promotion, real charge/refund/transfer/payout or customer email occurred. Remaining product/security work and staging/migration/provider proof gates are still open; the overall goal remains active, not complete.
