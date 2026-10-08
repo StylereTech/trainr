@@ -115,15 +115,6 @@ export async function getPublicTrainerBySlug(slug: string) {
           punctualityRating: true,
           comment: true,
           createdAt: true,
-          parentProfile: {
-            select: {
-              user: {
-                select: {
-                  email: true,
-                },
-              },
-            },
-          },
         },
       },
       _count: {

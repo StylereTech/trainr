@@ -24,9 +24,6 @@ interface Review {
   punctualityRating: number
   comment: string | null
   createdAt: string
-  parentProfile: {
-    user: { email: string }
-  }
 }
 
 interface TrainerData {
@@ -471,13 +468,13 @@ export default function TrainerProfilePage() {
                       <div className="flex items-start gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback className="bg-white/10 text-xs text-white">
-                            {review.parentProfile.user.email[0].toUpperCase()}
+                            <Users className="h-4 w-4" aria-hidden="true" />
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <div className="text-sm font-medium text-white">{review.parentProfile.user.email.split('@')[0]}</div>
+                              <div className="text-sm font-medium text-white">Parent</div>
                               <div className="text-xs text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</div>
                             </div>
                             <StarRating rating={review.rating} size="sm" />

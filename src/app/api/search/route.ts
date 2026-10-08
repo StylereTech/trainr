@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { publicPagination, publicTrainerCardSelect } from '@/lib/public-trainer'
 
 
 // GET /api/search — Search trainers with filters
 export async function GET(req: NextRequest) {
+  try {
+    return await searchTrainers(req)
+  } catch {
+    console.error('Public trainer search failed')
+    return NextResponse.json({ error: 'Failed to fetch trainers' }, { status: 500 })
+  }
+}
+
+async function searchTrainers(req: NextRequest) {
   const { searchParams } = new URL(req.url)
 
   const sport = searchParams.get('sport') || undefined
@@ -15,8 +25,9 @@ export async function GET(req: NextRequest) {
   const rating = searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : undefined
   const locationType = searchParams.get('locationType') || undefined
   const q = searchParams.get('q') || undefined
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '12')
+  const pagination = publicPagination(searchParams)
+  if (!pagination) return NextResponse.json({ error: 'Invalid pagination' }, { status: 400 })
+  const { page, limit } = pagination
   const sort = searchParams.get('sort') || 'rating' // rating, price_asc, price_desc, newest, reviews
 
   // Build where clause for trainer profiles
@@ -93,18 +104,7 @@ export async function GET(req: NextRequest) {
   const [trainers, total] = await Promise.all([
     prisma.trainerProfile.findMany({
       where,
-      include: {
-        sports: { include: { sport: true } },
-        specialties: { include: { specialty: true } },
-        serviceOfferings: {
-          where: { isActive: true },
-          select: { id: true, title: true, priceInCents: true, durationMinutes: true, type: true },
-          orderBy: { priceInCents: 'asc' },
-          take: 3,
-        },
-        assets: { where: { type: 'PHOTO' }, take: 1 },
-        _count: { select: { reviews: true, bookings: true } },
-      },
+      select: { ...publicTrainerCardSelect, serviceOfferings: { ...publicTrainerCardSelect.serviceOfferings, take: 3 } },
       orderBy,
       skip: (page - 1) * limit,
       take: limit,
@@ -114,10 +114,10 @@ export async function GET(req: NextRequest) {
 
   // Also return available filter options
   const [sports, specialtiesList] = await Promise.all([
-    prisma.sport.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } }),
+    prisma.sport.findMany({ where: { isActive: true }, orderBy: { order: 'asc' }, select: { id: true, name: true, slug: true, icon: true } }),
     prisma.specialty.findMany({
-      where: sport ? { sport: { slug: sport } } : {},
-      include: { sport: { select: { name: true, slug: true } } },
+      where: { sport: { isActive: true, ...(sport ? { slug: sport } : {}) } },
+      select: { id: true, name: true, slug: true, sport: { select: { name: true, slug: true } } },
     }),
   ])
 

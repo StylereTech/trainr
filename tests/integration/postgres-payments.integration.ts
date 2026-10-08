@@ -9,6 +9,9 @@ import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { defaultFeeValues, updateFeeConfiguration } from '@/lib/fee-config'
 import { saveTrainerCertifications } from '@/lib/trainer-certifications'
 import { GET as getTrainerProfile, PUT as putTrainerProfile } from '@/app/api/trainer/onboarding/route'
+import { GET as browseTrainers } from '@/app/api/trainers/route'
+import { GET as searchTrainers } from '@/app/api/search/route'
+import { getPublicTrainerBySlug } from '@/lib/trainer-detail'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -76,6 +79,7 @@ afterAll(async () => {
     return
   }
   // Delete only this run's synthetic records, never truncate the database.
+  await prisma.review.deleteMany({ where: { trainerProfile: { userId: { in: createdTrainers } } } })
   await prisma.booking.deleteMany({ where: { trainerProfile: { userId: { in: createdTrainers } } } })
   await prisma.coupon.deleteMany({ where: { id: { in: createdCoupons } } })
   await prisma.user.deleteMany({ where: { id: { in: [...createdParents, ...createdTrainers] } } })
@@ -91,6 +95,50 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it('keeps populated private trainer and parent fields out of actual public query responses', async () => {
+    const city = `audit-${randomUUID()}`
+    const trainer = await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: {
+      city, headline: 'Public headline', phone: 'private-phone-sentinel', address: 'private-address-sentinel',
+      stripeAccountId: 'acct_private_sentinel', stripeOnboardingComplete: true, zipCode: 'private-zip',
+      latitude: 12.345, longitude: 67.89, rejectedReason: 'private-note-sentinel', completionPercentage: 100,
+    } })
+    const booking = await reserve()
+    await prisma.review.create({ data: { bookingId: booking.id, trainerProfileId: fixture.trainer, parentProfileId: booking.parentProfileId,
+      rating: 5, knowledgeRating: 5, communicationRating: 5, punctualityRating: 5, comment: 'Public review', isPublished: true } })
+    const owner = await independent.user.findUniqueOrThrow({ where: { id: fixture.parent } })
+    for (const handler of [browseTrainers, searchTrainers]) {
+      const response = await handler(new Request(`http://localhost/api/trainers?city=${city}&location=${city}`) as any)
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.trainers).toHaveLength(1)
+      expect(body.trainers[0]).toMatchObject({ id: fixture.trainer, headline: 'Public headline', city })
+      expect(body.trainers[0].serviceOfferings[0]).toMatchObject({ id: fixture.service, priceInCents: 6000 })
+      for (const key of ['phone', 'address', 'stripeAccountId', 'stripeOnboardingComplete', 'userId', 'rejectedReason', 'zipCode', 'latitude', 'longitude', 'completionPercentage', '_count']) {
+        expect(body.trainers[0]).not.toHaveProperty(key)
+      }
+      expect(JSON.stringify(body)).not.toContain('private-')
+      expect(JSON.stringify(body)).not.toContain(owner.email)
+      expect(body.trainers[0].sports[0]).not.toHaveProperty('trainerProfileId')
+      expect(body.trainers[0].serviceOfferings[0]).not.toHaveProperty('trainerProfileId')
+    }
+    const detail = await getPublicTrainerBySlug(trainer.slug)
+    expect(detail!.reviews[0]).toMatchObject({ comment: 'Public review', rating: 5 })
+    expect(detail!.reviews[0]).not.toHaveProperty('parentProfile')
+    expect(JSON.stringify(detail)).not.toContain(owner.email)
+    expect(JSON.stringify(detail)).not.toContain('private-')
+    expect(await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).toMatchObject({ phone: 'private-phone-sentinel', address: 'private-address-sentinel' })
+    await prisma.review.updateMany({ where: { trainerProfileId: fixture.trainer }, data: { isPublished: false } })
+    const hidden = await getPublicTrainerBySlug(trainer.slug)
+    expect(hidden!.reviews).toEqual([])
+    expect(hidden!._count.reviews).toBe(0)
+    await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { isActive: false } })
+    expect(await getPublicTrainerBySlug(trainer.slug)).toBeNull()
+    for (const handler of [browseTrainers, searchTrainers]) {
+      const body = await (await handler(new Request(`http://localhost/api/trainers?city=${city}&location=${city}`) as any)).json()
+      expect(body.trainers).toEqual([])
+      expect(body.pagination.total).toBe(0)
+    }
+  })
   async function profileInput() {
     const sports = []
     for (let i = 0; i < 2; i++) {
