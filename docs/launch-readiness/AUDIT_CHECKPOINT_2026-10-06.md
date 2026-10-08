@@ -130,3 +130,28 @@ Additional findings: current public pages show unsupported-looking verification/
 - `git diff --check` passed before publication. Full unit/integration/E2E/build gates and post-deploy retests remain pending.
 - The second Vercel preview (`A3AmGaaUxWMQ7eK3dkskWyr3vV8J`) also failed; authenticated build-log access is still required to determine why.
 - C: dropped below 1 MB free during this pass. No dependency install was restarted and no production deployment was promoted.
+
+## Resumed Verification: 2026-10-08 UTC
+
+Source under test: `4d50a849949bf1873b82e76b6fdb2285d330fdf7` plus the local Stripe SDK compatibility fix and regression test. Windows Node 22.23.1; fresh `npm ci` completed (551 packages). Prisma Client generation passed after allowing the official engine download. No production credentials were copied into the worktree.
+
+- Authenticated Vercel inspection of preview `6egbRL99w9qdBf3ZPYCL48j6wNZc` established the compile failure at checkout route line 117: Stripe's active `Account` has `deleted?: void`, incompatible with the helper's `deleted?: boolean`. The helper now accepts both SDK forms; readiness still rejects deleted accounts and requires all three capabilities. A regression test uses the SDK's actual property types. Full-check results are recorded below when available.
+- Domain inspection established that `trainr.cc` and `www.trainr.cc` belong to **`trainr-node`**, not the Git-connected **`trainr`** project. The live project's current production deployment is `FEp6XgWZotobnxofLrhpssQdJoWN`, created May 31, with source metadata `2067e74`. It has no Git connection. Source metadata does not prove a manually uploaded deployment is identical to that Git commit.
+- The Git-connected `trainr` project serves `trainr-xi.vercel.app`; its production deployment is `Abo7EvAe6jZceHWivStRp7RDzVtr`. An audit branch push triggers a preview there, not a deployment to `trainr.cc`. No DNS, project connection, or production promotion was changed.
+- The live project's environment-variable page shows production-scoped `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, Stripe public-key variables, and platform-fee configuration. Values were not revealed. Presence is not credential validity or successful webhook delivery. Vercel flags four sensitive-looking variables stored as Config; owner review/rotation and Secret classification remain pending.
+- Read-only `https://trainr.cc/api/health` returned HTTP 200 with healthy/database status true and Vercel response headers. This does not validate payment connectivity or new-write persistence.
+- GitHub Actions run `37574837796` did not start any job steps: account locked due to a billing issue. This external CI blocker remains; it is not a code test result.
+
+Account/context: owner-authorized Vercel session for read-only deployment/settings inspection; local tests use mocks and no live customer account. Expected result was a successful preview and accurate production mapping; actual result was a proven compile failure and separate manual production target. Build fix is local pending retest/publication; live money-flow signoff remains withheld.
+
+### Local Quality Gate: 2026-10-08 03:19 UTC
+
+Exact steps: fresh `npm ci --no-audit --no-fund`, `npm run db:generate`, then `npm run check` in the Windows audit worktree. Expected: all checks exit zero. Actual: **PASS**, complete check exited 0.
+
+- Lint: passed with warnings (unused symbols, hook dependencies, image optimization); not warning-free.
+- Typecheck: `tsc --noEmit` passed, including the actual Stripe SDK account type regression.
+- Vitest: **13 files / 110 tests passed**, no skipped tests reported. Provider-failure cases use mocks; their expected error log is not a live Stripe request.
+- Production build: compiled successfully in 73 seconds, checked types, generated all 68 static pages, completed build traces and route summary, exit 0. Next.js reported an inferred workspace-root warning from an unrelated parent lockfile and stale Browserslist data.
+- `git diff --check`: passed. Source/test fix and this evidence are being published together; the commit containing this section identifies the exact tested code.
+
+This clears the observed SDK compilation blocker locally. It does not establish browser E2E, live database writes, checkout, refunds, payout settlement, or final production readiness. The earlier open money-flow and security findings remain open. Remote preview retest and explicit deployment to the correct production project are still required.

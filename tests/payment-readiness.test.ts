@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isStripeAccountReady } from '@/lib/stripe-account'
+import type Stripe from 'stripe'
 
 const mocks = vi.hoisted(() => ({
   event: vi.fn(),
@@ -30,6 +31,13 @@ beforeEach(() => {
 })
 
 describe('Stripe account readiness', () => {
+  it('accepts the SDK active-account type without casting away its deleted field', () => {
+    const account: Pick<Stripe.Account, 'deleted' | 'details_submitted' | 'charges_enabled' | 'payouts_enabled'> = {
+      details_submitted: true, charges_enabled: true, payouts_enabled: true,
+    }
+    expect(isStripeAccountReady(account)).toBe(true)
+  })
+
   it.each([
     [true, true, true, true], [true, true, false, false],
     [true, false, true, false], [false, true, true, false],

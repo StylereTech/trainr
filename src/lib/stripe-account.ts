@@ -1,5 +1,6 @@
 type AccountReadiness = {
-  deleted?: boolean
+  // Stripe's active Account uses void; DeletedAccount uses true.
+  deleted?: boolean | void
   details_submitted?: boolean
   charges_enabled?: boolean
   payouts_enabled?: boolean
