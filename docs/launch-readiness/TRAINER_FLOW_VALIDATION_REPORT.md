@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-08 public credential display update: empty and mixed credential fixtures are tested on both public profile aliases. Per-credential recorded status is shown explicitly; listing approval no longer asserts identity/background screening. This does not independently verify historical credentials or complete trainer screening operations. Baseline `c89950fd6dd48d7f98fad548c275d1cc5125f2ca` plus this commit; [steps and retest proof](PUBLIC_TRUST_REPORT.md).
+
 2026-10-08 service-sport update: both editors now require an explicit active coached sport per offering; saved IDs survive refresh, and changing a booked/package-linked sport publishes a new version without changing history. Baseline `90f5d92d2000506c253928e649741b412f08c6a7` plus this commit. Focused tests **98 passed**, real local PostgreSQL tests **28 passed**. Exact steps, final browser/build evidence and rollout limits are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). No production trainer edit or live money-flow signoff.
 
 2026-10-08 catalog update: baseline `386cf391cff30eec2a3b6ad388a539a107b43648` plus this commit. Both trainer editors now use database sport/specialty choices and canonical specialty IDs. **59 focused tests and 23 PostgreSQL integration cases passed**, including actual trainer handlers with synthetic auth, independent relation readback and rollback on later SQL failure. Full details, final browser/build retest and remaining service-sport/live-provider gates are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md).

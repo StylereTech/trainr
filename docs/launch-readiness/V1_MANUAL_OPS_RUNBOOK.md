@@ -2,6 +2,8 @@
 
 ## Status And Evidence
 
+- Public trust update, 2026-10-08: listing approval must not be represented as identity/background screening. An individual credential's recorded verification is not a whole-trainer safety guarantee. Before production publication, owner must confirm actual screening operations, safety mailbox ownership/delivery and escalation coverage; no response SLA was verified. See [tested copy and rollout limits](PUBLIC_TRUST_REPORT.md). Do not restore unsupported counts/testimonials without evidence.
+
 - Updated: 2026-10-08 UTC. This replaces the April wallet-withdrawal instructions; do not follow those historical instructions.
 - Source: baseline `0cabd2557962a44f4b6365512ea407ed76121f9f` plus the booking-action commit containing this revision.
 - Environment tested: local Windows Node 22; synthetic parent, trainer, admin and payment fixtures. No real account or Stripe mutation in this pass.

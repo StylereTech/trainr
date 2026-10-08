@@ -51,7 +51,7 @@ const initialFilters = (searchParams: URLSearchParams): FilterState => ({
 })
 
 const refinementSignals = [
-  { icon: ShieldCheck, title: 'Verified coaches only', text: 'Every trainer on Trainr has a complete profile with real credentials and parent reviews.' },
+  { icon: ShieldCheck, title: 'Credential status', text: 'Listing approval does not establish identity or background screening. Credential status is shown on individual profiles.' },
   { icon: Sparkles, title: 'Filter by what matters', text: 'Narrow by sport, location, rating, and session type to find the right fit fast.' },
   { icon: LayoutGrid, title: 'Compare side by side', text: 'See ratings, pricing, specialties, and availability at a glance across every coach.' },
 ]

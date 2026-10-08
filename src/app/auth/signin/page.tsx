@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { TRAINR_LOGO } from '@/lib/trainr-media'
 
-const trustPoints = ['Verified trainers', 'Secure payments', 'Family-friendly scheduling']
+const trustPoints = ['Trainer profiles', 'Secure payments', 'Family-friendly scheduling']
 
 export default function SignInPage() {
   const router = useRouter()

@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import {
   MapPin, Clock, Award, Heart, Share2, MessageSquare, Calendar,
-  Video, Users, Shield, ChevronLeft, CheckCircle2, Loader2, Sparkles, ArrowUpRight, Trophy, Quote
+  Video, Users, Shield, ChevronLeft, CheckCircle2, Loader2, Sparkles, ArrowUpRight, Quote
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -174,8 +174,8 @@ export default function TrainerProfilePage() {
                         <div className="mt-1 font-semibold text-white">{trainer.city && trainer.state ? `${trainer.city}, ${trainer.state}` : trainer.locationType === 'VIRTUAL' ? 'Virtual only' : 'Travel-based'}</div>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3 text-sm text-slate-300">
-                        <div className="flex items-center gap-2 text-white"><Shield className="h-4 w-4 text-emerald-300" /> Verified</div>
-                        <div className="mt-1 font-semibold text-white">{trainer.certifications.filter((cert) => cert.isVerified).length} certs listed</div>
+                        <div className="flex items-center gap-2 text-white"><Shield className="h-4 w-4 text-emerald-300" /> Credentials</div>
+                        <div className="mt-1 font-semibold text-white">{trainer.certifications.filter((cert) => cert.isVerified).length} of {trainer.certifications.length} marked verified</div>
                       </div>
                     </div>
 
@@ -189,20 +189,6 @@ export default function TrainerProfilePage() {
                       </div>
                     )}
 
-                    <div className="mt-6 grid gap-3 md:grid-cols-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Best for</div>
-                        <p className="mt-2 text-sm text-slate-300">Families who want a clearer sense of coach quality, structure, and session fit before booking.</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Session style</div>
-                        <p className="mt-2 text-sm text-slate-300">Offerings are presented with cleaner pricing and format badges so mobile scanning is faster.</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Trust layer</div>
-                        <p className="mt-2 text-sm text-slate-300">Reviews, certifications, and profile hierarchy now work together instead of competing visually.</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -212,7 +198,7 @@ export default function TrainerProfilePage() {
               <Card className="rounded-[2rem] border-white/10 bg-white/[0.05] text-white shadow-2xl">
                 <CardHeader className="pb-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Book with confidence</div>
-                  <h2 className="text-2xl font-semibold">Quick decision panel</h2>
+                  <h2 className="text-2xl font-semibold">Book a session</h2>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="rounded-2xl bg-slate-950/50 p-4 text-center">
@@ -238,19 +224,12 @@ export default function TrainerProfilePage() {
                   <Separator className="bg-white/10" />
 
                   <div className="space-y-3 text-sm text-slate-300">
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Background verified</div>
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Identity verified</div>
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Transparent pricing before checkout</div>
+                    <p>Profile approval does not establish identity or background screening.</p>
+                    <Link href="/legal/safety" className="inline-block text-emerald-300 underline">Safety guidelines</Link>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[2rem] border-white/10 bg-white/[0.05] text-white shadow-xl">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Trophy className="h-4 w-4" /> Why this profile now converts better</div>
-                  <p className="mt-3 text-sm text-slate-300">This profile reads like a premium coaching destination with clearer hierarchy, stronger trust framing, and tighter mobile decision blocks.</p>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
@@ -258,7 +237,7 @@ export default function TrainerProfilePage() {
 
       <section className="container py-8 md:py-10">
         <Tabs defaultValue="about">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="availability">Availability</TabsTrigger>
@@ -292,6 +271,7 @@ export default function TrainerProfilePage() {
                             <div>
                               <div className="text-sm font-medium text-white">{cert.name}</div>
                               {cert.issuingOrg && <div className="text-xs text-slate-400">{cert.issuingOrg}</div>}
+                              <div className="mt-1 text-xs text-slate-300">{cert.isVerified ? 'Marked verified' : 'Not verified'}</div>
                             </div>
                           </div>
                         </div>
@@ -504,7 +484,6 @@ export default function TrainerProfilePage() {
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Ready to move</div>
               <h3 className="mt-2 text-2xl font-semibold">Take the next step with {trainer.firstName}.</h3>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">The redesigned profile leads naturally into booking or messaging, with stronger mobile readability and less visual clutter.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href={`/book/${trainer.slug}`}>

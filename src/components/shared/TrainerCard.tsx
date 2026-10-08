@@ -147,10 +147,7 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-300" />
-              <span>{trainer.totalReviews > 0 ? `${trainer.totalReviews} verified reviews visible` : 'Profile ready for first review'}</span>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs uppercase tracking-[0.16em] text-slate-300">
-              Premium profile card • cleaner mobile scan
+              <span>{trainer.totalReviews > 0 ? `${trainer.totalReviews} parent reviews` : 'No parent reviews yet'}</span>
             </div>
           </div>
         </CardContent>

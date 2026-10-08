@@ -114,7 +114,7 @@ function SignUpPage() {
               <div className="font-semibold text-white">What this unlocks</div>
               <div className="mt-2 grid gap-2">
                 {(trainerMode
-                  ? ['Publish a premium coach profile', 'Offer services and availability', 'Build verified reviews over time']
+                  ? ['Publish a premium coach profile', 'Offer services and availability', 'Build parent reviews over time']
                   : ['Save athletes and session preferences', 'Request bookings with context', 'Track trusted coaches in one place']
                 ).map((item) => (
                   <div key={item} className="flex items-start gap-2">
@@ -184,7 +184,7 @@ function SignUpPage() {
                 </Badge>
                 <h2 className="mt-4 text-2xl font-bold md:text-4xl">{trainerMode ? 'Turn your expertise into a premium coaching business.' : 'Discover trusted coaching without the guesswork.'}</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  {(trainerMode ? ['Set your own rates', 'Fill your schedule', 'Build verified reviews'] : ['Compare real trainers', 'Book around your schedule', 'Track athlete progress']).map((point) => (
+                  {(trainerMode ? ['Set your own rates', 'Fill your schedule', 'Build parent reviews'] : ['Compare real trainers', 'Book around your schedule', 'Track athlete progress']).map((point) => (
                     <div key={point} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm backdrop-blur">{point}</div>
                   ))}
                 </div>

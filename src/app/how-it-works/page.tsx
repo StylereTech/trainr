@@ -8,7 +8,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'How It Works',
-  description: 'Learn how Trainr connects parents with vetted youth sports trainers in three simple steps.',
+  description: 'Learn how Trainr connects parents with youth sports trainers in three simple steps.',
 }
 
 const steps = [
@@ -19,7 +19,7 @@ const steps = [
     description: 'Filter by sport, location, session type, and rating. Read real parent reviews and compare coaches until you find the right one.',
     details: [
       'Filter by sport, specialty, and location',
-      'Read verified parent reviews',
+      'Read parent session reviews',
       'Compare coaching style and price point',
       'Review credentials and training background',
     ],
@@ -75,15 +75,15 @@ const familyJourney = [
 ]
 
 const features = [
-  { icon: Shield, title: 'Vetted trainers', description: 'Every coach has a verified profile with credentials, experience, and reviews from other parents.' },
+  { icon: Shield, title: 'Credential status', description: 'Profile approval does not establish identity or background screening. Credential status applies to individual credentials.' },
   { icon: CreditCard, title: 'Secure payments', description: 'Pay through Stripe at checkout. Your card info is never stored on our servers.' },
   { icon: MessageSquare, title: 'In-app messaging', description: 'Message your coach directly through Trainr. No need for phone numbers or side threads.' },
-  { icon: Star, title: 'Honest reviews', description: 'Only parents who completed a session can leave a review. No fake ratings.' },
+  { icon: Star, title: 'Parent reviews', description: 'Session feedback from parents.' },
 ]
 
 const reassurance = [
   'No long-term commitments required',
-  'Verified coaches with real parent reviews',
+  'Trainer profiles and parent reviews',
   'Secure payments through Stripe',
 ]
 

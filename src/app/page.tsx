@@ -1,21 +1,13 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowRight, Shield, Star, Clock, Users, CheckCircle2, Trophy, ChevronRight, ClipboardList, CalendarDays, Quote, Search, HeartHandshake, PlayCircle, Sparkles } from 'lucide-react'
+import { ArrowRight, Shield, Star, Clock, Users, CheckCircle2, Trophy, ChevronRight, ClipboardList, CalendarDays, Search, HeartHandshake, PlayCircle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { SPORTS } from '@/lib/utils'
 
-const stats = [
-  { value: '500+', label: 'Vetted Trainers' },
-  { value: '5,000+', label: 'Sessions Completed' },
-  { value: '4.9', label: 'Average Rating' },
-  { value: '5', label: 'Sports Covered' },
-]
-
 const trustBadges = [
-  { icon: Shield, text: 'Background Verified' },
-  { icon: CheckCircle2, text: 'Certified Trainers' },
+  { icon: Shield, text: 'Credential Status' },
+  { icon: CheckCircle2, text: 'Trainer Profiles' },
   { icon: Star, text: 'Parent Reviews' },
   { icon: Clock, text: 'Flexible Scheduling' },
 ]
@@ -31,7 +23,7 @@ const howItWorks = [
     step: '02',
     icon: ClipboardList,
     title: 'Book and pay',
-    description: "Choose a time, share your athlete's goals, and pay securely. The whole thing takes about two minutes.",
+    description: "Choose a time, share your athlete's goals, and pay securely.",
   },
   {
     step: '03',
@@ -44,8 +36,8 @@ const howItWorks = [
 const familyDecisionPoints = [
   {
     icon: Shield,
-    title: 'Coaches you can trust',
-    text: 'Every trainer has a verified profile with real reviews, credentials, and coaching background you can check before booking.',
+    title: 'Coach profiles',
+    text: 'Listing approval does not establish identity or background screening. Credential status applies to individual credentials.',
   },
   {
     icon: CalendarDays,
@@ -59,30 +51,6 @@ const familyDecisionPoints = [
   },
 ]
 
-const testimonials = [
-  {
-    name: 'Sarah M.',
-    role: 'Parent',
-    text: "My son's quarterback skills improved dramatically after just four sessions. The trainer was professional and incredible with kids.",
-    sport: '🏈 Football',
-    rating: 5,
-  },
-  {
-    name: 'David R.',
-    role: 'Parent',
-    text: 'Finally found a pitching coach who actually understands youth mechanics. Worth every penny.',
-    sport: '⚾ Baseball',
-    rating: 5,
-  },
-  {
-    name: 'Lisa K.',
-    role: 'Parent',
-    text: "The booking flow is clean and easy. I can manage both kids' training schedules without the usual chaos.",
-    sport: '🏀 Basketball',
-    rating: 5,
-  },
-]
-
 const sportCardImages: Record<string, { src: string; alt: string; position: string }> = {
   football: { src: '/images/trainr/football-bg.jpg', alt: 'Youth football coaching session', position: 'object-center' },
   baseball: { src: '/images/trainr/baseball-bg.jpg', alt: 'Youth baseball training session', position: 'object-center' },
@@ -93,7 +61,7 @@ const sportCardImages: Record<string, { src: string; alt: string; position: stri
 
 const homepageSignals = [
   'Coaches across 5 youth sports',
-  'Verified reviews from real parents',
+  'Parent session reviews',
   'Secure payments through Stripe',
 ]
 
@@ -124,7 +92,7 @@ export default function HomePage() {
                 <span className="mt-2 block text-gradient">and book their first session today.</span>
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-200 md:max-w-2xl md:text-xl">
-                Vetted youth trainers in football, baseball, basketball, soccer, and track &amp; field. Check their reviews, pick a time, and pay — all in one place.
+                Youth sports trainers in football, baseball, basketball, soccer, and track &amp; field. Check their reviews, pick a time, and pay — all in one place.
               </p>
 
               <div className="mt-8 flex max-w-full flex-col gap-3 sm:flex-row">
@@ -144,9 +112,9 @@ export default function HomePage() {
 
               <div className="mt-8 mobile-scroll-row sm:grid-cols-3">
                 {[
-                  'Background-checked coaches',
-                  'Real reviews from real parents',
-                  'Book and pay in minutes',
+                  'Credential status on profiles',
+                  'Parent session reviews',
+                  'Session booking',
                 ].map((signal) => (
                   <div key={signal} className="mobile-scroll-card rounded-[1.4rem] border border-white/10 bg-black/25 px-4 py-4 text-sm text-slate-200 backdrop-blur-xl">
                     <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-300" />
@@ -171,14 +139,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {stats.map((stat) => (
-                  <div key={stat.label} className="premium-stat bg-black/25">
-                    <div className="text-2xl font-semibold text-white md:text-3xl">{stat.value}</div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -202,9 +162,9 @@ export default function HomePage() {
           <div className="grid items-center gap-10 lg:grid-cols-[1.02fr_.98fr]">
             <div>
               <div className="premium-kicker">Why parents choose Trainr</div>
-              <h2 className="mt-5 text-3xl font-bold tracking-tight md:text-5xl">Stop guessing. Start with coaches other parents already trust.</h2>
+              <h2 className="mt-5 text-3xl font-bold tracking-tight md:text-5xl">Compare youth sports coaches.</h2>
               <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-300">
-                Every coach on Trainr has a real profile with verified reviews, clear pricing, and available time slots. You see what you need to make a decision before you ever pull out your card.
+                Compare coaching experience, listed credentials, session prices, and parent feedback. Profile approval does not establish identity or background screening.
               </p>
               <div className="mt-6 grid gap-4 sm:grid-cols-3">
                 {familyDecisionPoints.map((item) => (
@@ -247,7 +207,7 @@ export default function HomePage() {
           <div className="mb-10 flex flex-col gap-4 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
             <div className="max-w-2xl">
               <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">Browse by sport</div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Five sports. Hundreds of coaches. One place to find them.</h2>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Youth sports coaching.</h2>
               <p className="mt-3 text-slate-300">Pick your athlete&apos;s sport and see who&apos;s available near you.</p>
             </div>
             <Link href="/sports" className="inline-flex items-center justify-center text-sm font-medium text-emerald-300">
@@ -326,38 +286,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section-flow bg-slate-950 py-16 text-white md:py-24">
-        <div className="container">
-          <div className="mb-12 text-center">
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">Parent proof</div>
-            <h2 className="mt-3 mb-3 text-3xl font-bold tracking-tight">What families say after the first few sessions.</h2>
-            <p className="text-slate-300">Real feedback from parents who booked through Trainr.</p>
-          </div>
-          <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <Card key={i} className="h-full rounded-[1.8rem] border border-white/10 bg-white/[0.04] shadow-sm text-white">
-                <CardContent className="p-6">
-                  <Quote className="mb-4 h-6 w-6 text-emerald-300/50" />
-                  <div className="mb-3 flex items-center gap-1">
-                    {Array.from({ length: t.rating }).map((_, j) => (
-                      <Star key={j} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="mb-5 text-sm leading-7 text-slate-200">&ldquo;{t.text}&rdquo;</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">{t.name}</div>
-                      <div className="text-xs text-slate-400">{t.role}</div>
-                    </div>
-                    <Badge variant="secondary" className="text-xs bg-white/10 text-white hover:bg-white/10">{t.sport}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </section>

@@ -255,7 +255,7 @@ export default function BookingPage() {
                 Review the offer, match the right athlete, and request a session with clear pricing, trusted guardrails, and zero checkout confusion.
               </p>
               <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-300 md:text-sm">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.totalReviews > 0 ? `${trainer.totalReviews} verified reviews` : 'New trainer profile'}</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.totalReviews > 0 ? `${trainer.totalReviews} parent reviews` : 'No parent reviews yet'}</span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.locationType === 'VIRTUAL' ? 'Virtual-ready coaching' : trainer.locationType === 'BOTH' ? 'In-person + virtual' : 'In-person coaching'}</span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">No charge until confirmation</span>
               </div>
@@ -589,7 +589,7 @@ export default function BookingPage() {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                   <div className="flex items-center gap-2 font-semibold text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-700" /> Why parents trust Trainr</div>
-                  <p className="mt-2">Verified profiles, transparent pricing, and cleaner communication make the path from discovery to session day feel safer and easier.</p>
+                  <p className="mt-2">Profile approval does not establish identity or background screening.</p>
                 </div>
 
                 <Button
