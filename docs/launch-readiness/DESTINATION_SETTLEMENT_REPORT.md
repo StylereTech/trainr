@@ -4,7 +4,7 @@
 
 - Date/time: 2026-10-08, focused checks at 17:41-17:46 UTC; final gate/publication observations below.
 - Environment: Windows/Node 22, local disposable PostgreSQL `trainr_audit_20261008` on loopback port 55439; synthetic Stripe objects only. No real charge, transfer, application fee, refund or bank payout was created.
-- Baseline commit: `23e5995ed1602b2cd2c5199b36c1872e615c4619`; source commit and publication proof recorded below after publication.
+- Baseline commit: `23e5995ed1602b2cd2c5199b36c1872e615c4619`; tested source published as `763b675821cb84ca0eefbfe7ac1139b53651333d`.
 - Branch: `codex/payment-readiness-20261006`. No main promotion or production migration.
 - Accounts: per-test synthetic UUID `*-parent@example.test` and `*-trainer@example.test` accounts; `acct_settlement` is a fake provider destination. No live customer accounts or demo credentials used.
 - Routes: signed `POST /api/payments/webhook`; the shared paid-recovery path used by `POST /api/payments/checkout` and cancelled-checkout recovery. SQL tests call the real webhook handler and shared checkout service, not a running external Stripe endpoint.
@@ -70,4 +70,22 @@ Unit tests additionally cover expanded provider IDs, zero fee, wrong currency/mo
 - Local production-server Playwright regression: PASS, 76 tests in all 17 files, single-worker Edge, desktop/mobile viewports. `FILES_RUN=17`, `FAILED_FILES=`. Screenshots retained locally under `test-results/settlement-20261008/`. Trainer Connect unverified-state screenshots at 390px and 1440px were visually inspected: readable status/action layout without overlap. No new UI design was introduced.
 - Browser fixtures simulate provider responses; they do not establish Stripe-hosted payment or bank payout success.
 - Cleanup verified with independent SQL: zero users, bookings, payments, checkout attempts, refunds, notifications, audit rows, athlete profiles/requests, booking requests and Connect attempts. Removed 24 synthetic rate-limit buckets only after checking the disposable database marker and empty user table; verified zero remaining buckets and no temporary failure constraint. Local Next server and PostgreSQL stopped.
-- Commit/push, hosted CI/deploy observations and anonymous production smoke are recorded in the publication addendum after the source commit exists. No production readiness or live money-flow claim is made here.
+- No production readiness or live money-flow claim is made here.
+
+## Publication And Live Observation
+
+- Source fix committed and pushed: [`763b675821cb84ca0eefbfe7ac1139b53651333d`](https://github.com/StylereTech/trainr/commit/763b675821cb84ca0eefbfe7ac1139b53651333d). Remote audit ref independently verified with `git ls-remote`; `main` remains `2067e743c54ffee669cd484f26dc472b157f1881`. This addendum is a documentation-only follow-up to the tested source tree.
+- [GitHub Actions run 37820709488](https://github.com/StylereTech/trainr/actions/runs/37820709488): completed/failure; check/job `113460713792` executed **zero steps**. Annotation: `The job was not started because your account is locked due to a billing issue.` External hosted-CI blocker, not a successful or failed execution of the repo tests. Owner billing resolution and a real hosted run remain required.
+- Source commit Vercel status: pending, description `Vercel is deploying your app`; [deployment observation](https://vercel.com/styleres-projects/trainr/CqLZgpPLCVxE2aJARPqkGozP6CiB). No completed deployment or production alias promotion was verified. The prior project/environment mapping hold remains in `DEPLOYMENT_CONFIGURATION_REPORT.md`.
+- Anonymous live GET smoke at **2026-10-08 18:00:15-18:00:16 UTC** (local observation clock), no account and no writes:
+
+| Route | Expected scope | Actual | Verdict |
+| --- | --- | --- | --- |
+| `https://trainr.cc/api/health` | Reachable app/database | 200, `ok:true`, `dbConnected:true` | PASS for this narrow health check only |
+| `/api/bookings` | Anonymous denied | 401, Unauthorized | PASS |
+| `/api/payments/connect` | Anonymous denied | 401, Unauthorized | PASS |
+| `/api/trainer/stripe-connect` | Anonymous denied | 401, Unauthorized | PASS |
+| `/api/admin/bookings` | Anonymous denied | 401, Unauthorized | PASS |
+| `/api/auth/verify` | Audit code availability comparison | 400, Verification token required; audit branch requires authenticated verification | Audit deployment NOT verified; behavior remains consistent with older live code |
+
+No live paid booking, receipt chain, Connect onboarding, database migration, payout or authenticated parent/trainer flow was exercised during this smoke check. Final product readiness remains HOLD. Next money-flow work includes dedicated post-settlement dispute/reversal monitoring and actual staging/provider receipt validation; the new verifier alone is not full production signoff.
