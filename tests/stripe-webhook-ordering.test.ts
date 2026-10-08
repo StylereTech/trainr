@@ -29,6 +29,10 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        checkoutAttempt: {
+          findFirst: async () => state.attempt || null,
+          update: async ({ data }: any) => Object.assign(state.attempt, data),
+        },
         booking: {
           findUnique: async () => structuredClone(state),
           updateMany: async ({ where, data }: any) => {
@@ -159,5 +163,21 @@ describe('transactional Stripe payment evidence', () => {
     state.payment = null
     await expect(applyPaymentEvidence(paid)).rejects.toThrow('reconciliation')
     expect(state.payment).toBeNull()
+  })
+
+  it('rejects late evidence from a retired attempt even with the same payment metadata', async () => {
+    state.attempt = { id: 'new-attempt', stripeCheckoutSessionId: null, retiredAt: null }
+    state.payment.stripeCheckoutSessionId = null
+    await expect(applyPaymentEvidence({ ...paid, attemptId: 'old-attempt' })).rejects.toThrow('different checkout attempt')
+    await expect(applyPaymentEvidence(paid)).rejects.toThrow('different checkout attempt')
+    expect(state.payment.status).toBe('PENDING')
+  })
+
+  it('recovers an attempt session ID when the webhook beats checkout finalization', async () => {
+    state.attempt = { id: 'current-attempt', stripeCheckoutSessionId: null, retiredAt: null }
+    state.payment.stripeCheckoutSessionId = null
+    await applyPaymentEvidence({ ...paid, attemptId: 'current-attempt' })
+    expect(state.attempt.stripeCheckoutSessionId).toBe('cs_current')
+    expect(state.payment.status).toBe('SUCCEEDED')
   })
 })

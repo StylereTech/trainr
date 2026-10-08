@@ -1,200 +1,80 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CheckoutConflict } from '@/lib/checkout-attempts'
 
-const mockCheckoutCreate = vi.fn()
-const mockAccountRetrieve = vi.fn()
-
-const mockPrisma = {
-  trainerProfile: { update: vi.fn() },
-  booking: {
-    findUnique: vi.fn(),
-  },
-  payment: {
-    create: vi.fn(),
-    update: vi.fn(),
-    updateMany: vi.fn(),
-    delete: vi.fn(),
-  },
-}
-
-vi.mock('@/lib/auth', () => ({
-  getRequestUser: vi.fn().mockResolvedValue({
-    id: 'parent-user-1',
-    email: 'parent@example.com',
-    role: 'PARENT',
-  }),
-}))
-
-vi.mock('@/lib/prisma', () => ({
-  prisma: mockPrisma,
-}))
-
-vi.mock('@/lib/app-url', () => ({
-  toAbsoluteAppUrl: (path: string) => `http://localhost:3000${path}`,
-}))
-
+const mock = vi.hoisted(() => ({ user: vi.fn(), booking: vi.fn(), account: vi.fn(), updateTrainer: vi.fn(), checkout: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
+vi.mock('@/lib/prisma', () => ({ prisma: { booking: { findUnique: mock.booking }, trainerProfile: { update: mock.updateTrainer } } }))
+vi.mock('@/lib/checkout-attempts', () => ({ CheckoutConflict: class extends Error {}, startOrResumeCheckout: mock.checkout }))
 vi.mock('@/lib/stripe', () => ({
   stripeRuntimeStatus: () => ({ secretConfigured: true }),
-  mapStripeError: (error: any, fallback: string) => ({
-    message: error?.message || fallback,
-    detail: undefined,
-    status: 500,
-  }),
-  stripe: {
-    accounts: { retrieve: mockAccountRetrieve },
-    checkout: {
-      sessions: {
-        create: mockCheckoutCreate,
-        retrieve: vi.fn(),
-        expire: vi.fn(),
-      },
-    },
-  },
+  mapStripeError: () => ({ message: 'Checkout temporarily unavailable', detail: 'private provider detail', status: 503 }),
+  stripe: { accounts: { retrieve: mock.account } },
 }))
 
-describe('Payments checkout API', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+beforeEach(() => {
+  vi.resetAllMocks()
+  mock.user.mockResolvedValue({ id: 'parent', role: 'PARENT', email: 'parent@example.test' })
+  mock.booking.mockResolvedValue({
+    id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' },
+    trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true },
   })
+  mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
+  mock.checkout.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/test', paymentId: 'payment' })
+})
 
-  beforeEach(() => {
-    mockAccountRetrieve.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
-    mockPrisma.booking.findUnique.mockResolvedValue({
-      id: 'booking-1',
-      status: 'PENDING',
-      totalAmountInCents: 7300,
-      platformFeeInCents: 1095,
-      trainerPayoutInCents: 6205,
-      parentProfile: { id: 'parent-profile-1', userId: 'parent-user-1' },
-      trainerProfile: {
-        id: 'trainer-profile-1',
-        firstName: 'Marcus',
-        lastName: 'Johnson',
-        stripeAccountId: 'acct_ready',
-        stripeOnboardingComplete: true,
-      },
-      serviceOffering: { id: 'service-1', title: 'Private football Session' },
-      athleteProfile: { id: 'athlete-1' },
-      payment: null,
-      date: new Date('2026-04-27T00:00:00.000Z'),
-      startTime: '09:00',
-    })
-    mockPrisma.payment.create.mockResolvedValue({
-      id: 'payment-1',
-      status: 'PENDING',
-      stripeCheckoutSessionId: null,
-      stripePaymentIntentId: null,
-    })
-    mockCheckoutCreate.mockResolvedValue({
-      id: 'cs_test_123',
-      url: 'https://checkout.stripe.com/c/pay/cs_test_123',
-    })
-    mockPrisma.payment.update.mockResolvedValue({
-      id: 'payment-1',
-      stripeCheckoutSessionId: 'cs_test_123',
-    })
-    mockPrisma.payment.updateMany.mockResolvedValue({ count: 1 })
+async function send(body = JSON.stringify({ bookingId: 'booking' })) {
+  const { POST } = await import('@/app/api/payments/checkout/route')
+  return POST(new Request('http://localhost/api/payments/checkout', { method: 'POST', body }) as any)
+}
+
+describe('checkout route boundaries', () => {
+  it('passes only the authenticated buyer and verified trainer destination to checkout', async () => {
+    expect((await send()).status).toBe(200)
+    expect(mock.checkout).toHaveBeenCalledWith('booking', { id: 'parent', role: 'PARENT', email: 'parent@example.test' }, 'acct_ready')
   })
-
-  it('creates a Stripe checkout session for a pending booking from the booking flow', async () => {
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(
-      new Request('http://localhost:3000/api/payments/checkout', {
-        method: 'POST',
-        body: JSON.stringify({ bookingId: 'booking-1' }),
-      }) as any
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123',
-      paymentId: 'payment-1',
-    })
-    expect(mockCheckoutCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'payment',
-        payment_intent_data: expect.objectContaining({
-          application_fee_amount: 1095,
-          transfer_data: { destination: 'acct_ready' },
-        }),
-      })
-    )
+  it('requires authentication', async () => {
+    mock.user.mockResolvedValue(null)
+    expect((await send()).status).toBe(401)
+    expect(mock.account).not.toHaveBeenCalled()
   })
-
-  it('blocks a restricted Stripe account even when cached onboarding is complete', async () => {
-    mockAccountRetrieve.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
-    expect(response.status).toBe(400)
-    expect(mockPrisma.trainerProfile.update).toHaveBeenCalledWith({
-      where: { id: 'trainer-profile-1' }, data: { stripeOnboardingComplete: false },
-    })
-    expect(mockCheckoutCreate).not.toHaveBeenCalled()
-    expect(mockPrisma.payment.create).not.toHaveBeenCalled()
+  it.each(['TRAINER', 'ADMIN', 'UNKNOWN'])('rejects role %s', async (role) => {
+    mock.user.mockResolvedValue({ id: 'parent', role })
+    expect((await send()).status).toBe(403)
+    expect(mock.checkout).not.toHaveBeenCalled()
   })
-
-  it('recovers checkout when Stripe is ready but the cached flag is stale', async () => {
-    const booking = await mockPrisma.booking.findUnique()
-    mockPrisma.booking.findUnique.mockResolvedValue({
-      ...booking, trainerProfile: { ...booking.trainerProfile, stripeOnboardingComplete: false },
-    })
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
-    expect(response.status).toBe(200)
-    expect(mockPrisma.trainerProfile.update).toHaveBeenCalledWith({
-      where: { id: 'trainer-profile-1' }, data: { stripeOnboardingComplete: true },
-    })
+  it.each(['{', '{}', '{"bookingId":{}}', '{"bookingId":" "}'])('rejects malformed input %s', async (body) => {
+    expect((await send(body)).status).toBe(400)
+    expect(mock.booking).not.toHaveBeenCalled()
   })
-
-  it('does not create a charge when Stripe status cannot be verified', async () => {
-    mockAccountRetrieve.mockRejectedValue(new Error('Stripe unavailable'))
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
-    expect(response.status).toBe(500)
-    expect(mockCheckoutCreate).not.toHaveBeenCalled()
-    expect(mockPrisma.payment.create).not.toHaveBeenCalled()
+  it('rejects another parent booking', async () => {
+    const booking = await mock.booking()
+    mock.booking.mockResolvedValue({ ...booking, parentProfile: { userId: 'someone-else' } })
+    expect((await send()).status).toBe(403)
+    expect(mock.account).not.toHaveBeenCalled()
   })
-
-  it('only attaches the session conditionally and never resets financial state', async () => {
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
-    expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: 'payment-1', status: { in: ['PENDING', 'FAILED'] },
-        stripeCheckoutSessionId: null, stripePaymentIntentId: null,
-        stripeChargeId: null, stripeTransferId: null,
-      },
-      data: { stripeCheckoutSessionId: 'cs_test_123' },
-    })
-    expect(mockPrisma.payment.update).not.toHaveBeenCalled()
+  it('blocks restricted accounts and revokes a stale cached flag', async () => {
+    mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
+    expect((await send()).status).toBe(400)
+    expect(mock.updateTrainer).toHaveBeenCalledWith({ where: { id: 'trainer' }, data: { stripeOnboardingComplete: false } })
+    expect(mock.checkout).not.toHaveBeenCalled()
   })
-
-  it('withholds checkout URL when a fast webhook or another request changed payment state', async () => {
-    mockPrisma.payment.updateMany.mockResolvedValue({ count: 0 })
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
+  it('recovers a stale false readiness flag', async () => {
+    const booking = await mock.booking()
+    mock.booking.mockResolvedValue({ ...booking, trainerProfile: { ...booking.trainerProfile, stripeOnboardingComplete: false } })
+    expect((await send()).status).toBe(200)
+    expect(mock.updateTrainer).toHaveBeenCalledWith({ where: { id: 'trainer' }, data: { stripeOnboardingComplete: true } })
+  })
+  it('fails closed on provider outages without exposing raw details', async () => {
+    mock.account.mockRejectedValue(new Error('private provider detail'))
+    const response = await send()
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('private provider detail')
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it('returns a reconciliation conflict without a payable URL', async () => {
+    mock.checkout.mockRejectedValue(new CheckoutConflict('Reconciliation required'))
+    const response = await send()
     expect(response.status).toBe(409)
-    expect(await response.json()).not.toHaveProperty('checkoutUrl')
-    expect(mockPrisma.payment.delete).not.toHaveBeenCalled()
-  })
-
-  it.each(['stripe', 'database'])('retains payment identity after uncertain %s failure', async (failure) => {
-    if (failure === 'stripe') mockCheckoutCreate.mockRejectedValueOnce(new Error('request timeout'))
-    else mockPrisma.payment.updateMany.mockRejectedValueOnce(new Error('write failed'))
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(new Request('http://localhost/api/payments/checkout', {
-      method: 'POST', body: JSON.stringify({ bookingId: 'booking-1' }),
-    }) as any)
-    expect(response.status).toBe(500)
-    expect(mockPrisma.payment.delete).not.toHaveBeenCalled()
+    expect(await response.json()).toEqual({ error: 'Reconciliation required' })
   })
 })

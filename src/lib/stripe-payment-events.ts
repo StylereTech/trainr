@@ -5,6 +5,7 @@ export class PaymentEventConflict extends Error {}
 export type PaymentEvidence = {
   bookingId: string
   paymentId?: string
+  attemptId?: string
   sessionId?: string
   intentId: string | null
   chargeId?: string | null
@@ -25,6 +26,13 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
     })
     const payment = booking?.payment
     if (!booking || !payment) throw new PaymentEventConflict('Booking payment requires reconciliation')
+    const attempt = await tx.checkoutAttempt.findFirst({ where: { paymentId: payment.id }, orderBy: { sequence: 'desc' } })
+    if ((evidence.attemptId && evidence.attemptId !== attempt?.id) || attempt?.retiredAt ||
+        (attempt && evidence.attemptId !== attempt.id &&
+          evidence.sessionId !== attempt.stripeCheckoutSessionId && evidence.intentId !== payment.stripePaymentIntentId) ||
+        (evidence.sessionId && attempt?.stripeCheckoutSessionId && evidence.sessionId !== attempt.stripeCheckoutSessionId)) {
+      throw new PaymentEventConflict('Stripe event belongs to a different checkout attempt')
+    }
     if (evidence.currency !== 'usd' || evidence.amount !== payment.amountInCents ||
         payment.amountInCents !== booking.totalAmountInCents) {
       throw new PaymentEventConflict('Payment amount or currency does not match booking')
@@ -40,6 +48,9 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
       payment.stripePaymentIntentId === evidence.intentId ||
       (evidence.sessionId && payment.stripeCheckoutSessionId === evidence.sessionId)
     if (!linked) throw new PaymentEventConflict('Stripe payment is not linked to this booking')
+    if (attempt && evidence.sessionId && !attempt.stripeCheckoutSessionId) {
+      await tx.checkoutAttempt.update({ where: { id: attempt.id }, data: { stripeCheckoutSessionId: evidence.sessionId } })
+    }
 
     const identity = {
       stripePaymentIntentId: evidence.intentId,

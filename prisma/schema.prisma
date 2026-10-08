@@ -410,8 +410,23 @@ model Payment {
   updatedAt             DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  checkoutAttempts CheckoutAttempt[]
 
   @@map("payments")
+}
+
+model CheckoutAttempt {
+  id                      String   @id @default(cuid())
+  paymentId               String
+  sequence                Int
+  parameters              Json
+  stripeCheckoutSessionId String?  @unique
+  retiredAt               DateTime?
+  createdAt               DateTime @default(now())
+  payment                 Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, sequence])
+  @@map("checkout_attempts")
 }
 
 // ==================

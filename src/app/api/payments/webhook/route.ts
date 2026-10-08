@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
         if (session.payment_status !== 'paid' || !session.metadata?.bookingId) break
         await applyPaymentEvidence({
           bookingId: session.metadata.bookingId, paymentId: session.metadata.paymentId,
+          attemptId: session.metadata.checkoutAttemptId,
           sessionId: session.id, intentId: stripeId(session.payment_intent),
           amount: session.amount_total, currency: session.currency, outcome: 'paid',
         })
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
         if (!intent.metadata?.bookingId) break
         await applyPaymentEvidence({
           bookingId: intent.metadata.bookingId, paymentId: intent.metadata.paymentId,
+          attemptId: intent.metadata.checkoutAttemptId,
           intentId: intent.id,
           // A failed attempt may have a charge different from the later successful retry.
           chargeId: event.type === 'payment_intent.succeeded' ? stripeId(intent.latest_charge) : null,
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
         if (!charge.metadata?.bookingId) break
         await applyPaymentEvidence({
           bookingId: charge.metadata.bookingId, paymentId: charge.metadata.paymentId,
+          attemptId: charge.metadata.checkoutAttemptId,
           intentId: stripeId(charge.payment_intent), chargeId: charge.id,
           amount: charge.amount, currency: charge.currency,
           refundAmount: charge.amount_refunded, outcome: 'refunded',

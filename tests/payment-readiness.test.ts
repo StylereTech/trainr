@@ -32,6 +32,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mocks.transaction.mockImplementation(async (run) => run({
     $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
+    checkoutAttempt: { findFirst: async () => null },
   }))
   mocks.booking.updateMany.mockResolvedValue({ count: 1 })
   mocks.session.mockResolvedValue({ user: { id: 'trainer-user', role: 'TRAINER' } })
