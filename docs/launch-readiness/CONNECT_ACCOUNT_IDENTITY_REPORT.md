@@ -59,8 +59,6 @@ Focused run: 22 unit cases passed. Final guarded database run: **131 tests / 5 f
 - 2026-10-08 09:29-09:33 UTC: sequential `npm run test:postgres` then `npm run check` exited 0. **133 SQL tests / 5 files, 644 unit tests / 35 files, lint, typecheck and production build with 70 generated pages passed**. Final SQL adds the two legacy-history guards to the preceding 131-test run. Existing unrelated lint/deprecation warnings remain.
 - First browser matrix passed **51/51 in 3.2 minutes**, including real authenticated unlinked status reads through both routes and simulated provider-error/malformed/stale/recovery cases at 1440/390px. The guard-only server refinement was then rebuilt; final browser/screenshot evidence follows.
 
-## Remaining Full-Scope Work
-
 ## Publication Proof: 2026-10-08 09:55 UTC
 
 - Source/report commit `9e67d8883912cc3eb25160ed925b37eb790a12bf` pushed to `origin/codex/payment-readiness-20261006`; remote `ls-remote` matched local HEAD. Worktree was clean before this evidence-only follow-up. Main and the production deployment were not changed.

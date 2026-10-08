@@ -1,5 +1,9 @@
 # Production Audit Checkpoint
 
+## Deployment Configuration Checkpoint: 2026-10-08 UTC
+
+Baseline `af48930057a74adbe209dc974896e108199a96c6`. Fresh Vercel inspection proved that live `trainr-node` and Git preview `trainr` are different targets; Preview has no project/shared environment variables. Hosted CI is blocked before executing steps by billing. Hardened production/database verification scripts; new tests and exact evidence are in the [deployment configuration report](DEPLOYMENT_CONFIGURATION_REPORT.md). No production/main mutation or money movement. Full goal active, readiness HOLD.
+
 ## Connect Identity Checkpoint: 2026-10-08 UTC
 
 Baseline `0eab36674bbbfaf75d84d0671f0ca30869771a16` plus this commit. Removed automatic replacement of existing Stripe accounts; unified both setup routes behind a durable idempotent creation attempt; blocked legacy payment history without an account from being treated as new. Fresh provider status drives readiness. Closed/revoked users are denied while inactive listings retain financial dashboard access. Added an additive migration, applied only to guarded local SQL. [Exact findings, routes, accounts, recovery procedure, initial failures and publication proof](CONNECT_ACCOUNT_IDENTITY_REPORT.md).
