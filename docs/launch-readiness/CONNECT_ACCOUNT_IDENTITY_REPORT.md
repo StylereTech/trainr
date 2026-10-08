@@ -61,4 +61,14 @@ Focused run: 22 unit cases passed. Final guarded database run: **131 tests / 5 f
 
 ## Remaining Full-Scope Work
 
+## Publication Proof: 2026-10-08 09:55 UTC
+
+- Source/report commit `9e67d8883912cc3eb25160ed925b37eb790a12bf` pushed to `origin/codex/payment-readiness-20261006`; remote `ls-remote` matched local HEAD. Worktree was clean before this evidence-only follow-up. Main and the production deployment were not changed.
+- Local fixture cleanup/service shutdown completed at 09:54 UTC with all six audited record counts zero.
+- Post-push anonymous `https://trainr.cc/api/health`: HTTP 200, `ok: true`, `dbConnected: true`. `/api/payments/connect`, `/api/trainer/stripe-connect`, and `/api/admin/bookings`: HTTP 401. These are read-only checks on the older production code, not runtime proof of this commit.
+- GitHub Actions run `37759932664`, job `113253602608`: failure, zero executed steps. Exact annotation: "The job was not started because your account is locked due to a billing issue." Hosted CI remains unverified despite local passes.
+- Vercel preview `7hdUpYavEgkW6SAWNJu3wzqAUHzm`: PENDING at observation. No successful deployment/runtime claim. An isolated staging project/database with Stripe test-mode configuration was requested from the owner; no reply yet. No secrets requested in chat.
+
+## Remaining Release Gates
+
 Full goal remains active; money-flow/production signoff HOLD. Real Stripe checkout, Connect onboarding, destination transfer/refund/payout and bank proof remain unverified. Staging drift/rehearsal, correct Vercel project production rollout, main publication, registration/email/athlete flows, timezone/hold expiry, cancellation execution and remaining security/retention gates are still open. Profile payout-history pagination/read validation and broader financial UI remain audit work. Never infer a completed onboarding or actual payout from these synthetic tests.
