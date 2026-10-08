@@ -7,6 +7,7 @@ import { applyPaymentEvidence, PaymentEventConflict } from '@/lib/stripe-payment
 import Stripe from 'stripe'
 import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
 import { SettlementConflict } from '@/lib/stripe-settlement'
+import { reconcileFinancialEvent } from '@/lib/stripe-financial-events'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -90,8 +91,43 @@ export async function POST(req: NextRequest) {
         })
         break
       }
-      // Destination-charge transfers are not guaranteed to inherit booking metadata.
-      // Do not attach financial objects to a booking solely from transfer metadata.
+      case 'transfer.created':
+      case 'transfer.updated':
+      case 'transfer.reversed': {
+        if (event.account) break
+        await reconcileFinancialEvent({ kind: 'transfer', id: (event.data.object as Stripe.Transfer).id })
+        break
+      }
+      case 'application_fee.created':
+      case 'application_fee.refunded': {
+        if (event.account) break
+        await reconcileFinancialEvent({ kind: 'fee', id: (event.data.object as Stripe.ApplicationFee).id })
+        break
+      }
+      case 'application_fee.refund.updated': {
+        if (event.account) break
+        const feeId = stripeId((event.data.object as Stripe.FeeRefund).fee)
+        if (!feeId) throw new SettlementConflict('Application fee refund identity is missing')
+        await reconcileFinancialEvent({ kind: 'fee', id: feeId })
+        break
+      }
+      case 'charge.updated': {
+        if (event.account) break
+        await reconcileFinancialEvent({ kind: 'charge', id: (event.data.object as Stripe.Charge).id })
+        break
+      }
+      case 'charge.dispute.created':
+      case 'charge.dispute.updated':
+      case 'charge.dispute.closed':
+      case 'charge.dispute.funds_withdrawn':
+      case 'charge.dispute.funds_reinstated': {
+        if (event.account) break
+        const dispute = event.data.object as Stripe.Dispute
+        const chargeId = stripeId(dispute.charge)
+        if (!chargeId || !dispute.id) throw new SettlementConflict('Dispute charge identity is missing')
+        await reconcileFinancialEvent({ kind: 'charge', id: chargeId, disputeId: dispute.id })
+        break
+      }
     }
   } catch (error) {
     if (error instanceof RefundReconciliationError) return NextResponse.json({ error: error.message }, { status: error.status })

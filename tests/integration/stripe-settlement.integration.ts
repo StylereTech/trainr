@@ -6,9 +6,9 @@ import { prisma } from '@/lib/prisma'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { POST } from '@/app/api/payments/webhook/route'
-import { settlementFixture } from '../helpers/stripe-settlement-fixture'
+import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 
-const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
+const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'stripe-signature': provider.signature }) }))
 vi.mock('@/lib/stripe', async () => {
@@ -16,7 +16,7 @@ vi.mock('@/lib/stripe', async () => {
   return { stripeRuntimeStatus: () => ({ secretConfigured: true, webhookConfigured: true }),
     verifyWebhookSignature: (body: string, signature: string) => SDK.webhooks.constructEvent(body, signature, 'whsec_synthetic_settlement_only'),
     stripe: { paymentIntents: { retrieve: provider.intent }, charges: { retrieve: provider.charge }, transfers: { retrieve: provider.transfer },
-      applicationFees: { retrieve: provider.fee }, refunds: { list: provider.refunds }, checkout: { sessions: { retrieve: provider.session } } } }
+      applicationFees: { retrieve: provider.fee }, disputes: { list: provider.disputes }, refunds: { list: provider.refunds }, checkout: { sessions: { retrieve: provider.session } } } }
 })
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 const users: string[] = [], sports: string[] = [], bookings: string[] = []
@@ -28,8 +28,18 @@ const evidence = () => ({ bookingId: f.booking.id, paymentId: f.booking.payment.
 const payment = () => independent.payment.findUniqueOrThrow({ where: { id: f.booking.payment.id } })
 const booking = () => independent.booking.findUniqueOrThrow({ where: { id: f.booking.id } })
 const notices = () => independent.notification.findMany({ where: { userId: { in: [parentId, trainerId] } } })
-async function webhook(type = 'checkout.session.completed', account?: string) {
-  const object = type.startsWith('checkout.') ? await provider.session() : structuredClone(f.intent)
+const financialTypes = ['transfer.created', 'transfer.updated', 'transfer.reversed', 'application_fee.created', 'application_fee.refunded',
+  'application_fee.refund.updated', 'charge.updated', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed',
+  'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated']
+function financialObject(type: string) {
+  if (type.startsWith('transfer.')) return structuredClone(f.transfer)
+  if (type === 'application_fee.refund.updated') return { id: 'fr_synthetic', fee: f.fee.id }
+  if (type.startsWith('application_fee.')) return structuredClone(f.fee)
+  if (type.startsWith('charge.dispute.')) return structuredClone(f.disputes[0] || settlementDispute(f))
+  return structuredClone(f.charge)
+}
+async function webhook(type = 'checkout.session.completed', account?: string, objectOverride?: unknown) {
+  const object = objectOverride || (type.startsWith('checkout.') ? await provider.session() : structuredClone(f.intent))
   const body = JSON.stringify({ id: 'evt_synthetic', type, ...(account ? { account } : {}), data: { object } })
   provider.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
   return POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body }) as any)
@@ -61,6 +71,8 @@ beforeEach(async () => {
     stripeCheckoutSessionId: evidence().sessionId } })
   await prisma.payment.update({ where: { id: saved.payment!.id }, data: { stripeCheckoutSessionId: evidence().sessionId } })
   for (const name of ['intent', 'charge', 'transfer', 'fee'] as const) provider[name].mockImplementation(async () => structuredClone(f[name]))
+  f.disputes = []
+  provider.disputes.mockImplementation(async () => ({ data: structuredClone(f.disputes), has_more: false }))
   provider.refunds.mockResolvedValue({ data: [], has_more: false })
   provider.session.mockImplementation(async () => ({ id: evidence().sessionId, status: 'complete', payment_status: 'paid', mode: 'payment',
     currency: 'usd', amount_total: 6000, payment_intent: f.intent.id, metadata: structuredClone(f.intent.metadata), url: null }))
@@ -76,6 +88,163 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  it.each(financialTypes)('handles signed %s with current receipt verification and replay-safe notifications', async type => {
+    expect((await webhook()).status).toBe(200)
+    f.transfer.amount_reversed = 600
+    f.fee.amount_refunded = 100
+    if (type.startsWith('charge.dispute.')) f.disputes = [settlementDispute(f)]
+    const object = financialObject(type)
+    expect((await webhook(type, undefined, object)).status).toBe(200)
+    expect((await webhook(type, undefined, object)).status).toBe(200)
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+    expect((await booking()).status).toBe('CONFIRMED')
+    expect((await payment()).status).toBe('SUCCEEDED')
+  })
+  it.each(financialTypes)('ignores connected-account %s without provider lookup or financial mutation', async type => {
+    expect((await webhook(type, 'acct_connected', financialObject(type))).status).toBe(200)
+    expect(provider.charge).not.toHaveBeenCalled()
+    expect(provider.transfer).not.toHaveBeenCalled()
+    expect(provider.fee).not.toHaveBeenCalled()
+    expect((await payment()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+  })
+  it('uses current provider amounts for a delayed reversal and notifies again for a later different reversal', async () => {
+    await webhook()
+    const stale = financialObject('transfer.reversed')
+    f.transfer.amount_reversed = 600
+    expect((await webhook('transfer.reversed', undefined, stale)).status).toBe(200)
+    let reviews = (await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')
+    expect(reviews).toHaveLength(2)
+    expect(reviews[0].data).toMatchObject({ financialReview: { transferReversedInCents: 600 } })
+    f.transfer.amount_reversed = 1200
+    await webhook('transfer.reversed', undefined, stale)
+    await webhook('transfer.reversed', undefined, stale)
+    reviews = (await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')
+    expect(reviews).toHaveLength(4)
+    expect(new Set(reviews.map(item => (item.data as any).financialReviewKey)).size).toBe(2)
+  })
+  it('tracks current dispute status and funds observations without reopening an inquiry-held booking', async () => {
+    f.disputes = [settlementDispute(f, { status: 'warning_needs_response' })]
+    const original = financialObject('charge.dispute.created')
+    expect((await webhook('charge.dispute.created', undefined, original)).status).toBe(200)
+    expect((await booking()).status).toBe('PENDING')
+    expect((await webhook()).status).toBe(200)
+    expect((await booking()).status).toBe('PENDING')
+    f.disputes[0].status = 'won'
+    await webhook('charge.dispute.closed', undefined, original)
+    f.disputes[0].balance_transactions = [{ id: 'txn_restored', amount: 6000, fee: 0, net: 6000, currency: 'usd' }]
+    await webhook('charge.dispute.funds_reinstated', undefined, original)
+    await webhook('charge.dispute.created', undefined, original)
+    const reviews = (await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')
+    expect(reviews).toHaveLength(6)
+    expect(reviews.some(item => JSON.stringify(item.data).includes('txn_restored'))).toBe(true)
+    expect((await booking()).status).toBe('PENDING')
+    expect((await payment()).status).toBe('SUCCEEDED')
+  })
+  it('continues transfer review after a full customer refund without undoing the refund or cancellation', async () => {
+    await webhook()
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
+    await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
+    f.charge.refunded = true; f.charge.amount_refunded = 6000; f.transfer.amount_reversed = 6000
+    provider.refunds.mockResolvedValue({ data: [{ id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id,
+      amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }], has_more: false })
+    expect((await webhook('transfer.reversed', undefined, f.transfer)).status).toBe(200)
+    expect((await payment()).status).toBe('REFUNDED')
+    expect((await booking()).status).toBe('CANCELLED')
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+  })
+  it('rejects a triggering transfer not in the charge chain despite copied booking metadata', async () => {
+    const extra = { ...f.transfer, id: 'tr_unrelated', metadata: f.intent.metadata }
+    provider.transfer.mockImplementation(async id => structuredClone(id === extra.id ? extra : f.transfer))
+    expect((await webhook('transfer.reversed', undefined, extra)).status).toBe(409)
+    expect((await payment()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+  })
+  it('refuses an ambiguous transfer mapped to two payment records', async () => {
+    await webhook()
+    const saved = await booking()
+    const { id: _id, createdAt: _created, updatedAt: _updated, ...copy } = saved
+    const other = await prisma.booking.create({ data: { ...copy, status: 'CANCELLED', payment: { create: {
+      amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, stripeTransferId: f.transfer.id,
+    } } } }); bookings.push(other.id)
+    const response = await webhook('transfer.reversed', undefined, f.transfer)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: 'Financial event does not map to one booking payment' })
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(0)
+  })
+  it('rolls back all financial writes when a current dispute read fails, then retries the same event', async () => {
+    f.disputes = [settlementDispute(f)]
+    provider.disputes.mockRejectedValueOnce(new Error('private provider diagnostics'))
+    const object = financialObject('charge.dispute.created')
+    const response = await webhook('charge.dispute.created', undefined, object)
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('private provider')
+    expect(await payment()).toMatchObject({ status: 'PENDING', stripeChargeId: null, stripeTransferId: null })
+    expect(await notices()).toHaveLength(0)
+    expect((await webhook('charge.dispute.created', undefined, object)).status).toBe(200)
+    expect((await booking()).status).toBe('PENDING')
+  })
+  it('notifies only active admins and rolls the whole observation back when an admin notice fails', async () => {
+    const active = await prisma.user.create({ data: { email: `active-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); users.push(active.id)
+    const deleted = await prisma.user.create({ data: { email: `deleted-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login', deletedAt: new Date() } }); users.push(deleted.id)
+    expect(verified).toBe(true)
+    expect(active.id).toMatch(/^[a-z0-9]+$/)
+    await independent.$executeRawUnsafe(`ALTER TABLE notifications ADD CONSTRAINT financial_admin_notification_failure CHECK ("userId" <> '${active.id}') NOT VALID`)
+    f.transfer.amount_reversed = 1000
+    try {
+      expect((await webhook('transfer.reversed', undefined, f.transfer)).status).toBe(503)
+      expect((await payment()).status).toBe('PENDING')
+      expect(await notices()).toHaveLength(0)
+    } finally {
+      await independent.$executeRawUnsafe('ALTER TABLE notifications DROP CONSTRAINT financial_admin_notification_failure')
+    }
+    await webhook('transfer.reversed', undefined, f.transfer)
+    await webhook('transfer.reversed', undefined, f.transfer)
+    expect(await independent.notification.count({ where: { userId: active.id, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: deleted.id } })).toBe(0)
+    expect((await booking()).status).toBe('PENDING')
+  })
+  it.each(['role', 'deactivation'])('does not disclose a new review to an admin whose %s change commits while delivery waits', async change => {
+    const admin = await prisma.user.create({ data: { email: `race-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); users.push(admin.id)
+    let release!: () => void
+    let ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const hold = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${admin.id} FOR UPDATE`
+      await tx.user.update({ where: { id: admin.id }, data: change === 'role' ? { role: 'PARENT' } : { deletedAt: new Date() } })
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid)
+      await untilReleased
+    }, { timeout: 15000 })
+    const holder = await locked
+    f.transfer.amount_reversed = 1000
+    const delivery = webhook('transfer.reversed', undefined, f.transfer)
+    let response: Awaited<typeof delivery>
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+    } finally { release(); await hold; response = await delivery }
+    expect(response.status).toBe(200)
+    expect(await independent.notification.count({ where: { userId: admin.id } })).toBe(0)
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+  })
+  it.each(['transfer.reversed', 'application_fee.refunded', 'charge.dispute.created'])('processes a later %s without replaying a payment event', async type => {
+    expect((await webhook()).status).toBe(200)
+    let object: any
+    if (type === 'transfer.reversed') { f.transfer.amount_reversed = 600; object = f.transfer }
+    else if (type === 'application_fee.refunded') { f.fee.amount_refunded = 100; object = f.fee }
+    else {
+      f.charge.disputed = true
+      object = settlementDispute(f)
+      f.disputes = [object]
+    }
+    expect((await webhook(type, undefined, object)).status).toBe(200)
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+    expect((await booking()).status).toBe('CONFIRMED')
+  })
   it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded'])('settles signed %s, persists transfer, and confirms exactly once on replay', async type => {
     expect((await webhook(type)).status).toBe(200)
     expect((await webhook(type)).status).toBe(200)
@@ -107,7 +276,7 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
       await independent.$executeRawUnsafe('ALTER TABLE notifications DROP CONSTRAINT settlement_notification_failure')
     }
     expect((await webhook()).status).toBe(200)
-    expect((await payment()).stripeTransferId).toBe('tr_settlement')
+    expect((await payment()).stripeTransferId).toBe(f.transfer.id)
     expect((await booking()).status).toBe('CONFIRMED')
   })
   it.each([
@@ -131,7 +300,7 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     expect(await response.text()).not.toContain('private Stripe')
     expect((await payment()).status).toBe('PENDING')
     expect(await notices()).toHaveLength(0)
-    f.charge.transfer = 'tr_settlement'; f.charge.application_fee = 'fee_settlement'
+    f.charge.transfer = f.transfer.id; f.charge.application_fee = f.fee.id
     expect((await webhook()).status).toBe(200)
     expect((await booking()).status).toBe('CONFIRMED')
   })
@@ -151,7 +320,7 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
   it('uses the saved destination even if the current trainer account changed after checkout creation', async () => {
     await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { stripeAccountId: 'acct_new' } })
     expect((await webhook()).status).toBe(200)
-    expect((await payment()).stripeTransferId).toBe('tr_settlement')
+    expect((await payment()).stripeTransferId).toBe(f.transfer.id)
   })
   it.each(['valid', 'wrong-destination'])('paid checkout recovery also runs settlement verification: %s', async mode => {
     if (mode === 'wrong-destination') f.transfer.destination = 'acct_other'
@@ -164,17 +333,20 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     await prisma.booking.update({ where: { id: f.booking.id }, data: { status } })
     expect((await webhook()).status).toBe(200)
     expect((await booking()).status).toBe(status)
-    expect((await payment()).stripeTransferId).toBe('tr_settlement')
+    expect((await payment()).stripeTransferId).toBe(f.transfer.id)
     expect((await notices()).every(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
   })
   it.each(['dispute', 'reversal', 'fee-refund'])('withholds confirmation for %s, records financial identities, and requests review', async mode => {
-    if (mode === 'dispute') f.charge.disputed = true
+    if (mode === 'dispute') {
+      f.charge.disputed = true
+      f.disputes = [settlementDispute(f)]
+    }
     if (mode === 'reversal') f.transfer.amount_reversed = 600
     if (mode === 'fee-refund') f.fee.amount_refunded = 100
     expect((await webhook()).status).toBe(200)
     expect((await webhook()).status).toBe(200)
     expect((await booking()).status).toBe('PENDING')
-    expect((await payment()).stripeTransferId).toBe('tr_settlement')
+    expect((await payment()).stripeTransferId).toBe(f.transfer.id)
     const notifications = await notices()
     expect(notifications).toHaveLength(2)
     expect(notifications.every(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
@@ -205,7 +377,7 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     const refund = { id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id, amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }
     provider.refunds.mockRejectedValueOnce(new Error('Stripe refund read unavailable')).mockResolvedValue({ data: [refund], has_more: false })
     expect((await webhook()).status).toBe(503)
-    expect(await payment()).toMatchObject({ stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id, stripeTransferId: 'tr_settlement' })
+    expect(await payment()).toMatchObject({ stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
     expect((await booking()).status).toBe('PENDING')
     expect((await notices()).some(item => item.type === 'BOOKING_CONFIRMED')).toBe(false)
     expect((await webhook()).status).toBe(200)

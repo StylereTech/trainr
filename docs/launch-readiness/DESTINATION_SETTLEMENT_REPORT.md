@@ -1,5 +1,7 @@
 # Destination Settlement Verification
 
+2026-10-08 post-settlement update: platform transfer, application-fee and dispute lifecycle events now resolve current provider relationships and invoke full settlement verification. Current dispute history and sanitized financial observations drive replay-safe party/active-admin review notices, including after full customer refunds. No money movement or automatic dispute resolution is performed. Baseline `5cfc90fdb0b5da5e6f13f77f678bb1c9f15764c5`; [reproduced failures, tests, required webhook subscriptions and publication proof](POST_SETTLEMENT_EVENT_REPORT.md). Provider reads are simulated locally; production rollout and real money-flow proof remain HOLD.
+
 ## Scope And Verdict
 
 - Date/time: 2026-10-08, focused checks at 17:41-17:46 UTC; final gate/publication observations below.

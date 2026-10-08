@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { verifyDestinationSettlement } from '@/lib/stripe-settlement'
+import { verifyDestinationSettlement, type SettlementSource } from '@/lib/stripe-settlement'
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
 
 export class PaymentEventConflict extends Error {}
@@ -17,7 +17,7 @@ export type PaymentEvidence = {
   refundAmount?: number
 }
 
-export async function applyPaymentEvidence(evidence: PaymentEvidence) {
+export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: SettlementSource) {
   if (evidence.outcome === 'refunded') throw new PaymentEventConflict('Refund snapshots require current Stripe refund reconciliation')
   const refundChargeId = await prisma.$transaction(async (tx) => {
     // Serialize related events, including distinct event IDs for the same payment.
@@ -69,28 +69,32 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
     }
 
     // A delayed success cannot undo a refund or a terminal booking decision.
-    if (payment.status === 'REFUNDED') return
-    const settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, evidence.intentId, evidence.chargeId)
+    const fullyRefunded = payment.status === 'REFUNDED'
+    if (fullyRefunded && !source) return
+    const settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, evidence.intentId, evidence.chargeId, source)
     const partiallyRefunded = payment.status === 'PARTIALLY_REFUNDED'
-    const newlyPaid = payment.status !== 'SUCCEEDED' && !partiallyRefunded
+    const newlyPaid = payment.status !== 'SUCCEEDED' && !partiallyRefunded && !fullyRefunded
     await tx.payment.update({
       where: { id: payment.id },
       data: { ...identity, stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId,
-        status: partiallyRefunded ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED' },
+        status: fullyRefunded ? 'REFUNDED' : partiallyRefunded ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED' },
     })
-    const refundActivity = payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0
+    const refundActivity = fullyRefunded || partiallyRefunded || payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0
     const confirmed = refundActivity || settlement.requiresReview ? { count: 0 } : await tx.booking.updateMany({
       where: { id: booking.id, status: 'PENDING' }, data: { status: 'CONFIRMED' },
     })
     const needsReview = settlement.requiresReview || booking.status === 'CANCELLED' || booking.status === 'RESCHEDULED'
-    const newFinancialReview = settlement.requiresReview && !newlyPaid && !await tx.notification.findFirst({
-      where: { userId: booking.parentProfile.userId, type: 'PAYMENT_REVIEW_REQUIRED', data: { path: ['bookingId'], equals: booking.id } },
+    const newFinancialReview = settlement.review && !await tx.notification.findFirst({
+      where: { userId: booking.parentProfile.userId, type: 'PAYMENT_REVIEW_REQUIRED', data: { path: ['financialReviewKey'], equals: settlement.review.key } },
       select: { id: true },
     })
     const reviewMessage = settlement.requiresReview
       ? 'Stripe reports a refund, dispute, transfer reversal or fee refund. Contact support to reconcile the payment. This is not a booking confirmation or bank payout receipt.'
       : 'Payment arrived for a cancelled or rescheduled booking. Contact support to reconcile the payment; the booking has not been reopened.'
     const notifications = []
+    const notificationData = { bookingId: booking.id, ...(settlement.review ? {
+      financialReviewKey: settlement.review.key, financialReview: settlement.review.details,
+    } : {}) }
     if (newlyPaid || confirmed.count > 0 || newFinancialReview) {
       notifications.push({
         userId: booking.trainerProfile.userId,
@@ -101,7 +105,7 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
           : partiallyRefunded
             ? 'Payment is confirmed with a partial refund recorded. Check Stripe for the remaining balance, transfer and bank payout status.'
             : `Payment of $${(payment.amountInCents / 100).toFixed(2)} received. Your recorded share is $${(payment.trainerPayoutInCents / 100).toFixed(2)}. Check Stripe for transfer and bank payout status.`,
-        data: { bookingId: booking.id },
+        data: notificationData,
       })
     }
     if (confirmed.count > 0 || (newlyPaid && needsReview) || newFinancialReview) {
@@ -112,8 +116,17 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence) {
         message: needsReview
           ? reviewMessage
           : `Your session with ${booking.trainerProfile.firstName} ${booking.trainerProfile.lastName} on ${booking.date.toISOString().slice(0, 10)} is confirmed.`,
-        data: { bookingId: booking.id },
+        data: notificationData,
       })
+    }
+    if (newFinancialReview) {
+      // Lock recipients only after provider reads; revocation must not win between selection and delivery.
+      const admins = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM users WHERE role = 'ADMIN' AND "deletedAt" IS NULL ORDER BY id FOR SHARE`
+      for (const admin of admins) {
+        if (notifications.some(item => item.userId === admin.id)) continue
+        notifications.push({ userId: admin.id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Stripe payment needs review',
+          message: 'Review the current dispute, transfer reversal or fee refund in Stripe. Check evidence deadlines and reconcile the customer and trainer balances before issuing money movement.', data: notificationData })
+      }
     }
     if (notifications.length) await tx.notification.createMany({ data: notifications })
     return settlement.hasRefunds ? settlement.chargeId : undefined
