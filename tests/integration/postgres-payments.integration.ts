@@ -109,6 +109,87 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it.each(['role', 'deactivation'] as const)('blocks queued checkout before any provider write when buyer %s wins', async change => {
+    const booking = await reserve()
+    let release!: () => void
+    let ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const hold = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${fixture.parent} FOR UPDATE`
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid); await untilReleased
+      await tx.user.update({ where: { id: fixture.parent }, data: change === 'role' ? { role: 'TRAINER' } : { deletedAt: new Date() } })
+    }, { timeout: 15000 })
+    const holder = await locked
+    const checkout = startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+      .then(value => ({ value, error: null }), error => ({ value: null, error }))
+    let result: Awaited<typeof checkout>
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+    } finally { release(); await hold; result = await checkout }
+    expect(result.error).toMatchObject({ message: expect.stringContaining('Parent access') })
+    expect(result.value).toBeNull()
+    expect(await independent.payment.count({ where: { bookingId: booking.id } })).toBe(0)
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(provider.retrieve).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['create', 'role'], ['create', 'deactivation'], ['retrieve', 'role'], ['retrieve', 'deactivation'],
+  ] as const)('withholds checkout after buyer %s response crosses a %s commit', async (operation, change) => {
+    const booking = await reserve()
+    const buyer = { id: fixture.parent }
+    if (operation === 'retrieve') await startOrResumeCheckout(booking.id, buyer, 'acct_synthetic')
+    const readSession = provider.retrieve.getMockImplementation()!
+    const original = provider[operation].getMockImplementation()!
+    provider[operation].mockImplementationOnce(async (...args) => {
+      const session = await original(...args)
+      // This independent write also proves no buyer lock is held across the external request.
+      await independent.user.update({ where: { id: fixture.parent }, data: change === 'role' ? { role: 'TRAINER' } : { deletedAt: new Date() } })
+      return session
+    })
+    await expect(startOrResumeCheckout(booking.id, buyer, 'acct_synthetic')).rejects.toThrow('Parent account access changed')
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id }, include: { checkoutAttempts: true } })
+    expect(payment.stripeCheckoutSessionId).toBeTruthy()
+    expect(payment.checkoutAttempts).toHaveLength(1)
+    expect(payment.checkoutAttempts[0].stripeCheckoutSessionId).toBe(payment.stripeCheckoutSessionId)
+    expect(payment.checkoutAttempts[0].retiredAt).toBeNull()
+    expect(payment.status).toBe('PENDING')
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('PENDING')
+    expect(await readSession(payment.stripeCheckoutSessionId)).toMatchObject({ status: 'expired' })
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    const reads = provider.retrieve.mock.calls.length
+    await expect(startOrResumeCheckout(booking.id, buyer, 'acct_synthetic')).rejects.toThrow('Parent access')
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    expect(provider.retrieve).toHaveBeenCalledTimes(reads)
+  })
+
+  it('keeps uncertain withheld checkout traceable for authorized cancellation and closure', async () => {
+    const booking = await reserve()
+    const create = provider.create.getMockImplementation()!, expire = provider.expire.getMockImplementation()!
+    provider.create.mockImplementationOnce(async (...args) => {
+      const session = await create(...args)
+      await independent.user.update({ where: { id: fixture.parent }, data: { deletedAt: new Date() } })
+      return session
+    })
+    provider.expire.mockRejectedValueOnce(new Error('Synthetic provider outage'))
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('contact support to reconcile')
+    const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+    expect(payment.stripeCheckoutSessionId).toBeTruthy()
+    expect(payment.status).toBe('PENDING')
+    expect(await provider.retrieve(payment.stripeCheckoutSessionId)).toMatchObject({ status: 'open' })
+    provider.expire.mockImplementation(expire)
+    await applyBookingAction(booking.id, { id: fixture.trainerUser, role: 'TRAINER' }, { action: 'cancel', reason: 'Synthetic reconciliation decision' })
+    expect(await closeCancelledCheckout(booking.id)).toBe('closed')
+    expect((await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('PENDING')
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    expect(await independent.checkoutAttempt.count({ where: { paymentId: payment.id } })).toBe(1)
+  })
+
   it.each([
     ['PARENT', 'role'], ['TRAINER', 'role'], ['ADMIN', 'role'],
     ['PARENT', 'deactivation'], ['TRAINER', 'deactivation'], ['ADMIN', 'deactivation'],

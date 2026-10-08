@@ -12,6 +12,13 @@ type Buyer = { id: string; email?: string | null }
 type ExpiredSession = { id: string; intentId: string | null }
 const RECOVERY_WINDOW_MS = 23 * 60 * 60 * 1000
 
+async function lockCurrentBuyer(tx: Prisma.TransactionClient, buyerId: string) {
+  // Account revocation writers lock users first; never hold this lock across Stripe calls.
+  await tx.$queryRaw`SELECT id FROM users WHERE id = ${buyerId} FOR SHARE`
+  const user = await tx.user.findUnique({ where: { id: buyerId }, select: { role: true, deletedAt: true } })
+  return user?.role === 'PARENT' && !user.deletedAt
+}
+
 async function lockedBooking(tx: Prisma.TransactionClient, bookingId: string) {
   await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
   await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
@@ -74,6 +81,7 @@ function parameters(booking: CheckoutBooking, paymentId: string, attemptId: stri
 
 async function prepare(bookingId: string, buyer: Buyer, accountId: string, expired?: ExpiredSession) {
   return prisma.$transaction(async (tx) => {
+    if (!await lockCurrentBuyer(tx, buyer.id)) throw new CheckoutConflict('Parent access is required for checkout. Sign in again before retrying.')
     const booking = await lockedBooking(tx, bookingId)
     assertPayable(booking, buyer, accountId)
     if (!booking) throw new CheckoutConflict('Booking not found.')
@@ -138,8 +146,10 @@ function validateSession(session: Stripe.Checkout.Session, bookingId: string, pa
   }
 }
 
-async function rememberSession(bookingId: string, buyer: Buyer, accountId: string, sessionId: string, attemptId: string | null) {
-  const recorded = await prisma.$transaction(async (tx) => {
+async function rememberSession(bookingId: string, buyer: Buyer, accountId: string, session: Stripe.Checkout.Session, attemptId: string | null) {
+  const sessionId = session.id
+  const { recorded, buyerAllowed } = await prisma.$transaction(async (tx) => {
+    const buyerAllowed = await lockCurrentBuyer(tx, buyer.id)
     const booking = await lockedBooking(tx, bookingId)
     if (!booking?.payment) throw new CheckoutConflict('Payment record not found.')
     if (booking.parentProfile.userId !== buyer.id || booking.trainerProfile.stripeAccountId !== accountId) {
@@ -154,12 +164,27 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
     }
     if (current) await tx.checkoutAttempt.update({ where: { id: current.id }, data: { stripeCheckoutSessionId: sessionId } })
     await tx.payment.update({ where: { id: booking.payment.id }, data: { stripeCheckoutSessionId: sessionId } })
-    return booking
+    return { recorded: booking, buyerAllowed }
   })
   // Save the provider identity even when cancellation wins the external-call race.
   if (recorded.status === 'CANCELLED') await closeCancelledCheckout(bookingId)
+  const trainerAllowed = recorded.trainerProfile.isActive && recorded.trainerProfile.approvalStatus === 'APPROVED'
+  if (!buyerAllowed || !trainerAllowed) {
+    // Retain the returned identity before best-effort expiry. No refund or closure is implied.
+    if (session.status === 'open' && session.payment_status === 'unpaid') {
+      try {
+        const expired = await stripe.checkout.sessions.expire(sessionId, {}, { timeout: 8000, maxNetworkRetries: 0, idempotencyKey: `trainr-withheld-${sessionId}` })
+        validateSession(expired, bookingId, recorded.payment!.id, recorded.payment!.amountInCents, attemptId || undefined)
+        if (expired.id !== sessionId || expired.status !== 'expired' || expired.payment_status !== 'unpaid' || expired.after_expiration?.recovery?.enabled) {
+          throw new CheckoutConflict('Withheld session expiry requires reconciliation')
+        }
+      } catch { console.error('Withheld checkout expiry could not be verified; reconciliation required') }
+    }
+    throw new CheckoutConflict(!buyerAllowed
+      ? 'Parent account access changed. Checkout was withheld; contact support to reconcile any payment.'
+      : 'Trainer is no longer available for checkout. Checkout was withheld; contact support to reconcile any payment.')
+  }
   assertPayable(recorded, buyer, accountId)
-  if (!recorded.trainerProfile.isActive || recorded.trainerProfile.approvalStatus !== 'APPROVED') throw new CheckoutConflict('Trainer is no longer available for checkout. Contact support to reconcile this booking.')
 }
 
 export type CheckoutClosure = 'closed' | 'not_required' | 'review_required'
@@ -281,14 +306,14 @@ export async function startOrResumeCheckout(bookingId: string, buyer: Buyer, acc
         if (intent.status !== 'canceled') throw new CheckoutConflict('Expired checkout has an unresolved payment intent. Contact support before retrying.')
       }
       // Persist recovered session identity before considering a replacement.
-      await rememberSession(bookingId, buyer, accountId, session.id, attempt?.id || null)
+      await rememberSession(bookingId, buyer, accountId, session, attempt?.id || null)
       expired = { id: session.id, intentId }
       continue
     }
     if (session.status !== 'open' || session.payment_status !== 'unpaid' || !session.url) {
       throw new CheckoutConflict('Stripe checkout is not payable. Refresh your booking or contact support.')
     }
-    await rememberSession(bookingId, buyer, accountId, session.id, attempt?.id || null)
+    await rememberSession(bookingId, buyer, accountId, session, attempt?.id || null)
     return { checkoutUrl: session.url, paymentId: payment.id }
   }
   throw new CheckoutConflict('Checkout changed repeatedly. Refresh your booking before retrying.')

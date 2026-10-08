@@ -25,6 +25,7 @@ beforeEach(() => {
   sessions = new Map()
   accepted = new Map()
   state = {
+    buyer: { role: 'PARENT', deletedAt: null },
     booking: { id: 'booking', status: 'PENDING', totalAmountInCents: 10000, platformFeeInCents: 1500, trainerPayoutInCents: 8500,
       date: new Date('2026-11-01'), startTime: '09:00', parentProfile: { id: 'parent-profile', userId: 'parent' },
       trainerProfile: { id: 'trainer', userId: 'trainer-user', stripeAccountId: 'acct_ready', firstName: 'Test', lastName: 'Trainer', isActive: true, approvalStatus: 'APPROVED' },
@@ -42,6 +43,7 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        user: { findUnique: async () => structuredClone(state.buyer) },
         booking: {
           findUnique: async () => structuredClone({ ...state.booking, payment: state.payment }),
           updateMany: async ({ where, data }: any) => {
@@ -108,6 +110,115 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 const checkout = (user = buyer) => startOrResumeCheckout('booking', user, 'acct_ready')
+
+describe('checkout buyer revocation', () => {
+  it.each(['TRAINER', 'ADMIN', 'deleted', 'missing'])('blocks a %s buyer before provider or payment writes', async change => {
+    if (change === 'missing') state.buyer = null
+    else if (change === 'deleted') state.buyer.deletedAt = new Date()
+    else state.buyer.role = change
+    await expect(checkout()).rejects.toThrow('Parent access')
+    expect(state.payment).toBeNull()
+    expect(state.attempts).toHaveLength(0)
+    expect(mock.create).not.toHaveBeenCalled()
+    expect(mock.retrieve).not.toHaveBeenCalled()
+  })
+  it.each(['role', 'deleted'])('retains and expires the returned session when buyer %s changes during creation', async change => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementation(async (...args) => {
+      const session = await create(...args)
+      if (change === 'role') state.buyer.role = 'TRAINER'
+      else state.buyer.deletedAt = new Date()
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('Parent account access changed')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.attempts[0].stripeCheckoutSessionId).toBe('cs_1')
+    expect(sessions.get('cs_1').status).toBe('expired')
+    expect(state.payment.status).toBe('PENDING')
+    expect(state.booking.status).toBe('PENDING')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('withheld checkout recovery', () => {
+  const revokeAfterCreate = () => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementationOnce(async (...args) => {
+      const session = await create(...args)
+      state.buyer.role = 'TRAINER'
+      return session
+    })
+  }
+  it('withholds a resumed URL if the buyer is deactivated during retrieval', async () => {
+    await checkout()
+    const retrieve = mock.retrieve.getMockImplementation()!
+    mock.retrieve.mockImplementation(async (...args) => {
+      const session = await retrieve(...args)
+      state.buyer.deletedAt = new Date()
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('Parent account access changed')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+    expect(sessions.get('cs_1').status).toBe('expired')
+    expect(mock.expire).toHaveBeenCalledWith('cs_1', {}, { timeout: 8000, maxNetworkRetries: 0, idempotencyKey: 'trainr-withheld-cs_1' })
+  })
+  it('keeps a known session and pending money state when expiry fails', async () => {
+    revokeAfterCreate()
+    mock.expire.mockRejectedValue(new Error('provider unavailable'))
+    await expect(checkout()).rejects.toThrow('contact support to reconcile')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.payment.status).toBe('PENDING')
+    expect(state.attempts[0].retiredAt).toBeNull()
+    expect(sessions.get('cs_1').status).toBe('open')
+    await expect(checkout()).rejects.toThrow('Parent access')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
+  it('does not undo a fast webhook settlement if payment wins the expiry race', async () => {
+    revokeAfterCreate()
+    mock.expire.mockImplementation(async () => {
+      state.payment.status = 'SUCCEEDED'
+      state.payment.stripePaymentIntentId = 'pi_paid'
+      state.booking.status = 'CONFIRMED'
+      throw new Error('session already completed')
+    })
+    await expect(checkout()).rejects.toThrow('contact support to reconcile')
+    expect(state.payment).toMatchObject({ stripeCheckoutSessionId: 'cs_1', stripePaymentIntentId: 'pi_paid', status: 'SUCCEEDED' })
+    expect(state.booking.status).toBe('CONFIRMED')
+    expect(state.attempts).toHaveLength(1)
+  })
+  it.each(['identity', 'open', 'recovery'])('does not release a URL or claim closure for an inconsistent expiry response: %s', async problem => {
+    revokeAfterCreate()
+    mock.expire.mockImplementation(async () => ({ ...structuredClone(sessions.get('cs_1')), status: 'expired',
+      ...(problem === 'identity' ? { id: 'cs_wrong' } : problem === 'open' ? { status: 'open' } : { after_expiration: { recovery: { enabled: true } } }) }))
+    await expect(checkout()).rejects.toThrow('contact support to reconcile')
+    expect(state.payment).toMatchObject({ stripeCheckoutSessionId: 'cs_1', status: 'PENDING' })
+    expect(state.attempts[0].retiredAt).toBeNull()
+  })
+  it('allows a currently restored parent to replace only the provider-verified expired session', async () => {
+    revokeAfterCreate()
+    await expect(checkout()).rejects.toThrow('Parent account access changed')
+    state.buyer.role = 'PARENT'
+    expect(await checkout()).toMatchObject({ checkoutUrl: 'https://checkout.stripe.com/session-2' })
+    expect(state.attempts).toHaveLength(2)
+    expect(state.attempts[0]).toMatchObject({ stripeCheckoutSessionId: 'cs_1', retiredAt: expect.any(Date) })
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_2')
+  })
+  it('retains an expired identity without replacement when revocation wins during retrieval', async () => {
+    await checkout()
+    Object.assign(sessions.get('cs_1'), { status: 'expired', url: null })
+    const retrieve = mock.retrieve.getMockImplementation()!
+    mock.retrieve.mockImplementation(async (...args) => {
+      const session = await retrieve(...args)
+      state.buyer.role = 'TRAINER'
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('Parent account access changed')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+    expect(mock.expire).not.toHaveBeenCalled()
+    expect(state.attempts).toHaveLength(1)
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+  })
+})
 
 describe('cancelled checkout closure', () => {
   const cancel = async () => { state.booking.status = 'CANCELLED'; return closeCancelledCheckout('booking') }
@@ -266,6 +377,7 @@ describe('durable checkout attempts', () => {
       return session
     })
     await expect(checkout()).rejects.toThrow('no longer available')
+    expect(sessions.get('cs_1').status).toBe('expired')
     expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
     expect(state.attempts[0].stripeCheckoutSessionId).toBe('cs_1')
     expect(state.payment.status).toBe('PENDING')
@@ -302,7 +414,8 @@ describe('durable checkout attempts', () => {
     expect(attempt.parameters.payment_intent_data).toMatchObject({ application_fee_amount: 1500, transfer_data: { destination: 'acct_ready' } })
     expect(attempt.parameters.metadata).toEqual({ bookingId: 'booking', paymentId: 'payment', checkoutAttemptId: attempt.id })
     expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
-    expect(mock.query.mock.calls[0][0].join('?')).toBe('SELECT id FROM bookings WHERE id = ? FOR UPDATE')
+    expect(mock.query.mock.calls[0][0].join('?')).toBe('SELECT id FROM users WHERE id = ? FOR SHARE')
+    expect(mock.query.mock.calls[1][0].join('?')).toBe('SELECT id FROM bookings WHERE id = ? FOR UPDATE')
   })
 
   it('resumes an existing open session without expiring or creating another session', async () => {
