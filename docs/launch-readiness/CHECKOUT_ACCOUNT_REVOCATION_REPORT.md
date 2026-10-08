@@ -6,7 +6,7 @@
 - Baseline: `4df968e5d09b3f44678b948b4c5e1f4dd6b3d02a`, branch `codex/payment-readiness-20261006`. Clean worktree verified before changes. Previous booking-action authorization fix was published progress.
 - Environment: local source, optimized build and guarded PostgreSQL `trainr_audit_20261008` on loopback port 55439. Synthetic `audit-<UUID>-parent@example.test` / trainer accounts and Stripe mocks only. No real Stripe session, charge, payout or production account mutation.
 - P1 finding: Checkout trusted ownership and earlier route authentication but did not lock/revalidate the buyer's current role/deactivation state in its transactions. Cached requests could create a session for a revoked buyer, or return a URL after revocation committed during Stripe create/retrieve. Trainer unavailability withheld URLs but did not attempt expiry of the returned open session.
-- Status: local remediation verified; publication evidence follows below. Production and money-flow signoff remain **HOLD**.
+- Status: local remediation verified and published on the audit branch; exact evidence follows below. Production and money-flow signoff remain **HOLD**.
 
 ## Changes
 
@@ -50,4 +50,12 @@ This protects preparation and finalization of requests reaching these transactio
 - Final built-app browser regression: **76/76 passed across 17 files**, exit 0, no retry or timeout relaxation. Chromium via Edge ran one worker/file process at desktop/mobile sizes against the optimized loopback server and real guarded SQL. Output root: `test-results/checkout-revocation-final`. Existing browser Checkout provider responses are simulated; the new deterministic revocation races are tested in unit/real-SQL suites, not against live Stripe.
 - Cleanup: stopped Next, verified the exact disposable database/guard and zero users, athletes, athlete/booking requests, bookings, payments, Connect attempts, admin actions and notifications. Removed 32 synthetic rate-limit buckets in a guarded disposable-only transaction and verified zero remaining. PostgreSQL stopped successfully. No production counters/data changed.
 - The sandbox Windows account still could not launch processes (error 1909); scoped approved native execution and the same patch helper were used. No OS account/security settings were modified.
-- Commit/push verification and anonymous live evidence follow after actual completion below.
+
+## Publication And Live Evidence
+
+- 2026-10-08 17:26 UTC: source/test/report commit [`66973fd7f0f250a9794eb350636421c4ece2eaf3`](https://github.com/StylereTech/trainr/commit/66973fd7f0f250a9794eb350636421c4ece2eaf3) pushed normally to `codex/payment-readiness-20261006`. `git ls-remote` independently confirmed this SHA. Main stayed `2067e743c54ffee669cd484f26dc472b157f1881`; no force push, main promotion or production migration.
+- [Hosted CI run 37816579270](https://github.com/StylereTech/trainr/actions/runs/37816579270) failed with **zero executed steps**. Check-run `113446639299` annotation: `The job was not started because your account is locked due to a billing issue.` This confirms an external execution blocker, not a green hosted check or a local test failure.
+- Source commit Vercel status remained **pending**, pointing to [the trainr preview](https://vercel.com/styleres-projects/trainr/4gz2GwZyBmdZBHrBXP9nQqUYVMqs). Pending is not evidence of successful deployment, configured staging or verified production behavior.
+- Read-only anonymous smoke on `https://trainr.cc`, 17:26:31-17:26:32 UTC local clock: `GET /api/health` returned 200 with `ok:true, dbConnected:true`; `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect` and `/api/admin/bookings` each returned 401 Unauthorized. PASS only for the sampled health/anonymous boundaries.
+- `GET /api/auth/verify` still returned 400 `Verification token required`, consistent with older live behavior rather than the audit branch's anonymous 401. These live GET checks do not prove that this Checkout fix is deployed and do not test a payment or account-revocation race. No live account, session, booking, charge, transfer or payout was created by this pass.
+- This publication-only follow-up edits documentation, not the tested runtime. Remaining application/policy work, isolated staging, correct-project rollout, billing-unblocked CI and actual Stripe/email/money-flow proof are still required. Full production and money-flow signoff remain **HOLD**.
