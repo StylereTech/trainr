@@ -29,7 +29,11 @@ Replays do not generate another late-payment alert after the payment is recorded
 
 ## Publication
 
-Commit/push, hosted checks and anonymous live observations are recorded in the publication follow-up. Freshly fetched main remained `2067e743c54ffee669cd484f26dc472b157f1881`; no main promotion or deployment setting change was made.
+- Source and verification committed/pushed as `883f369227dd3c64382e2de564278c004671183e`, `fix: alert operations when cancelled bookings receive payment`, on the existing audit branch. Freshly fetched main remained `2067e743c54ffee669cd484f26dc472b157f1881`; no main promotion or deployment setting change was made.
+- Hosted [Actions run 37836110103](https://github.com/StylereTech/trainr/actions/runs/37836110103): `check` (113513445874) and `migrations` (113513446359) both failed with **zero executed steps**. Each failure annotation: `The job was not started because your account is locked due to a billing issue.` Local verification is not hosted CI success.
+- Source commit Vercel status was **pending**, `Vercel is deploying your app`, [deployment status](https://vercel.com/styleres-projects/trainr/GaGMXsSMwZhy8CDqaJmSTTzthZSa). No running preview, staging configuration or production promotion is established by that status.
+- Anonymous post-push production smoke, **2026-10-08 20:00:02-05 UTC**: `/api/health` 200 (`ok: true`, `dbConnected: true`); tokenless `/api/auth/verify` 400; `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect`, `/api/admin/bookings`, `/api/notifications` 401; `/notifications` 404. Health and authorization-denial expectations passed, but inbox/live parity failed. These reads cannot establish live late-payment delivery or real money flow.
+- This documentation-only follow-up records publication and external state. The audit remains active and final production/money-flow signoff remains **HOLD**.
 
 ## Open Requirements
 
