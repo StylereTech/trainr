@@ -49,8 +49,11 @@ interface AvailSlot {
 }
 
 interface CertForm {
+  id?: string
   name: string
   issuingOrg: string
+  credentialId?: string
+  isVerified?: boolean
 }
 
 interface WalletData {
@@ -200,7 +203,7 @@ function TrainerProfileContent() {
           revision,
           sports: selectedSports,
           specialties: selectedSpecialties.length > 0 ? selectedSpecialties : selectedSports,
-          certifications: certifications.filter(c => c.name),
+          certifications: certifications.filter(c => c.id || c.name.trim()).map(({ id, name, issuingOrg, credentialId }) => ({ id, name, issuingOrg, credentialId })),
           services: services.filter(s => s.title),
           availability,
         }),
@@ -211,6 +214,7 @@ function TrainerProfileContent() {
       }
       const saved = await res.json()
       setServices(saved.services)
+      setCertifications(saved.certifications)
       setRevision(saved.revision)
       toast({ title: 'Profile saved', description: 'Your changes have been saved successfully.' })
     } catch (error: any) {
@@ -447,12 +451,14 @@ function TrainerProfileContent() {
               <CardContent className="space-y-3">
                 {certifications.length === 0 && <p className="text-sm text-slate-400">No certifications added. Certifications build trust with families.</p>}
                 {certifications.map((cert, i) => (
-                  <div key={i} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div key={cert.id || `new-${i}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex-1 grid gap-3 sm:grid-cols-2">
-                      <Input value={cert.name} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, name: e.target.value } : c))} placeholder="Certification name" className="bg-white/5 border-white/10" />
-                      <Input value={cert.issuingOrg} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, issuingOrg: e.target.value } : c))} placeholder="Issuing organization" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} name`} value={cert.name} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, name: e.target.value, isVerified: false } : c))} placeholder="Certification name" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} organization`} value={cert.issuingOrg} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, issuingOrg: e.target.value, isVerified: false } : c))} placeholder="Issuing organization" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} credential ID`} value={cert.credentialId || ''} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, credentialId: e.target.value, isVerified: false } : c))} placeholder="Credential ID" className="bg-white/5 border-white/10" />
+                      <span className="self-center text-sm text-slate-300">{cert.isVerified ? 'Verified' : 'Not verified'}</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => removeCert(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" aria-label={`Remove certification ${i + 1}`} title="Remove certification" onClick={() => removeCert(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
               </CardContent>

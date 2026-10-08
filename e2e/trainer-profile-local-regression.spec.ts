@@ -17,7 +17,7 @@ for (const width of [1440, 390]) {
         profile: { firstName: 'Test', lastName: 'Trainer', headline: '', bio: '', phone: '', yearsExperience: 1,
           locationType: 'BOTH', address: '', city: 'Austin', state: 'TX', zipCode: '', travelRadius: 25,
           slug: 'local-trainer', email: 'trainer@example.test', approvalStatus: 'APPROVED', stripeOnboardingComplete: false },
-        sports: ['basketball'], specialties: ['shooting'], certifications: [],
+        sports: ['basketball'], specialties: ['shooting'], certifications: [{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123', isVerified: true }],
         services: [{ id: 'old-service', title: 'Fixture session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }],
         availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '12:00' }, { dayOfWeek: 1, startTime: '13:00', endTime: '17:00' }],
       }
@@ -30,6 +30,7 @@ for (const width of [1440, 390]) {
         const body = route.request().postDataJSON()
         saves++
         expect(body.revision).toBe(fixture.revision)
+        expect(body.certifications).toEqual([{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123' }])
         expect(body.services[0].id).toBe(saves === 1 ? 'old-service' : 'saved-version')
         if (saves === 3) return route.fulfill({ status: 409, json: { error: 'Profile changed elsewhere. Reload required.' } })
         if (saves === 2) {
@@ -37,7 +38,7 @@ for (const width of [1440, 390]) {
         }
         fixture = { ...fixture, services: [{ ...body.services[0], id: 'saved-version' }], availability: body.availability,
           revision: `2026-10-01T00:00:0${saves}.000Z` }
-        return route.fulfill({ json: { success: true, services: fixture.services, revision: fixture.revision } })
+        return route.fulfill({ json: { success: true, services: fixture.services, certifications: fixture.certifications, revision: fixture.revision } })
       })
       await page.goto('/trainer/profile')
       await page.getByRole('button', { name: 'Services', exact: true }).click()

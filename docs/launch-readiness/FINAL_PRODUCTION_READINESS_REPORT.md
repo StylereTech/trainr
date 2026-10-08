@@ -1,5 +1,7 @@
 # Final Production Readiness Report
 
+2026-10-08 credential-integrity update: fixed routine trainer edits deleting verified certification records and evidence. Baseline `1cc8ee4b738f8dfec51fb18ecc6a832222af4af1` plus this commit. **406 unit tests and 21 real local PostgreSQL tests passed**; full build/browser results and open specialty-catalog mismatch are in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). Production and live money-flow signoff remain on hold.
+
 2026-10-08 fee-configuration update: source based on `29d8ae449bf91ba98919dcdd4314a69f0391a050` now wires effective settings into new booking splits and service minimums, with atomic audited updates and stale-edit rejection. **393 unit tests and 18 real local PostgreSQL tests passed**; final browser/build proof is in the [checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). See [fee integrity findings and exact steps](FEE_CONFIGURATION_REPORT.md). Production settings were not changed and readiness is still not signed off.
 
 Latest checkpoint, 2026-10-08 04:52 UTC: **12 real local PostgreSQL integration tests passed**, including the exact checkout migration and concurrency/rollback cases. This replaces the earlier absence of local SQL evidence, not the production hold. See [SQL evidence and limits](POSTGRES_INTEGRATION_REPORT.md) and the [current audit checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). Stripe, staging/production rollout and remaining application/security gates are still incomplete.

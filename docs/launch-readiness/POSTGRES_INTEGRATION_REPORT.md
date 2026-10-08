@@ -1,5 +1,7 @@
 # PostgreSQL Integration Verification
 
+2026-10-08 05:23 UTC extension: **21/21 passed in 3.83 seconds** on baseline `1cc8ee4b738f8dfec51fb18ecc6a832222af4af1` plus this commit. Added actual certification-row preservation, ownership rejection across two real trainer rows, and rollback after a later SQL foreign-key failure. Credential IDs, verification, dates and evidence were independently read back. Final users/bookings/payments/certifications counts were zero and the cluster stopped. See the [credential checkpoint](AUDIT_CHECKPOINT_2026-10-06.md); these are synthetic database records, not real qualification verification.
+
 Latest extension, 2026-10-08 05:12 UTC: **18/18 passed**, including real fee-writer serialization, audit-foreign-key rollback and preservation of snapshotted booking fees after configuration changes. Baseline `29d8ae449bf91ba98919dcdd4314a69f0391a050` plus this commit; see [fee configuration report](FEE_CONFIGURATION_REPORT.md). All six synthetic record categories were independently verified empty after cleanup and the server stopped. Earlier results below remain historical subsets.
 
 - Date/time: 2026-10-08 04:49-04:52 UTC.

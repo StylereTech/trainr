@@ -7,6 +7,7 @@ import { applyBookingAction } from '@/lib/booking-actions'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { defaultFeeValues, updateFeeConfiguration } from '@/lib/fee-config'
+import { saveTrainerCertifications } from '@/lib/trainer-certifications'
 
 // Only Stripe is simulated. Prisma transactions, constraints and row locks are real.
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), intent: vi.fn() }))
@@ -81,6 +82,41 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  async function verifiedCredential() {
+    return prisma.certification.create({ data: { trainerProfileId: fixture.trainer, name: 'Synthetic certification', issuingOrg: 'Example Org',
+      credentialId: 'AUDIT-123', isVerified: true, issueDate: new Date('2020-01-01'), expiryDate: new Date('2035-01-01'), url: 'https://example.test/evidence' } })
+  }
+  it('preserves certification evidence and clears verification only on identifying edits', async () => {
+    const cert = await verifiedCredential()
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${fixture.trainer} FOR UPDATE`
+      await saveTrainerCertifications(tx, fixture.trainer, [{ id: cert.id, name: cert.name, issuingOrg: cert.issuingOrg! }])
+    })
+    expect(await independent.certification.findUniqueOrThrow({ where: { id: cert.id } })).toEqual(cert)
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${fixture.trainer} FOR UPDATE`
+      await saveTrainerCertifications(tx, fixture.trainer, [{ id: cert.id, name: 'Changed credential', credentialId: 'AUDIT-456' }])
+    })
+    expect(await independent.certification.findUniqueOrThrow({ where: { id: cert.id } })).toMatchObject({ ...cert, name: 'Changed credential', credentialId: 'AUDIT-456', isVerified: false })
+  })
+  it('cannot use a certification owned by another real trainer row', async () => {
+    const cert = await verifiedCredential()
+    const other = await prisma.user.create({ data: { email: `audit-${randomUUID()}@example.test`, role: 'TRAINER', passwordHash: 'not-a-login',
+      trainerProfile: { create: { firstName: 'Other', lastName: 'Synthetic', slug: randomUUID() } } }, include: { trainerProfile: true } })
+    createdTrainers.push(other.id)
+    await expect(prisma.$transaction((tx) => saveTrainerCertifications(tx, other.trainerProfile!.id, [{ id: cert.id, name: 'Stolen' }]))).rejects.toThrow('not owned')
+    expect(await independent.certification.findUniqueOrThrow({ where: { id: cert.id } })).toEqual(cert)
+  })
+  it('rolls back certification edits after a real later database failure', async () => {
+    const cert = await verifiedCredential()
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${fixture.trainer} FOR UPDATE`
+      await saveTrainerCertifications(tx, fixture.trainer, [{ id: cert.id, name: 'Changed name' }])
+      await tx.notification.create({ data: { userId: 'missing-synthetic-user', type: 'BOOKING_REQUEST', title: 'Synthetic', message: 'Expected failure' } })
+    })).rejects.toThrow()
+    expect(await independent.certification.findUniqueOrThrow({ where: { id: cert.id } })).toEqual(cert)
+  })
+
   async function config(commission: number, expectedConfigId: string | null = null) {
     const row = await updateFeeConfiguration(fixture.trainerUser, { ...defaultFeeValues, platformCommissionPercent: commission, expectedConfigId })
     createdConfigs.push(row.id)

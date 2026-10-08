@@ -62,7 +62,12 @@ beforeEach(() => {
         trainerSpecialty: { deleteMany: async () => {}, create: async () => {} },
         sport: { findUnique: async () => ({ id: 'sport' }) },
         specialty: { findFirst: async () => ({ id: 'specialty' }) },
-        certification: { deleteMany: async () => {}, create: async () => {} },
+        certification: {
+          findMany: async () => structuredClone(state.profile.certifications),
+          deleteMany: async ({ where }: any) => { state.profile.certifications = state.profile.certifications.filter((cert: any) => !where.id.in.includes(cert.id)) },
+          create: async ({ data }: any) => { const cert = { ...data, id: `cert-${state.profile.certifications.length}` }; state.profile.certifications.push(cert); return cert },
+          update: async ({ where, data }: any) => { const cert = state.profile.certifications.find((c: any) => c.id === where.id); Object.assign(cert, data); return cert },
+        },
         availabilitySlot: {
           deleteMany: mock.deleteSlots.mockImplementation(async ({ where }) => {
             state.slots = state.slots.filter((s: any) => !(s.isAvailable === where.isAvailable && s.isRecurring === where.isRecurring && s.specificDate === where.specificDate))
@@ -78,6 +83,55 @@ beforeEach(() => {
 })
 
 describe('trainer profile edit integrity (transaction model)', () => {
+  const credential = { id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123',
+    trainerProfileId: 'trainer', isVerified: true, issueDate: new Date('2020-01-01'), expiryDate: new Date('2030-01-01'), url: 'https://example.test/credential' }
+  it('returns certification IDs, credential IDs and verification for the editor', async () => {
+    state.profile.certifications = [structuredClone(credential)]
+    const data = await (await GET(new Request('http://localhost/api/trainer/onboarding') as any)).json()
+    expect(data.certifications).toEqual([{ id: 'verified-cert', name: credential.name, issuingOrg: credential.issuingOrg, credentialId: 'C-123', isVerified: true }])
+  })
+  it.each([{ certifications: undefined }, { certifications: [{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org' }] }])('preserves existing evidence and verification on unrelated edits %j', async ({ certifications }) => {
+    state.profile.certifications = [structuredClone(credential)]
+    expect((await save({ headline: 'New headline', certifications })).status).toBe(200)
+    expect(state.profile.certifications).toEqual([credential])
+  })
+  it('keeps identity and evidence but invalidates verification when credential details change', async () => {
+    state.profile.certifications = [structuredClone(credential)]
+    const response = await save({ certifications: [{ id: 'verified-cert', name: credential.name, issuingOrg: credential.issuingOrg, credentialId: 'C-456' }] })
+    expect(response.status).toBe(200)
+    expect(state.profile.certifications[0]).toMatchObject({ ...credential, credentialId: 'C-456', isVerified: false })
+    expect((await response.json()).certifications[0]).toMatchObject({ id: 'verified-cert', isVerified: false })
+  })
+  it('only removes certifications on an explicit list change', async () => {
+    state.profile.certifications = [structuredClone(credential)]
+    expect((await save({ certifications: [] })).status).toBe(200)
+    expect(state.profile.certifications).toEqual([])
+  })
+  it.each([
+    [{ id: 'foreign', name: 'Wrong owner' }],
+    [{ id: 'verified-cert', name: 'A' }, { id: 'verified-cert', name: 'B' }],
+    [{ name: 'Coaching Certificate', issuingOrg: 'Example Org' }],
+  ].map((certifications) => ({ certifications })))('rejects ambiguous/foreign certification identity %j', async ({ certifications }) => {
+    state.profile.certifications = [structuredClone(credential)]
+    expect((await save({ certifications })).status).toBe(409)
+    expect(state.profile.certifications).toEqual([credential])
+  })
+  it.each([{ name: ' ' }, { name: 'Trainer supplied', isVerified: true }, { name: 'Trainer supplied', url: 'https://bad.test' }])('rejects invalid or protected credential fields %j', async (cert) => {
+    expect((await save({ certifications: [cert] })).status).toBe(400)
+    expect(mock.transaction).not.toHaveBeenCalled()
+  })
+  it('adopts new IDs without duplicating credentials on a second save', async () => {
+    const firstSave = await (await save({ certifications: [{ name: 'New Credential' }] })).json()
+    const { isVerified: _ignored, ...editable } = firstSave.certifications[0]
+    expect((await save({ revision: firstSave.revision, certifications: [editable] })).status).toBe(200)
+    expect(state.profile.certifications).toHaveLength(1)
+  })
+  it('rolls back certification changes when later availability persistence fails', async () => {
+    state.profile.certifications = [structuredClone(credential)]
+    fail = true
+    expect((await save({ certifications: [{ id: 'verified-cert', name: 'Changed name' }] })).status).toBe(503)
+    expect(state.profile.certifications).toEqual([credential])
+  })
   it('rejects service prices below the configured minimum without changing profile data', async () => {
     mock.fees.mockResolvedValue([{ platformCommissionPercent: 15, stripeFeePercent: 2.9, processingFeeCents: 30, minBookingAmountCents: 7000 }])
     expect((await save()).status).toBe(409)

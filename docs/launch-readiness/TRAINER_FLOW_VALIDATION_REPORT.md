@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-08 credential-integrity update: baseline `1cc8ee4b738f8dfec51fb18ecc6a832222af4af1` plus this report's commit. Local `GET/PUT /api/trainer/onboarding` tests now prove stable credential identity, preservation on unrelated edits, ownership checks, protected verification fields and rollback. **40 focused tests and 21 real PostgreSQL integration tests passed** using synthetic trainers only. Exact steps/results/retest and catalog defects are in the [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md). This does not establish live onboarding, real qualifications, Stripe Connect or payout completion.
+
 > 2026-10-06 audit supersedes the readiness conclusions below. See [current checkpoint](AUDIT_CHECKPOINT_2026-10-06.md) for baseline SHA, environment, exact checks, fixes, open defects, and retest status. This document's April results are historical and do not establish current production readiness. Money movement is NOT signed off; fixable repository blockers remain.
 
 - Date/time: 2026-04-24 00:55 UTC / 2026-04-23 17:55 America/Los_Angeles

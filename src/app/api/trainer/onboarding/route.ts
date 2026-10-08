@@ -7,6 +7,7 @@ import { normalizeSpecialtySelections } from '@/lib/trainer'
 import { saveTrainerServices, TrainerEditConflict, trainerServiceSchema } from '@/lib/trainer-services'
 import { timeToMinutes } from '@/lib/availability'
 import { effectiveFeeValues } from '@/lib/fee-config'
+import { certificationForEditor, saveTrainerCertifications, trainerCertificationSchema } from '@/lib/trainer-certifications'
 
 // GET /api/trainer/onboarding — Fetch existing trainer profile data for editing
 export async function GET(req: NextRequest) {
@@ -55,10 +56,7 @@ export async function GET(req: NextRequest) {
       },
       sports: trainer.sports.map((s: any) => s.sport.slug),
       specialties: trainer.specialties.map((s: any) => s.specialty.slug),
-      certifications: trainer.certifications.map((c: any) => ({
-        name: c.name,
-        issuingOrg: c.issuingOrg || '',
-      })),
+      certifications: trainer.certifications.map(certificationForEditor),
       services: trainer.serviceOfferings.map((s: any) => ({
         id: s.id,
         title: s.title,
@@ -96,11 +94,7 @@ const trainerOnboardingSchema = z.object({
   travelRadius: z.number().min(5).max(100).default(25),
   sports: z.array(z.string()).min(1),
   specialties: z.array(z.string()).min(1),
-  certifications: z.array(z.object({
-    name: z.string(),
-    issuingOrg: z.string().optional(),
-    credentialId: z.string().optional(),
-  })).optional(),
+  certifications: z.array(trainerCertificationSchema).max(100).optional(),
   services: z.array(trainerServiceSchema).min(1).max(100),
   availability: z.array(z.object({
     dayOfWeek: z.number().int().min(0).max(6),
@@ -140,6 +134,7 @@ export async function PUT(req: NextRequest) {
         throw new TrainerEditConflict('This profile changed or already has saved services. Reload the profile editor before saving.')
       }
       const services = await saveTrainerServices(tx, trainer.id, data.services)
+      const certifications = await saveTrainerCertifications(tx, trainer.id, data.certifications)
       const updated = await tx.trainerProfile.update({
         where: { id: trainer.id },
         data: {
@@ -182,20 +177,6 @@ export async function PUT(req: NextRequest) {
         }
       }
 
-      await tx.certification.deleteMany({ where: { trainerProfileId: trainer.id } })
-      if (data.certifications) {
-        for (const cert of data.certifications) {
-          await tx.certification.create({
-            data: {
-              trainerProfileId: trainer.id,
-              name: cert.name,
-              issuingOrg: cert.issuingOrg,
-              credentialId: cert.credentialId,
-            },
-          })
-        }
-      }
-
       for (const slot of data.availability) {
         await tx.availabilitySlot.create({
           data: {
@@ -207,7 +188,7 @@ export async function PUT(req: NextRequest) {
           },
         })
       }
-      return { services, revision: updated.updatedAt.toISOString() }
+      return { services, certifications, revision: updated.updatedAt.toISOString() }
     })
 
     return NextResponse.json({ success: true, ...result })
