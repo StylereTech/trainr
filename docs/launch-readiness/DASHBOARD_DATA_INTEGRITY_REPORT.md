@@ -35,6 +35,15 @@ First focused browser batch passed 16/20. Four error cases failed because an uns
 
 ## Limits And Release Gates
 
+### Publication Proof: 2026-10-08 09:11 UTC
+
+- Source/report commit `08d78efc671a23ab73a12a50f31a2b0855a16e27` pushed to `origin/codex/payment-readiness-20261006`; `git ls-remote` matched local HEAD and worktree was clean before this evidence-only update. Main was not changed.
+- Post-push anonymous production smoke: `https://trainr.cc/api/health` returned HTTP 200, `ok: true`, `dbConnected: true`; `/api/admin/bookings` returned HTTP 401. This tests the existing production deployment, not the new dashboard source or real money movement.
+- GitHub Actions run `37754880968`, job `113236867962`: failure with zero steps. Exact annotation: "The job was not started because your account is locked due to a billing issue." Local test passes do not constitute a passing hosted CI run.
+- Vercel preview `7FL2PNmiPvSiJnmmmUp4JNqULEL5` was PENDING at this observation. Do not treat this as deployed or runtime-tested. Production still requires the correct-project rollout and preceding migrations/rehearsal.
+
+### Final Local Evidence
+
 - Final retest, 2026-10-08 09:03-09:10 UTC: `npm run check` exited 0 with 634 unit tests / 34 files, lint, typecheck and 70 generated pages. Guarded `npm run test:postgres` passed 114 tests / 4 files in 20.24 seconds. Full `playwright test local-regression.spec.ts --project=chromium --workers=1` passed 47/47 in 3.1 minutes using installed Edge, including all eight new dashboard cases.
 - Visually inspected eight final screenshots (`dashboard-top.png` and `dashboard-pages.png` for each role at 1440px and 390px), under ignored `test-results/dashboard-local-regression-*`. Headings, balances, payment badges, wrapped identifiers and pagination are readable; automated horizontal-overflow assertions passed. Existing mobile success toast overlays content transiently; this is not a comprehensive accessibility signoff.
 - Cleanup verified independently at 09:10 UTC: users, bookings, payments, payment_refunds, admin_actions and notifications each contained zero rows. Test app and PostgreSQL stopped. No production records changed.
