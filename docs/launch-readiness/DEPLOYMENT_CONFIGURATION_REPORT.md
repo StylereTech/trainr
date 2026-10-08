@@ -1,5 +1,7 @@
 # Deployment Configuration And Verification Audit
 
+2026-10-08 migration follow-up (baseline `ba6fb20def90af42669ceee589bdf657b0d8cf5c`): [Migration Bootstrap And Upgrade Rehearsal](MIGRATION_BOOTSTRAP_REPORT.md) records the reproduced empty-database failure, historical baseline repair, guarded fresh/legacy rehearsals, exact tests and publication evidence. This supersedes the missing-baseline finding only. Actual production schema/ledger review, tested backups, isolated staging and real Stripe checkout/Connect/payout verification remain open; production and money-flow signoff remain **HOLD**.
+
 ## Scope And Identity
 
 - Date/time: 2026-10-08, approximately 10:00-10:34 UTC; publication evidence below.

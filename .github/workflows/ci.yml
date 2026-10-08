@@ -34,3 +34,36 @@ jobs:
       - run: npm ci
       - run: npm run db:generate
       - run: npm run check
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trainr_test
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: trainr_audit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trainr_test -d trainr_audit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://trainr_test:disposable-ci-only@127.0.0.1:5432/trainr_audit_ci
+      TEST_DATABASE_URL: postgresql://trainr_test:disposable-ci-only@127.0.0.1:5432/trainr_audit_ci
+      TRAINR_ALLOW_DB_TESTS: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npx prisma db execute --file tests/integration/fixtures/disposable-guard.sql --schema prisma/schema.prisma
+      - run: npm run test:migrations -- --integration

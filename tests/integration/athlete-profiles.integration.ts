@@ -8,6 +8,7 @@ import { createAthlete, createAthleteSchema } from '@/lib/athlete-profiles'
 import { BookingCreationError, createBooking } from '@/lib/booking-creation'
 import { GET, POST } from '@/app/api/athletes/route'
 import { PATCH, DELETE } from '@/app/api/athletes/[id]/route'
+import { verifyDatabaseTarget } from './database-target'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 const secret = 'athlete-profile-disposable-tests-only'
@@ -45,7 +46,8 @@ async function reservable() {
   return prisma.serviceOffering.create({ data: { trainerProfileId: profile.id, sportId: sport.id, title: 'Synthetic session', durationMinutes: 60, priceInCents: 6000 } })
 }
 beforeAll(async () => {
-  expect(await prisma.$queryRaw`SELECT current_database() AS name, purpose FROM trainr_test_guard`).toEqual([{ name: 'trainr_audit_20261008', purpose: 'disposable integration database' }])
+  const name = new URL(verifyDatabaseTarget(process.env.TEST_DATABASE_URL, process.env.TRAINR_ALLOW_DB_TESTS)).pathname.slice(1)
+  expect(await prisma.$queryRaw`SELECT current_database() AS name, purpose FROM trainr_test_guard`).toEqual([{ name, purpose: 'disposable integration database' }])
   verified = true
   vi.stubEnv('NEXTAUTH_SECRET', secret)
 })
