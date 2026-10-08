@@ -6,7 +6,7 @@
 - Baseline: `925e3bee41626b0a6e429071a76523cedb31bc5a`, branch `codex/payment-readiness-20261006`. Clean worktree verified before this pass. Previous shared-rate-limit publication was concrete progress.
 - Environment: local source/tests and disposable PostgreSQL `trainr_audit_20261008`, loopback port 55439. Synthetic `audit-<UUID>` parent/trainer accounts and `booking-admin-<UUID>@example.test` admins only. Stripe provider responses are simulated in the SQL suite.
 - P1 finding: `applyBookingAction` trusted the actor role captured before its transaction. A request already past route authentication could confirm, cancel, complete or mark no-show after that account's role changed or it was deactivated. Cached authority was also accepted for same-state retries. Route authentication alone did not serialize this interval with revocation.
-- Status: local fix verified; publication evidence follows below. No production/money-flow signoff or main promotion.
+- Status: local fix verified and published on the audit branch; exact evidence follows below. No production/money-flow signoff or main promotion.
 
 ## Fix
 
@@ -42,4 +42,12 @@ Real Stripe Checkout, destination transfer, Connect onboarding, refund and bank 
 - Final built-app browser regression: **76/76 passed across 17 files**, exit 0, no retries or timeout changes. Chromium via local Edge ran at desktop/mobile widths, one file per process, one worker. Output root `test-results/booking-action-final`; dashboard actions passed 8/8 in 42.3 seconds. Loopback runtime used synthetic auth/Stripe values, empty email credentials, and `VERCEL=1` only to simulate trusted-header handling. This is not real Vercel-ingress or live Stripe evidence.
 - Cleanup after stopping Next: exact database/guard verified; users, athletes, athlete/booking request records, bookings, payments, Connect attempts, admin actions and notifications all zero. A guarded disposable-only transaction removed 32 synthetic rate-limit buckets and verified zero remaining. PostgreSQL stopped successfully. No production data changed.
 - Windows sandbox process creation remains unavailable (`CreateProcessWithLogonW failed: 1909`); scoped approved native commands and the same patch helper performed this pass. No OS account/settings were modified.
-- Commit/push verification and read-only live smoke follow below after actual completion.
+
+## Publication And Live Smoke
+
+- 2026-10-08 17:02 UTC: source/test/report commit [`2cdb20b42d768878ad9d83ab9c6f5a68cc328a6f`](https://github.com/StylereTech/trainr/commit/2cdb20b42d768878ad9d83ab9c6f5a68cc328a6f) pushed normally to `codex/payment-readiness-20261006`. `git ls-remote` confirmed the exact SHA. Main stayed `2067e743c54ffee669cd484f26dc472b157f1881`. No force push, production migration or main promotion.
+- [GitHub CI run 37813498307](https://github.com/StylereTech/trainr/actions/runs/37813498307) failed with **zero executed steps**. Check-run `113436073703` annotation: `The job was not started because your account is locked due to a billing issue.` Hosted CI is externally blocked, not verified green.
+- Source commit Vercel status was **pending**, pointing to [the trainr preview](https://vercel.com/styleres-projects/trainr/aKSeK1M3fnzxHgDhz7oDrt32DxZn). This is not successful deployment evidence and does not resolve the documented production-project mismatch.
+- Anonymous read-only smoke at `https://trainr.cc`, 17:02:54-17:02:55 UTC local clock: `GET /api/health` returned 200 with `ok:true, dbConnected:true`; `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect` and `/api/admin/bookings` returned 401 Unauthorized. PASS for these sampled health/access checks only.
+- `GET /api/auth/verify` still returned 400 `Verification token required`, consistent with older live behavior instead of the audit branch's anonymous 401. The new authorization race was tested only locally; these anonymous live GETs do not exercise it. No live account, booking, payment, Connect or payout mutations were performed.
+- This publication follow-up edits only documentation; the tested runtime is unchanged. Timing policy/migration, isolated staging, actual Stripe money-flow proof, hosted CI billing and the other documented product/security gates remain open. Full production and money-flow signoff remain **HOLD**.
