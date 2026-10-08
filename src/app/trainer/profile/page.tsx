@@ -86,6 +86,7 @@ function TrainerProfileContent() {
   const [activeTab, setActiveTab] = useState(initialTab)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [revision, setRevision] = useState<string | null>(null)
 
   // Profile data
   const [profile, setProfile] = useState({
@@ -127,6 +128,7 @@ function TrainerProfileContent() {
       const res = await fetch('/api/trainer/onboarding')
       if (!res.ok) throw new Error('Failed to fetch profile')
       const data = await res.json()
+      setRevision(data.revision)
       setProfile(data.profile)
       setSelectedSports(data.sports)
       setSelectedSpecialties(data.specialties)
@@ -181,8 +183,8 @@ function TrainerProfileContent() {
       toast({ title: 'Missing fields', description: 'Add at least one service', variant: 'destructive' })
       return
     }
-    if (availability.length === 0) {
-      toast({ title: 'Missing fields', description: 'Set your availability for at least one day', variant: 'destructive' })
+    if (!revision) {
+      toast({ title: 'Reload required', description: 'Load the saved profile before making changes.', variant: 'destructive' })
       return
     }
 
@@ -193,6 +195,7 @@ function TrainerProfileContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...profile,
+          revision,
           sports: selectedSports,
           specialties: selectedSpecialties.length > 0 ? selectedSpecialties : selectedSports,
           certifications: certifications.filter(c => c.name),
@@ -204,6 +207,9 @@ function TrainerProfileContent() {
         const data = await res.json()
         throw new Error(data.error || 'Save failed')
       }
+      const saved = await res.json()
+      setServices(saved.services)
+      setRevision(saved.revision)
       toast({ title: 'Profile saved', description: 'Your changes have been saved successfully.' })
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' })
@@ -245,8 +251,8 @@ function TrainerProfileContent() {
     }
   }
 
-  const updateAvailTime = (day: number, field: 'startTime' | 'endTime', value: string) => {
-    setAvailability(prev => prev.map(a => a.dayOfWeek === day ? { ...a, [field]: value } : a))
+  const updateAvailTime = (index: number, field: 'startTime' | 'endTime', value: string) => {
+    setAvailability(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a))
   }
 
   const addService = () => {
@@ -515,25 +521,30 @@ function TrainerProfileContent() {
           <Card className="border-white/10 bg-white/[0.04] text-white">
             <CardHeader><h2 className="flex items-center gap-2 text-lg font-semibold"><Clock className="h-5 w-5 text-emerald-300" /> Weekly Availability</h2></CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-400">Toggle each day and set your available hours. Parents will only see open time slots when booking.</p>
               {DAY_NAMES.map((name, day) => {
-                const slot = availability.find(a => a.dayOfWeek === day)
+                const slots = availability.map((slot, index) => ({ slot, index })).filter(({ slot }) => slot.dayOfWeek === day)
                 return (
                   <div key={day} data-testid={`availability-day-${day}`} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center">
                     <button
                       onClick={() => toggleDay(day)}
-                      aria-pressed={!!slot}
+                      aria-pressed={slots.length > 0}
                       className={`w-28 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        slot ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                        slots.length ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
                       }`}
                     >
                       {name}
                     </button>
-                    {slot ? (
-                      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                        <Input type="time" aria-label={`${name} start time`} value={slot.startTime} onChange={e => updateAvailTime(day, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
-                        <span className="text-slate-400">to</span>
-                        <Input type="time" aria-label={`${name} end time`} value={slot.endTime} onChange={e => updateAvailTime(day, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
+                    {slots.length ? (
+                      <div className="flex w-full min-w-0 flex-col gap-3">
+                        {slots.map(({ slot, index }, window) => (
+                          <div key={index} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                            <Input type="time" aria-label={`${name} window ${window + 1} start time`} value={slot.startTime} onChange={e => updateAvailTime(index, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
+                            <span className="text-slate-400">to</span>
+                            <Input type="time" aria-label={`${name} window ${window + 1} end time`} value={slot.endTime} onChange={e => updateAvailTime(index, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
+                            <Button size="icon" variant="ghost" aria-label={`Remove ${name} window ${window + 1}`} title={`Remove ${name} window ${window + 1}`} onClick={() => setAvailability(prev => prev.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        ))}
+                        <Button size="icon" variant="ghost" aria-label={`Add ${name} window`} title={`Add ${name} window`} onClick={() => setAvailability(prev => [...prev, { dayOfWeek: day, startTime: '13:00', endTime: '17:00' }])}><Plus className="h-4 w-4" /></Button>
                       </div>
                     ) : (
                       <span className="text-sm text-slate-500">Unavailable</span>
