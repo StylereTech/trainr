@@ -78,6 +78,7 @@ export const packageSchema = z.object({
 })
 
 export const bookingSchema = z.object({
+  requestId: z.string().uuid('Reload the booking form before reserving'),
   serviceOfferingId: z.string().trim().min(1).max(128),
   athleteProfileId: z.string().trim().min(1).max(128),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD').refine((value) => {

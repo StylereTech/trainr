@@ -146,7 +146,7 @@ it('deletes an unbooked profile but retains a tombstone against delayed create r
 })
 it('books using a saved profile and preserves booking history when deletion is requested', async () => {
   const saved = await create(), service = await reservable()
-  const booking = await createBooking(parent.id, { athleteProfileId: saved.id, serviceOfferingId: service.id, date: '2030-11-04', startTime: '09:00' })
+  const booking = await createBooking(parent.id, { requestId: randomUUID(), athleteProfileId: saved.id, serviceOfferingId: service.id, date: '2030-11-04', startTime: '09:00' })
   expect(booking.athleteProfileId).toBe(saved.id)
   expect((await remove(saved.id, saved.updatedAt)).status).toBe(409)
   expect(await independent.booking.findUnique({ where: { id: booking.id } })).not.toBeNull()
@@ -154,7 +154,7 @@ it('books using a saved profile and preserves booking history when deletion is r
 it.each(Array.from({ length: 10 }, (_, index) => index))('serializes booking versus profile deletion without database errors: %s', async () => {
   const saved = await create(), service = await reservable()
   const [booked, deleted] = await Promise.all([
-    createBooking(parent.id, { athleteProfileId: saved.id, serviceOfferingId: service.id, date: '2030-11-04', startTime: '09:00' }).then(() => true, error => {
+    createBooking(parent.id, { requestId: randomUUID(), athleteProfileId: saved.id, serviceOfferingId: service.id, date: '2030-11-04', startTime: '09:00' }).then(() => true, error => {
       expect(error).toBeInstanceOf(BookingCreationError)
       expect(error).toMatchObject({ status: 404, message: 'Athlete not found' })
       return false

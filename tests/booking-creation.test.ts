@@ -7,7 +7,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 let state: any
 let fail: string | null
 const input = { serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00' }
-const reserve = (overrides = {}) => createBooking('parent-user', { ...input, ...overrides })
+const reserve = (overrides = {}) => createBooking('parent-user', { ...input, requestId: randomUUID(), ...overrides })
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -21,7 +21,7 @@ beforeEach(() => {
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
       currentUses: 0, maxUses: 1, expiresAt: null, isActive: true, applicableSportId: null },
-    bookings: [], notifications: [], fees: [],
+    bookings: [], notifications: [], fees: [], requests: [], user: { role: 'PARENT', deletedAt: null },
   }
   let tail = Promise.resolve()
   // Models serialized transactions and rollback; real PostgreSQL locking needs staging verification.
@@ -34,12 +34,18 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        user: { findUnique: async () => state.user },
+        bookingCreateRequest: {
+          findUnique: async ({ where }: any) => state.requests.find((item: any) => item.parentProfileId === where.parentProfileId_requestId.parentProfileId && item.requestId === where.parentProfileId_requestId.requestId),
+          create: async ({ data }: any) => { state.requests.push(data); return data },
+        },
         feeConfig: { findMany: async () => state.fees },
         parentProfile: { findUnique: async () => state.parent },
         serviceOffering: { findUnique: async () => state.service },
         athleteProfile: { findFirst: async ({ where }: any) => state.athletes.find((a: any) => a.id === where.id && a.parentProfileId === where.parentProfileId) },
         availabilitySlot: { findMany: async () => state.slots },
         booking: {
+          findFirst: async ({ where }: any) => state.bookings.find((item: any) => item.id === where.id && item.parentProfileId === where.parentProfileId),
           findMany: async ({ where }: any) => state.bookings.filter((b: any) =>
             b.date.getTime() === where.date.getTime() && !where.status.notIn.includes(b.status) &&
             where.OR.some((clause: any) => Object.entries(clause).every(([key, value]) => b[key] === value))),
@@ -90,7 +96,7 @@ describe('atomic reservation creation', () => {
     expect(await reserve()).toMatchObject({ status: 'PENDING', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, endTime: '10:00' })
     expect(state.bookings[0].payment).toBeUndefined()
     expect(state.notifications).toHaveLength(1)
-    expect(mock.query.mock.calls.slice(0, 3).map((call) => call[0].join('?'))).toEqual([
+    expect(mock.query.mock.calls.slice(2, 5).map((call) => call[0].join('?'))).toEqual([
       'SELECT id FROM trainer_profiles WHERE id = ? FOR UPDATE',
       'SELECT id FROM service_offerings WHERE id = ? FOR UPDATE',
       'SELECT id FROM athlete_profiles WHERE id = ? FOR UPDATE',
@@ -234,3 +240,4 @@ describe('atomic reservation creation', () => {
     expect(state.notifications[0].message).toContain('no Stripe charge or trainer payout')
   })
 })
+import { randomUUID } from 'node:crypto'

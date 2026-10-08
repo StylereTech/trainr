@@ -101,6 +101,7 @@ afterAll(async () => {
 })
 
 const reserve = (athlete = 0, startTime = '09:00', couponCode?: string) => createBooking(fixture.parent, {
+  requestId: randomUUID(),
   serviceOfferingId: fixture.service, athleteProfileId: fixture.athletes[athlete], date: fixture.date, startTime, couponCode,
 })
 async function pendingPayment(bookingId: string) {

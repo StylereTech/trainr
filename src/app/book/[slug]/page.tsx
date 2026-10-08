@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AthleteEditor } from '@/components/shared/AthleteEditor'
 import { z } from 'zod'
 import Image from 'next/image'
@@ -23,6 +23,7 @@ import {
   Loader2,
   MapPin,
   PlusCircle,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Star,
@@ -59,6 +60,7 @@ interface Athlete {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const bookingAthletesSchema = z.object({ athletes: z.array(z.object({ id: z.string(), firstName: z.string(), lastName: z.string(), sports: z.array(z.object({ sport: z.object({ name: z.string() }) })) })) })
+const savedBookingSchema = z.object({ id: z.string().min(1), status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'RESCHEDULED']), totalAmountInCents: z.number().int().nonnegative() })
 
 export default function BookingPage() {
   const params = useParams()
@@ -70,6 +72,11 @@ export default function BookingPage() {
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [bookingUncertain, setBookingUncertain] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const [bookingReviewRequired, setBookingReviewRequired] = useState(false)
+  const bookingInFlight = useRef(false)
+  const bookingRequest = useRef<string | null>(null)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(true)
   const [showAddAthlete, setShowAddAthlete] = useState(false)
@@ -143,29 +150,39 @@ export default function BookingPage() {
   const completedSteps = [selectedService, selectedAthlete, selectedDate && selectedTime].filter(Boolean).length
 
   const handleSubmit = async () => {
+    if (bookingInFlight.current || bookingReviewRequired) return
     if (!selectedService || !selectedAthlete || !selectedDate || !selectedTime) {
       toast({ title: 'Missing fields', description: 'Please fill in all required fields', variant: 'destructive' })
       return
     }
 
+    bookingInFlight.current = true
     setSubmitting(true)
+    setBookingError('')
     try {
+      bookingRequest.current ??= JSON.stringify({ requestId: crypto.randomUUID(), serviceOfferingId: selectedService, athleteProfileId: selectedAthlete,
+        date: selectedDate, startTime: selectedTime, notes, couponCode: couponCode || undefined })
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceOfferingId: selectedService,
-          athleteProfileId: selectedAthlete,
-          date: selectedDate,
-          startTime: selectedTime,
-          notes,
-          couponCode: couponCode || undefined,
-        }),
+        body: bookingRequest.current,
+        signal: AbortSignal.timeout(15000),
       })
 
       const data = await res.json()
       if (!res.ok) {
-        toast({ title: 'Error', description: data.error, variant: 'destructive' })
+        const message = typeof data.error === 'string' ? data.error : 'Booking could not be confirmed.'
+        setBookingError(message)
+        if (res.status === 400) { bookingRequest.current = null; setBookingUncertain(false) }
+        else if ([401, 403, 404, 409].includes(res.status)) setBookingReviewRequired(true)
+        else setBookingUncertain(true)
+        return
+      }
+
+      const saved = savedBookingSchema.parse(data)
+      if (!['PENDING', 'CONFIRMED'].includes(saved.status)) {
+        toast({ title: 'Booking recovered', description: 'Review the current booking status on your dashboard.' })
+        router.push('/parent/dashboard')
         return
       }
 
@@ -181,6 +198,7 @@ export default function BookingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ bookingId: data.id }),
+          signal: AbortSignal.timeout(15000),
         })
         const checkoutData = await checkoutRes.json()
         if (checkoutRes.ok && checkoutData.checkoutUrl) {
@@ -195,8 +213,10 @@ export default function BookingPage() {
       toast({ title: 'Check booking payment', description: checkoutError, variant: 'destructive' })
       router.push('/parent/dashboard')
     } catch {
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
+      setBookingUncertain(true)
+      setBookingError('Booking could not be confirmed. Retry the same reservation or check your dashboard before starting another.')
     } finally {
+      bookingInFlight.current = false
       setSubmitting(false)
     }
   }
@@ -234,7 +254,7 @@ export default function BookingPage() {
               <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-300 md:text-sm">
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.totalReviews > 0 ? `${trainer.totalReviews} parent reviews` : 'No parent reviews yet'}</span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.locationType === 'VIRTUAL' ? 'Virtual-ready coaching' : trainer.locationType === 'BOTH' ? 'In-person + virtual' : 'In-person coaching'}</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">No charge until confirmation</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Payment collected at Stripe checkout</span>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 {[
@@ -294,7 +314,7 @@ export default function BookingPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_.55fr] xl:grid-cols-[1.2fr_.5fr]">
-          <div className="space-y-6">
+          <fieldset disabled={submitting || bookingUncertain || bookingReviewRequired} className="min-w-0 space-y-6">
             <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
               <CardHeader>
                 <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">1</span> Choose the right service</h2>
@@ -350,7 +370,7 @@ export default function BookingPage() {
                     {athletes.length > 0 && (
                       <>
                         <Select value={selectedAthlete} onValueChange={setSelectedAthlete}>
-                          <SelectTrigger className="h-12"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
+                          <SelectTrigger className="h-12 bg-white text-slate-950 disabled:bg-slate-100 disabled:opacity-100"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
                           <SelectContent>
                             {athletes.map((a) => (
                               <SelectItem key={a.id} value={a.id}>
@@ -461,12 +481,12 @@ export default function BookingPage() {
                     placeholder="Goals, injuries, preferred drills, confidence areas, or anything the trainer should know before session day."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="mt-2 min-h-[140px]"
+                    className="mt-2 min-h-[140px] border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 disabled:bg-slate-100 disabled:opacity-100"
                   />
                 </div>
                 <div className="md:col-span-2 lg:col-span-1">
-                  <Label htmlFor="coupon" className="text-slate-300">Promo code</Label>
-                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
+                  <Label htmlFor="coupon" className="text-slate-700">Promo code</Label>
+                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12 border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 disabled:bg-slate-100 disabled:opacity-100" />
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100 md:col-span-2 lg:col-span-1">
                   <div className="font-semibold text-slate-900">Helpful note ideas</div>
@@ -478,7 +498,7 @@ export default function BookingPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </fieldset>
 
           <div className={`${summaryOpen ? 'block' : 'hidden'} lg:block`}>
             <Card className="overflow-hidden border-white/10 bg-white text-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.32)] lg:sticky lg:top-20">
@@ -530,13 +550,15 @@ export default function BookingPage() {
                   <p className="mt-2">Profile approval does not establish identity or background screening.</p>
                 </div>
 
+                {bookingError && <p role="alert" className="text-sm text-rose-700">{bookingError}</p>}
+                {(bookingUncertain || bookingReviewRequired) && <Link href="/parent/dashboard" className="block text-sm text-emerald-800 underline">Check saved bookings</Link>}
                 <Button
                   className="w-full gradient-primary border-0 text-white"
                   size="lg"
-                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting}
+                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting || bookingReviewRequired}
                   onClick={handleSubmit}
                 >
-                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
+                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : bookingUncertain ? <><RefreshCw className="mr-2 h-4 w-4" />Retry same reservation</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
                 </Button>
                 <p className="text-center text-xs text-slate-500">You&apos;ll be taken to secure checkout to confirm your session.</p>
               </CardContent>

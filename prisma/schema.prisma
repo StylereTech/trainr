@@ -71,6 +71,7 @@ model ParentProfile {
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   athletes AthleteProfile[]
   athleteRequests AthleteCreateRequest[]
+  bookingRequests BookingCreateRequest[]
   bookings Booking[]  @relation("ParentBookings")
   reviews  Review[]   @relation("ParentReviews")
   favorites Favorite[]
@@ -402,11 +403,26 @@ model Booking {
 
   messages      Message[]
   walletEntries WalletEntry[]
+  createRequests BookingCreateRequest[]
 
   @@index([trainerProfileId, date, startTime])
   @@index([parentProfileId])
   @@index([status])
   @@map("bookings")
+}
+
+model BookingCreateRequest {
+  parentProfileId String
+  requestId String
+  payloadHash String
+  bookingId String?
+  createdAt DateTime @default(now())
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@id([parentProfileId, requestId])
+  @@index([bookingId])
+  @@map("booking_create_requests")
 }
 
 // ==================

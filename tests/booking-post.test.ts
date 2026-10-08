@@ -6,7 +6,7 @@ const mock = vi.hoisted(() => ({ user: vi.fn(), create: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 vi.mock('@/lib/booking-creation', async (original) => ({ ...await original<object>(), createBooking: mock.create }))
-const input = { serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00' }
+const input = { requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e', serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00' }
 const post = (body: unknown = input) => POST(new Request('http://localhost/api/bookings', { method: 'POST', body: JSON.stringify(body) }) as any)
 
 beforeEach(() => {
@@ -29,7 +29,7 @@ it('requires authentication', async () => {
   expect((await post()).status).toBe(401)
   expect(mock.create).not.toHaveBeenCalled()
 })
-it.each([{ date: '2026-02-30' }, { startTime: '24:00' }, { startTime: '09:99' }, { serviceOfferingId: ' ' }])('rejects malformed input %j', async (change) => {
+it.each([{ requestId: undefined }, { requestId: 'invalid' }, { date: '2026-02-30' }, { startTime: '24:00' }, { startTime: '09:99' }, { serviceOfferingId: ' ' }])('rejects malformed input %j', async (change) => {
   expect((await post({ ...input, ...change })).status).toBe(400)
   expect(mock.create).not.toHaveBeenCalled()
 })

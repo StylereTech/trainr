@@ -98,6 +98,7 @@ describe('Validation Schemas', () => {
   describe('bookingSchema', () => {
     it('should validate a correct booking', () => {
       const result = bookingSchema.safeParse({
+        requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e',
         serviceOfferingId: 'svc-1',
         athleteProfileId: 'athlete-1',
         date: '2026-04-15',
@@ -108,6 +109,7 @@ describe('Validation Schemas', () => {
 
     it('should allow optional coupon code', () => {
       const result = bookingSchema.safeParse({
+        requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e',
         serviceOfferingId: 'svc-1',
         athleteProfileId: 'athlete-1',
         date: '2026-04-15',

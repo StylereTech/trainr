@@ -13,11 +13,11 @@ export async function POST(req: NextRequest) {
     if (user.role !== 'PARENT') return NextResponse.json({ error: 'Only parents can create bookings' }, { status: 403 })
     const input = bookingSchema.safeParse(await req.json().catch(() => null))
     if (!input.success) return NextResponse.json({ error: input.error.errors[0].message }, { status: 400 })
-    return NextResponse.json(await createBooking(user.id, input.data), { status: 201 })
+    return NextResponse.json(await createBooking(user.id, input.data), { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     if (error instanceof BookingCreationError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Booking transaction failed')
-    return NextResponse.json({ error: 'Failed to create booking. Refresh before retrying.' }, { status: 503 })
+    return NextResponse.json({ error: 'Booking could not be confirmed. Retry the same request or check your dashboard.' }, { status: 503 })
   }
 }
 

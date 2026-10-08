@@ -1,18 +1,36 @@
+import { createHash } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '@/lib/fees'
 import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
-import type { BookingInput } from '@/lib/validations'
+import { bookingSchema, type BookingInput } from '@/lib/validations'
 import { effectiveFeeValues } from '@/lib/fee-config'
 
 export class BookingCreationError extends Error {
   constructor(message: string, public readonly status: number) { super(message) }
 }
 
-export async function createBooking(userId: string, data: BookingInput) {
+const bookingDetails = { serviceOffering: true, trainerProfile: { include: { sports: { include: { sport: true } } } }, athleteProfile: true } satisfies Prisma.BookingInclude
+
+export async function createBooking(userId: string, input: BookingInput) {
+  const { requestId, ...data } = bookingSchema.parse(input)
+  const payloadHash = createHash('sha256').update(JSON.stringify(data)).digest('hex')
   const date = new Date(`${data.date}T00:00:00.000Z`)
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR SHARE`
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { role: true, deletedAt: true } })
+    if (user?.role !== 'PARENT' || user.deletedAt) throw new BookingCreationError('Parent access is required', 403)
+    // NO KEY UPDATE serializes retries without blocking booking foreign-key checks.
+    await tx.$queryRaw`SELECT id FROM parent_profiles WHERE "userId" = ${userId} FOR NO KEY UPDATE`
     const parent = await tx.parentProfile.findUnique({ where: { userId }, include: { user: { select: { email: true } } } })
     if (!parent) throw new BookingCreationError('Parent profile not found', 404)
+    const previous = await tx.bookingCreateRequest.findUnique({ where: { parentProfileId_requestId: { parentProfileId: parent.id, requestId } } })
+    if (previous) {
+      if (previous.payloadHash !== payloadHash || !previous.bookingId) throw new BookingCreationError('This booking request was already used. Check your dashboard before reserving again.', 409)
+      const saved = await tx.booking.findFirst({ where: { id: previous.bookingId, parentProfileId: parent.id }, include: bookingDetails })
+      if (!saved) throw new BookingCreationError('Saved booking is unavailable. Check your dashboard.', 409)
+      return saved
+    }
     const reference = await tx.serviceOffering.findUnique({ where: { id: data.serviceOfferingId }, select: { trainerProfileId: true } })
     if (!reference) throw new BookingCreationError('Service not found', 404)
 
@@ -102,7 +120,7 @@ export async function createBooking(userId: string, data: BookingInput) {
         status: free ? 'CONFIRMED' : 'PENDING',
         ...(free ? { payment: { create: { amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const } } } : {}),
       },
-      include: { serviceOffering: true, trainerProfile: { include: { sports: { include: { sport: true } } } }, athleteProfile: true },
+      include: bookingDetails,
     })
     await tx.notification.create({ data: {
       userId: service.trainerProfile.userId,
@@ -111,6 +129,7 @@ export async function createBooking(userId: string, data: BookingInput) {
       message: `${parent.user.email} requested ${service.title} on ${data.date} at ${data.startTime}.${free ? ' No payment is due and no Stripe charge or trainer payout was created.' : ' Payment is pending.'}`,
       data: { bookingId: booking.id },
     } })
+    await tx.bookingCreateRequest.create({ data: { parentProfileId: parent.id, requestId, payloadHash, bookingId: booking.id } })
     return booking
   })
 }

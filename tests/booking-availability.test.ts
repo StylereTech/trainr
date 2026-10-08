@@ -42,6 +42,6 @@ describe('shared availability rules', () => {
   })
   it.each(['2026-02-30', '2026-13-01', '2026-1-02', '', 'bad'])('rejects invalid date %s', (value) => {
     expect(generateAvailableTimeSlots([weekly], value, 60)).toEqual([])
-    expect(bookingSchema.safeParse({ serviceOfferingId: 's', athleteProfileId: 'a', date: value, startTime: '09:00' }).success).toBe(false)
+    expect(bookingSchema.safeParse({ requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e', serviceOfferingId: 's', athleteProfileId: 'a', date: value, startTime: '09:00' }).success).toBe(false)
   })
 })
