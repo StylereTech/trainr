@@ -1,5 +1,7 @@
 # Stripe Sandbox And Preview Isolation
 
+2026-10-09 04:38 UTC update: the owner approved the previously pending Neon and sandbox-secret operations. The free Preview-only database and both sandbox destinations are now created; branch-scoped secrets are saved. [Current provisioning results and remaining owner/runtime gates](STAGING_PROVISIONING_REPORT.md). The earlier sections below are historical baseline evidence, not the current configuration status.
+
 - Recorded: 2026-10-09 03:55 UTC (2026-10-08 evening America/Los_Angeles).
 - Baseline commit: `537f285e00ccc4ca8dc6a109b975b21a466adaa7`.
 - Verified source commit: `b16e98e8093c9e21badaece95da722189757d385`.

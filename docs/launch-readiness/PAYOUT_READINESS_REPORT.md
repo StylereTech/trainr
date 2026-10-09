@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-09 04:38 UTC: sandbox access and Preview-only database/Stripe setup are now provisioned with owner approval. This is not payout evidence: the sandbox still has no application-created connected account, paid booking, destination transfer or verified payout status. [Provisioning evidence and retest requirements](STAGING_PROVISIONING_REPORT.md). Overall **HOLD**.
+
 2026-10-09 03:55 UTC: Stripe sandbox access is authenticated and non-live mode verified. No connected accounts or sandbox webhook destinations are configured there yet. Branch-only Vercel callback URLs are saved; independent database and credential grants await owner approval. [Exact setup and regression evidence](STRIPE_SANDBOX_SETUP_REPORT.md). The sandbox platform balance is not evidence of trainer proceeds or bank payout readiness. No provider-backed trainer payout was tested; **HOLD**.
 
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.
