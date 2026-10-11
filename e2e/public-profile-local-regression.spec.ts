@@ -42,6 +42,7 @@ for (const width of [1440, 390]) {
           await expect(page.getByRole('heading', { name: 'Trainer profile unavailable' })).toBeVisible()
           await page.getByRole('button', { name: 'Retry profile' }).click()
           await expect(page.getByRole('heading', { name: 'Book a session with Audit C.' })).toBeVisible()
+          await expect(page.locator('main a button, main button a')).toHaveCount(0)
           expect(requests).toBe(2)
         }
         expect(bookings).toBe(0)
@@ -91,9 +92,13 @@ for (const width of [1440, 390]) {
           await page.getByRole('tab', { name: 'About', exact: true }).click()
           await expect(page.getByRole('tabpanel')).toContainText(trainer.bio)
           await expect(page.getByRole('link', { name: 'Book Now', exact: true })).toHaveAttribute('href', '/book/audit-coach')
+          await expect(page.locator('main a button, main button a')).toHaveCount(0)
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
           expect(errors).toEqual([])
           await page.screenshot({ path: testInfo.outputPath('profile-tabs.png'), fullPage: true })
+          await page.getByRole('link', { name: 'Book Now', exact: true }).focus()
+          await page.keyboard.press('Enter')
+          await expect(page.getByRole('heading', { name: 'Book a session with Audit C.' })).toBeVisible()
         })
       }
     }

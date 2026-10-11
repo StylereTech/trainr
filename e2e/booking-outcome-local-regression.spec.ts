@@ -81,7 +81,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
           const parentPage = await parentContext.newPage()
           await parentPage.goto('/parent/dashboard')
           await parentPage.getByRole('tab', { name: 'Past (1)', exact: true }).click()
-          await expect(parentPage.getByRole('button', { name: 'Leave Review', exact: true })).toBeVisible()
+          await expect(parentPage.getByRole('link', { name: 'Leave Review', exact: true })).toBeVisible()
         } finally { await parentContext.close() }
       } else if (scenario === 'ongoing' && role === 'TRAINER') {
         await page.getByRole('button', { name: 'No-show', exact: true }).click()

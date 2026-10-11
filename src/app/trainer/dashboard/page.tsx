@@ -161,8 +161,8 @@ export default function TrainerDashboard() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Link href="/trainer/packages" className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white hover:bg-white/10"><Package className="h-4 w-4" />Packages</Link>
-              <Link href="/trainer/profile?tab=payouts"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><DollarSign className="mr-1 h-4 w-4" />Payouts</Button></Link>
-              <Link href="/trainer/profile"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Settings className="mr-1 h-4 w-4" />Edit Profile</Button></Link>
+              <Button asChild variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Link href="/trainer/profile?tab=payouts"><DollarSign className="mr-1 h-4 w-4" />Payouts</Link></Button>
+              <Button asChild variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Link href="/trainer/profile"><Settings className="mr-1 h-4 w-4" />Edit Profile</Link></Button>
             </div>
           </div>
 
@@ -246,11 +246,11 @@ export default function TrainerDashboard() {
                   )}
                 </Button>
                 <Button variant="outline" disabled={stripeStatusLoading || launchingStripe} onClick={() => void loadStripeStatus()}><RefreshCw className="mr-2 h-4 w-4" />Refresh Stripe status</Button>
-                <Link href="/trainer/profile">
-                  <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                  <Link href="/trainer/profile">
                     <Settings className="mr-2 h-4 w-4" />Review trainer profile
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             </div>
           </CardContent>

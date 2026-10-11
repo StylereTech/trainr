@@ -88,7 +88,7 @@ export default function ParentDashboard() {
             <div className="max-w-3xl">
               <h1 className="text-2xl font-semibold">Parent dashboard</h1>
             </div>
-            <Link href="/browse"><Button className="gradient-primary w-full border-0 text-white sm:w-auto"><Users className="mr-2 h-4 w-4" />Find Trainers</Button></Link>
+            <Button asChild className="gradient-primary w-full border-0 text-white sm:w-auto"><Link href="/browse"><Users className="mr-2 h-4 w-4" />Find Trainers</Link></Button>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -111,7 +111,7 @@ export default function ParentDashboard() {
               <h2 className="font-semibold">My Athletes</h2>
               <p className="mt-1 text-sm text-slate-400">Keep each athlete ready for faster booking.</p>
             </div>
-            <Link href="/parent/athletes/new"><Button variant="outline" size="sm" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Plus className="mr-1 h-4 w-4" />Add Athlete</Button></Link>
+            <Button asChild variant="outline" size="sm" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Link href="/parent/athletes/new"><Plus className="mr-1 h-4 w-4" />Add Athlete</Link></Button>
           </CardHeader>
           <CardContent>
             {athleteData.loading ? <Loader2 aria-label="Loading athletes" className="h-5 w-5 animate-spin" /> : athleteData.error ? <div role="alert">Unable to load athletes.<Button variant="outline" onClick={() => void athleteData.reload()}><RefreshCw className="mr-2 h-4 w-4" />Retry athletes</Button></div> : athletes.length === 0 ? (
@@ -119,7 +119,7 @@ export default function ParentDashboard() {
                 <Users className="mx-auto mb-3 h-12 w-12 text-slate-500" />
                 <h3 className="font-semibold text-white">No athletes yet</h3>
                 <p className="mt-1 text-sm text-slate-400">Add your child&apos;s profile once so future booking takes minutes.</p>
-                <Link href="/parent/athletes/new"><Button className="mt-4 gradient-primary border-0 text-white">Add Your First Athlete</Button></Link>
+                <Button asChild className="mt-4 gradient-primary border-0 text-white"><Link href="/parent/athletes/new">Add Your First Athlete</Link></Button>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -227,9 +227,9 @@ export default function ParentDashboard() {
                         </div>
                       </div>
                       {b.status === 'COMPLETED' && !b.review && (
-                        <Link href={`/review/${b.id}`}>
-                          <Button size="sm" className="gradient-primary border-0 text-white"><Star className="mr-1 h-4 w-4" />Leave Review</Button>
-                        </Link>
+                        <Button asChild size="sm" className="gradient-primary border-0 text-white">
+                          <Link href={`/review/${b.id}`}><Star className="mr-1 h-4 w-4" />Leave Review</Link>
+                        </Button>
                       )}
                     </CardContent>
                   </Card>

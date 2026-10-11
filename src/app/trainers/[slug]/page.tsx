@@ -199,19 +199,19 @@ export default function TrainerProfilePage() {
                     <div className="mt-1 text-xs text-slate-400">per session</div>
                   </div>
 
-                  <Link href={`/book/${trainer.slug}`}>
-                    <Button className="gradient-primary w-full border-0 text-white" size="lg">
+                  <Button asChild className="gradient-primary w-full border-0 text-white" size="lg">
+                    <Link href={`/book/${trainer.slug}`}>
                       <Calendar className="mr-2 h-4 w-4" />
                       Book Now
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href={`/messages?to=${trainer.id}`}>
-                    <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="lg">
+                  <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="lg">
+                    <Link href={`/messages?to=${trainer.id}`}>
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Send Message
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
                   <Separator className="bg-white/10" />
 
@@ -487,15 +487,15 @@ export default function TrainerProfilePage() {
               <h3 className="mt-2 text-2xl font-semibold">Take the next step with {trainer.firstName}.</h3>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href={`/book/${trainer.slug}`}>
-                <Button className="gradient-primary w-full border-0 text-white sm:w-auto">Book a session</Button>
-              </Link>
-              <Link href={`/messages?to=${trainer.id}`}>
-                <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
+              <Button asChild className="gradient-primary w-full border-0 text-white sm:w-auto">
+                <Link href={`/book/${trainer.slug}`}>Book a session</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
+                <Link href={`/messages?to=${trainer.id}`}>
                   Message trainer
                   <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -394,8 +394,8 @@ export default function BookingPage() {
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center">
                     <p className="mb-4 text-sm text-slate-600">Sign in or create an account to book a session.</p>
                     <div className="flex items-center justify-center gap-3">
-                      <Link href={`/auth/signin?callbackUrl=/book/${slug}`}><Button size="sm">Sign In</Button></Link>
-                      <Link href={`/auth/signup?callbackUrl=/book/${slug}`}><Button variant="outline" size="sm">Sign Up</Button></Link>
+                      <Button asChild size="sm"><Link href={`/auth/signin?callbackUrl=/book/${slug}`}>Sign In</Link></Button>
+                      <Button asChild variant="outline" size="sm"><Link href={`/auth/signup?callbackUrl=/book/${slug}`}>Sign Up</Link></Button>
                     </div>
                   </div>
                 ) : (

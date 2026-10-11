@@ -30,6 +30,8 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
         await page.goto(`/${role.toLowerCase()}/dashboard`)
         await expect(page.getByRole('tab', { name: role === 'PARENT' ? 'Open (12)' : 'Pending (12)', exact: true })).toBeVisible()
         if (role === 'TRAINER') {
+          await expect(page.locator('main a button, main button a')).toHaveCount(0)
+          await expect(page.getByRole('link', { name: 'Payouts', exact: true })).toHaveAttribute('href', '/trainer/profile?tab=payouts')
           await expect(page.getByTestId('trainer-balance')).toContainText('$25.00')
           await expect(page.getByText('Payment: SUCCEEDED', { exact: true }).first()).toBeVisible()
         }
@@ -42,7 +44,8 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
           await expect(page.getByText('RESCHEDULED', { exact: true })).toBeVisible()
           await expect(page.getByRole('navigation', { name: 'Booking pages' })).toContainText('Page 1 of 2 (12 bookings)')
           await page.getByRole('button', { name: 'Next booking page' }).click()
-          await expect(page.getByRole('button', { name: 'Leave Review', exact: true })).toHaveCount(2)
+          await expect(page.getByRole('link', { name: 'Leave Review', exact: true })).toHaveCount(2)
+          await expect(page.locator('main a button, main button a')).toHaveCount(0)
           await expect(page.getByText('Saved favorites', { exact: true })).toHaveCount(0)
         } else {
           await expect(page.getByTestId('trainer-balance')).toContainText('$25.00')
@@ -105,6 +108,11 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
         detailFailure = false
         await page.getByRole('button', { name: 'Retry athletes', exact: true }).click()
         await expect(page.getByText('No athletes yet', { exact: true })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Add Your First Athlete', exact: true })).toHaveAttribute('href', '/parent/athletes/new')
+        await expect(page.locator('main a button, main button a')).toHaveCount(0)
+        await page.getByRole('link', { name: 'Add Your First Athlete', exact: true }).focus()
+        await page.keyboard.press('Enter')
+        await expect(page.getByRole('heading', { name: 'Add athlete', exact: true })).toBeVisible()
       } else {
         await expect(page.getByTestId('trainer-balance')).toContainText('Unavailable')
         await expect(page.getByTestId('trainer-balance')).not.toContainText('$0.00')
@@ -112,6 +120,10 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
         await page.getByRole('button', { name: 'Refresh Stripe balance' }).click()
         await expect(page.getByTestId('trainer-balance')).toContainText('-$25.00')
         await expect(page.getByTestId('trainer-balance')).toContainText('Pending: $10.00')
+        await page.getByRole('link', { name: 'Payouts', exact: true }).focus()
+        await page.keyboard.press('Enter')
+        await expect(page).toHaveURL(/\/trainer\/profile\?tab=payouts$/)
+        await expect(page.getByRole('button', { name: 'Earnings & Payouts', exact: true })).toBeInViewport({ ratio: 0.99 })
       }
     })
   })
