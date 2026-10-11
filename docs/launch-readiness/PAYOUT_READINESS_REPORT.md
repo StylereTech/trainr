@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-11 06:18 UTC: profile payout UI now validates current Stripe data and has bounded requests, explicit refresh/retry, cleared stale state and guarded setup links. **PASS:** 1,007 unit tests, 317 real local SQL tests, optimized build and 12 desktop/mobile browser regressions. [Exact source, account isolation, failures and retest proof](TRAINER_PAYOUT_UI_REPORT.md). Linked provider responses are simulated; no actual connected trainer payment, transfer or bank payout was proven. Publication/hosted retest pending; overall **HOLD**.
+
 2026-10-09 04:38 UTC: sandbox access and Preview-only database/Stripe setup are now provisioned with owner approval. This is not payout evidence: the sandbox still has no application-created connected account, paid booking, destination transfer or verified payout status. [Provisioning evidence and retest requirements](STAGING_PROVISIONING_REPORT.md). Overall **HOLD**.
 
 2026-10-09 03:55 UTC: Stripe sandbox access is authenticated and non-live mode verified. No connected accounts or sandbox webhook destinations are configured there yet. Branch-only Vercel callback URLs are saved; independent database and credential grants await owner approval. [Exact setup and regression evidence](STRIPE_SANDBOX_SETUP_REPORT.md). The sandbox platform balance is not evidence of trainer proceeds or bank payout readiness. No provider-backed trainer payout was tested; **HOLD**.

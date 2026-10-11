@@ -13,12 +13,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { formatCurrency } from '@/lib/utils'
-import { stripeRedirect } from '@/lib/connect-contract'
+import { TrainerPayouts } from '@/components/shared/TrainerPayouts'
 import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
-  Building2, CreditCard, AlertTriangle, ArrowLeft,
+  ArrowLeft,
   Clock, MapPin, Shield
 } from 'lucide-react'
 
@@ -57,30 +56,6 @@ interface CertForm {
   isVerified?: boolean
 }
 
-interface WalletData {
-  availableBalance: number
-  pendingBalance: number
-}
-
-interface StripePayout {
-  id: string
-  amountInCents: number
-  currency: string
-  status: string
-  arrivalDate: number
-  createdAt: number
-}
-
-interface StripeStatus {
-  connected: boolean
-  stripeConfigured: boolean
-  hasAccount: boolean
-  chargesEnabled?: boolean
-  payoutsEnabled?: boolean
-  detailsSubmitted?: boolean
-  onboardingComplete?: boolean
-}
-
 function TrainerProfileContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -107,27 +82,9 @@ function TrainerProfileContent() {
   const [services, setServices] = useState<ServiceForm[]>([])
   const [availability, setAvailability] = useState<AvailSlot[]>([])
 
-  // Wallet data
-  const [wallet, setWallet] = useState<WalletData | null>(null)
-  const [payouts, setPayouts] = useState<StripePayout[]>([])
-  const [payoutSchedule, setPayoutSchedule] = useState<string | null>(null)
-  const [walletLoading, setWalletLoading] = useState(initialTab === 'payouts')
-  const [walletError, setWalletError] = useState('')
-
-  // Stripe Connect
-  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null)
-  const [connectingStripe, setConnectingStripe] = useState(false)
-
   useEffect(() => {
     fetchProfile()
   }, [])
-
-  useEffect(() => {
-    if (activeTab === 'payouts') {
-      fetchWallet()
-      fetchStripeStatus()
-    }
-  }, [activeTab])
 
   const fetchProfile = async () => {
     try {
@@ -151,33 +108,6 @@ function TrainerProfileContent() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fetchWallet = async () => {
-    setWalletLoading(true)
-    setWalletError('')
-    try {
-      const res = await fetch('/api/trainer/wallet', { cache: 'no-store' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Unable to load payouts')
-      setWallet(data.wallet)
-      setPayouts(data.payouts || [])
-      setPayoutSchedule(data.schedule?.interval || null)
-    } catch (error) {
-      setWallet(null)
-      setPayouts([])
-      setWalletError(error instanceof Error ? error.message : 'Unable to load payouts')
-    } finally {
-      setWalletLoading(false)
-    }
-  }
-
-  const fetchStripeStatus = async () => {
-    try {
-      const res = await fetch('/api/trainer/stripe-connect')
-      if (!res.ok) return
-      setStripeStatus(await res.json())
-    } catch { /* ignore */ }
   }
 
   const handleSave = async () => {
@@ -236,21 +166,6 @@ function TrainerProfileContent() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' })
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleStripeConnect = async () => {
-    setConnectingStripe(true)
-    try {
-      const res = await fetch('/api/payments/connect', { method: 'POST', signal: AbortSignal.timeout(20000) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      const url = stripeRedirect(data.dashboardUrl || data.onboardingUrl)
-      if (!url) throw new Error('Stripe did not return an account link')
-      window.location.href = url
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' })
-      setConnectingStripe(false)
     }
   }
 
@@ -587,71 +502,7 @@ function TrainerProfileContent() {
           </Card>
         )}
 
-        {activeTab === 'payouts' && (
-          <section className="space-y-6" aria-label="Stripe earnings and payouts">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
-              <div>
-                <h2 className="text-lg font-semibold">Stripe Balance &amp; Bank Payouts</h2>
-                <p className="mt-1 text-sm text-slate-300">
-                  {payoutSchedule === 'manual'
-                    ? 'Manual payout schedule. Check Stripe for available payout options.'
-                    : payoutSchedule ? `Bank payout schedule: ${payoutSchedule}.` : 'Bank payout schedule not yet verified.'}
-                </p>
-              </div>
-              <Button variant="outline" onClick={handleStripeConnect} disabled={connectingStripe}>
-                {connectingStripe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                {stripeStatus?.onboardingComplete ? 'Open Stripe Dashboard' : 'Continue Stripe Setup'}
-              </Button>
-            </div>
-
-            {walletError ? (
-              <div role="alert" className="flex flex-wrap items-center gap-3 text-rose-300">
-                <AlertTriangle className="h-5 w-5 shrink-0" />
-                <p className="min-w-0 flex-1">{walletError}</p>
-                <Button variant="outline" onClick={fetchWallet}>Retry</Button>
-              </div>
-            ) : walletLoading ? (
-              <p role="status" className="flex items-center gap-2 text-slate-300">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading Stripe balances...
-              </p>
-            ) : wallet ? (
-              <>
-                <div className="grid gap-6 sm:grid-cols-2">
-                  {[
-                    { label: 'Available in Stripe (USD)', value: wallet.availableBalance, icon: DollarSign },
-                    { label: 'Pending in Stripe (USD)', value: wallet.pendingBalance, icon: Clock },
-                  ].map(item => (
-                    <div key={item.label} className="border-b border-white/10 pb-4">
-                      <div className="flex items-center gap-2 text-sm text-slate-300"><item.icon className="h-4 w-4" />{item.label}</div>
-                      <div className="mt-2 text-2xl font-semibold">{formatCurrency(item.value)}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div>
-                  <h3 className="mb-3 text-base font-semibold">Recent Bank Payouts</h3>
-                  {payouts.length === 0 ? (
-                    <p className="text-sm text-slate-300">No bank payouts reported by Stripe yet.</p>
-                  ) : (
-                    <ul className="divide-y divide-white/10">
-                      {payouts.map(payout => (
-                        <li key={payout.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                          <div className="min-w-0">
-                            <p className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: payout.currency }).format(payout.amountInCents / 100)}</p>
-                            <p className="text-xs text-slate-400">Arrival estimate: {new Date(payout.arrivalDate * 1000).toLocaleDateString()}</p>
-                          </div>
-                          <Badge>{payout.status}</Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-slate-300">No connected Stripe balance is available yet.</p>
-            )}
-          </section>
-        )}
+        {activeTab === 'payouts' && <TrainerPayouts />}
 
         {/* Save button at bottom for mobile */}
         {activeTab !== 'payouts' && (
