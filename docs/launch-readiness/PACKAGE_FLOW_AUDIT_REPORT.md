@@ -1,5 +1,7 @@
 # Package Flow And Booking Contract Audit
 
+2026-10-11 update: the historical missing trainer-management finding below is superseded by [Trainer Package Management](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). A trainer-only catalog editor, ownership/revision checks and service-retirement protection passed the full quality gate, 392 SQL tests and all 40 affected desktop/mobile browser cases; publication status is recorded in that report. This is not package purchasing: the purchase/payment identity, credit ledger, parent balance/history and policy findings below remain **INCOMPLETE/HOLD**.
+
 ## Identity
 
 - Date: 2026-10-08 UTC. Baseline `a92204dcc6e52bd738f84549804105e664fd1115`, branch `codex/payment-readiness-20261006`. Source publication follows below.

@@ -42,6 +42,7 @@ beforeEach(() => {
       return await run({
         $queryRaw: mock.query,
         feeConfig: { findMany: mock.fees },
+        package: { aggregate: async () => ({ _max: { updatedAt: null } }), updateMany: async () => ({ count: 0 }) },
         trainerProfile: {
           findUnique: async () => state.profile,
           update: async ({ data }: any) => { Object.assign(state.profile, data); return state.profile },

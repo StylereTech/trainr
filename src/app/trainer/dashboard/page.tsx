@@ -17,6 +17,7 @@ import {
   DollarSign,
   Loader2,
   Settings,
+  Package,
   RefreshCw,
   Wallet,
   XCircle,
@@ -159,6 +160,7 @@ export default function TrainerDashboard() {
               <h1 className="text-2xl font-semibold">Trainer dashboard</h1>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <Link href="/trainer/packages" className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white hover:bg-white/10"><Package className="h-4 w-4" />Packages</Link>
               <Link href="/trainer/profile?tab=payouts"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><DollarSign className="mr-1 h-4 w-4" />Payouts</Button></Link>
               <Link href="/trainer/profile"><Button variant="outline" size="sm" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto"><Settings className="mr-1 h-4 w-4" />Edit Profile</Button></Link>
             </div>

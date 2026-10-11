@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-11 package-management pass, baseline `c22688a75140890df623851a67eebdecdc857da1`: trainer catalog creation/editing/duplication/activation and immutable booked terms are implemented; retiring a linked service now atomically hides affected listings. Full quality gate passed (1,273 units, 76-page build), and 392 real PostgreSQL tests passed. [Exact steps, failures, retests, browser/publication status and limits](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). Package checkout/credits and actual hosted trainer/Stripe booking/transfer/payout remain **HOLD**. Audit Preview only; main/Production/Story unchanged.
+
 2026-10-11 Connect ordering pass: shared readiness refresh retains existing current-user/session/account checks and webhook signature/scope validation. Unknown Connect IDs trigger no provider lookup or cached-readiness write. [Exact SQL, route, browser and hosted retest evidence](CONNECT_READINESS_ORDERING_REPORT.md). No role/credential changes; release signoff remains **HOLD**.
 
 2026-10-11 payment recovery: new POST `/api/admin/payments/reconcile` accepts only a booking ID from an administrator. Role/deletion are checked before reads and again under the settlement transaction's user lock after external lookup. Parent/trainer/anonymous, malformed identity selection and revoked-admin cases are covered. [Exact tests, environment and hosted verification status](PAYMENT_RECOVERY_REPORT.md). Full release signoff remains **HOLD**.

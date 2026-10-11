@@ -7,6 +7,12 @@ vi.mock('next-auth/jwt', () => ({ getToken: mocks.token }))
 beforeEach(() => vi.resetAllMocks())
 
 describe('protected-page token prefilter', () => {
+  it.each([null, { sub: 'user', role: 'PARENT', sessionVersion: 0 }, { sub: 'user', role: 'TRAINER', sessionVersion: 0 }])('protects package management: %j', async token => {
+    mocks.token.mockResolvedValue(token)
+    const response = await middleware(new NextRequest('https://trainr.cc/trainer/packages'))
+    if (token?.role === 'TRAINER') expect(response.headers.get('x-middleware-next')).toBe('1')
+    else expect(response.headers.get('location')).toBe(`https://trainr.cc/${token ? 'dashboard' : 'auth/signin?callbackUrl=%2Ftrainer%2Fpackages'}`)
+  })
   it('protects the notification inbox before rendering', async () => {
     mocks.token.mockResolvedValue(null)
     const result = await middleware(new NextRequest('https://trainr.cc/notifications'))

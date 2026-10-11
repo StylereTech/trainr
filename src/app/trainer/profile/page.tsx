@@ -407,6 +407,7 @@ function TrainerProfileContent() {
 
         {activeTab === 'services' && (
           <div className="space-y-4">
+            <Link href="/trainer/packages" className="inline-flex items-center gap-2 text-sm text-emerald-300"><Briefcase className="h-4 w-4" />Programs &amp; Packages</Link>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Your Services</h2>
               <Button variant="outline" size="sm" onClick={addService} className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Plus className="mr-1 h-3 w-3" /> Add Service</Button>

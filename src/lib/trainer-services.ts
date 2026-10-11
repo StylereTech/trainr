@@ -26,6 +26,7 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
     if (!byId.get(id)?.isActive) throw new TrainerEditConflict('A service is no longer active or does not belong to this trainer. Reload the profile.')
   }
   const saved = []
+  const retiredPackageServices = new Set<string>()
   for (const service of services) {
     const previous = service.id ? byId.get(service.id) : undefined
     const sportId = service.sportId ?? previous?.sportId
@@ -42,7 +43,10 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
       saved.push(await tx.serviceOffering.update({ where: { id: previous.id }, data }))
     } else {
       // Keep historical booking/package terms immutable; edits publish a new offering.
-      if (previous) await tx.serviceOffering.update({ where: { id: previous.id }, data: { isActive: false } })
+      if (previous) {
+        await tx.serviceOffering.update({ where: { id: previous.id }, data: { isActive: false } })
+        if (previous._count.packageItems > 0) retiredPackageServices.add(previous.id)
+      }
       saved.push(await tx.serviceOffering.create({ data: { ...data, trainerProfileId: trainerId } }))
     }
   }
@@ -50,7 +54,14 @@ export async function saveTrainerServices(tx: Prisma.TransactionClient, trainerI
   for (const service of existing) {
     if (service.isActive && !retained.has(service.id)) {
       await tx.serviceOffering.update({ where: { id: service.id }, data: { isActive: false } })
+      if (service._count.packageItems > 0) retiredPackageServices.add(service.id)
     }
+  }
+  if (retiredPackageServices.size) {
+    const where = { trainerProfileId: trainerId, isActive: true, items: { some: { serviceOfferingId: { in: [...retiredPackageServices] } } } }
+    const latest = await tx.package.aggregate({ where, _max: { updatedAt: true } })
+    // Retain historical items; only remove invalid listings and advance their edit revision.
+    await tx.package.updateMany({ where, data: { isActive: false, updatedAt: new Date(Math.max(Date.now(), (latest._max.updatedAt?.getTime() || 0) + 1)) } })
   }
   return saved.map((service) => ({ id: service.id, sportId: service.sportId, title: service.title, description: service.description || '',
     durationMinutes: service.durationMinutes, priceInCents: service.priceInCents, type: service.type, maxParticipants: service.maxParticipants }))

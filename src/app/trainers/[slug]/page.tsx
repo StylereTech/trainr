@@ -330,6 +330,7 @@ export default function TrainerProfilePage() {
               {trainer.packages.length > 0 && (
                 <>
                   <h3 className="pt-2 text-lg font-semibold text-white">Packages</h3>
+                  <p className="text-sm text-amber-200">Package checkout unavailable</p>
                   {trainer.packages.map((pkg) => (
                     <Card key={pkg.id} className="border-emerald-500/20 bg-white/[0.04] text-white">
                       <CardContent className="p-5">
