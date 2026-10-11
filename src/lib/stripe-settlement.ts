@@ -7,7 +7,7 @@ export class SettlementConflict extends Error {}
 export type SettlementSource = { transferId?: string; feeId?: string; disputeId?: string }
 
 const requestOptions = { timeout: 4000, maxNetworkRetries: 0 }
-const metadataSchema = z.object({ bookingId: z.string(), paymentId: z.string(), checkoutAttemptId: z.string() })
+const metadataSchema = z.record(z.string())
 const savedParametersSchema = z.object({
   mode: z.literal('payment'),
   metadata: metadataSchema,
@@ -25,19 +25,34 @@ function cents(value: number, maximum: number) { return Number.isSafeInteger(val
 // Called while booking/payment rows are locked; bounded provider reads prevent stale observations racing settlement.
 export async function verifyDestinationSettlement(booking: SettlementBooking, attempt: CheckoutAttempt | null, intentId: string, eventChargeId?: string | null, source: SettlementSource = {}) {
   const payment = booking.payment
+  if (!attempt || attempt.retiredAt || !savedParametersSchema.safeParse(attempt.parameters).success) {
+    throw new SettlementConflict('Immutable checkout destination is missing; payment requires reconciliation')
+  }
+  if (attempt.paymentId !== payment.id || booking.totalAmountInCents !== payment.amountInCents ||
+      booking.platformFeeInCents !== payment.platformFeeInCents || booking.trainerPayoutInCents !== payment.trainerPayoutInCents) {
+    throw new SettlementConflict('Saved checkout financial identity requires reconciliation')
+  }
+  return verifyDestinationCharge(payment, attempt,
+    { bookingId: booking.id, paymentId: payment.id, checkoutAttemptId: attempt.id }, intentId, eventChargeId, source)
+}
+
+type DestinationPayment = Pick<Payment, 'amountInCents' | 'platformFeeInCents' | 'trainerPayoutInCents' | 'stripeChargeId' | 'stripeTransferId'>
+type DestinationAttempt = Pick<CheckoutAttempt, 'id' | 'parameters' | 'retiredAt'>
+
+// Booking and package callers supply their own durable identity; neither impersonates the other.
+export async function verifyDestinationCharge(payment: DestinationPayment, attempt: DestinationAttempt, metadata: Record<string, string>,
+  intentId: string, eventChargeId?: string | null, source: SettlementSource = {}, expectedLivemode?: boolean) {
   const parsed = savedParametersSchema.safeParse(attempt?.parameters)
   if (!attempt || attempt.retiredAt || !parsed.success) throw new SettlementConflict('Immutable checkout destination is missing; payment requires reconciliation')
   const saved = parsed.data
-  const metadata = { bookingId: booking.id, paymentId: payment.id, checkoutAttemptId: attempt.id }
   const matchesMetadata = (value: Record<string, string> | null | undefined) =>
     !!value && Object.entries(metadata).every(([key, expected]) => value[key] === expected)
   const amount = payment.amountInCents
   const feeAmount = payment.platformFeeInCents
   const destination = saved.payment_intent_data.transfer_data.destination
-  if (attempt.paymentId !== payment.id || !Number.isSafeInteger(amount) || amount <= 0 ||
+  if (!Object.keys(metadata).length || !Number.isSafeInteger(amount) || amount <= 0 ||
       !cents(feeAmount, amount) || !cents(payment.trainerPayoutInCents, amount) ||
-      feeAmount + payment.trainerPayoutInCents !== amount || booking.totalAmountInCents !== amount ||
-      booking.platformFeeInCents !== feeAmount || booking.trainerPayoutInCents !== payment.trainerPayoutInCents ||
+      feeAmount + payment.trainerPayoutInCents !== amount ||
       saved.line_items[0].price_data.unit_amount !== amount || saved.payment_intent_data.application_fee_amount !== feeAmount ||
       !matchesMetadata(saved.metadata) || !matchesMetadata(saved.payment_intent_data.metadata)) {
     throw new SettlementConflict('Saved checkout financial identity requires reconciliation')
@@ -45,7 +60,7 @@ export async function verifyDestinationSettlement(booking: SettlementBooking, at
 
   const intent = await stripe.paymentIntents.retrieve(intentId, {}, requestOptions)
   if (intent.id !== intentId || intent.status !== 'succeeded' || intent.amount !== amount || intent.amount_received !== amount ||
-      intent.currency !== 'usd' || typeof intent.livemode !== 'boolean' || !matchesMetadata(intent.metadata) ||
+      intent.currency !== 'usd' || typeof intent.livemode !== 'boolean' || (expectedLivemode !== undefined && intent.livemode !== expectedLivemode) || !matchesMetadata(intent.metadata) ||
       (intent.application_fee_amount ?? 0) !== feeAmount || objectId(intent.transfer_data?.destination) !== destination ||
       (intent.transfer_data?.amount != null && intent.transfer_data.amount !== amount)) {
     throw new SettlementConflict('Stripe payment destination or financial identity does not match checkout')

@@ -1,5 +1,7 @@
 # Package Flow And Booking Contract Audit
 
+2026-10-11 checkout implementation update: [Package Checkout And Receipt Verification](PACKAGE_CHECKOUT_INTEGRATION_REPORT.md) records the internal durable checkout service, separate package payment identity and signed completion reconciliation. Checkout is not exposed publicly; credits, redemption, package financial-event/refund handling and parent package UI remain incomplete. Do not treat local simulated provider receipts as actual Stripe sandbox signoff.
+
 2026-10-11 purchase-foundation update: [Family-Shared Package Purchase Foundation](PACKAGE_PURCHASE_FOUNDATION_REPORT.md) adds an internal retry-safe pending purchase record with immutable parent-owned terms and fee split. The full local SQL suite passed 439 cases, including 35 new purchase cases; three migration rehearsal modes passed. This supersedes the historical "no purchase identity" finding only for pending preparation. There is still no package Stripe checkout, credit issuance/redemption, balance/history UI or hosted package-payment proof. Package availability remains **INCOMPLETE/HOLD**.
 
 2026-10-11 owner decision: purchased session credits are **shared across the parent's children**, not assigned to one child at purchase. The authenticated purchasing parent owns the entitlement; redemption must validate that the selected athlete belongs to that parent. This decision resolves credit ownership only, not expiry, cancellation/restoration or refund policy. Purchase and redemption remain unimplemented and unverified.

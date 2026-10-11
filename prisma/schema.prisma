@@ -366,17 +366,38 @@ model PackagePurchase {
   platformFeeInCents   Int
   trainerPayoutInCents Int
   status               PaymentStatus @default(PENDING)
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId String? @unique
+  stripeChargeId       String? @unique
+  stripeTransferId     String? @unique
+  settlementVerifiedAt DateTime? @db.Timestamptz(3)
+  financialReview      Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   parentProfile  ParentProfile  @relation(fields: [parentProfileId], references: [id], onDelete: Restrict)
   trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Restrict)
   package        Package        @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  checkoutAttempts PackageCheckoutAttempt[]
 
   @@unique([parentProfileId, requestId])
   @@index([trainerProfileId, createdAt])
   @@index([packageId])
   @@map("package_purchases")
+}
+
+model PackageCheckoutAttempt {
+  id                      String @id @default(cuid())
+  purchaseId              String
+  sequence                Int
+  parameters              Json
+  stripeCheckoutSessionId String? @unique
+  retiredAt               DateTime?
+  createdAt               DateTime @default(now())
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseId, sequence])
+  @@map("package_checkout_attempts")
 }
 
 // ==================

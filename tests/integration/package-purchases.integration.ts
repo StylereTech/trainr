@@ -158,7 +158,9 @@ describe('real SQL family-shared pending package purchases', () => {
   })
   it.each(['amount', 'hash', 'version'])('enforces the SQL %s constraint for new records', async mode => {
     const saved = await preparePackagePurchase(parentId, input())
-    const { id: _id, createdAt: _created, updatedAt: _updated, ...data } = saved
+    const data = { parentProfileId: saved.parentProfileId, trainerProfileId: saved.trainerProfileId, packageId: saved.packageId,
+      payloadHash: saved.payloadHash, catalogRevision: saved.catalogRevision, terms: saved.terms,
+      amountInCents: saved.amountInCents, platformFeeInCents: saved.platformFeeInCents, trainerPayoutInCents: saved.trainerPayoutInCents }
     const change = mode === 'amount' ? { trainerPayoutInCents: 1 } : mode === 'hash' ? { payloadHash: 'not-a-hash' } : { terms: { version: 2 } }
     await expect(independent.packagePurchase.create({ data: { ...data, terms: packagePurchaseTermsSchema.parse(data.terms), requestId: randomUUID(), ...change } })).rejects.toThrow()
     expect(await independent.packagePurchase.count({ where: { parentProfileId } })).toBe(1)

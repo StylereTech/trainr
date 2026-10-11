@@ -59,14 +59,18 @@ async function verifyHistory(client: PrismaClient) {
   const constraints = await client.$queryRaw<Array<{ conname: string }>>`
     SELECT conname FROM pg_constraint WHERE conname IN ('checkout_attempts_sequence_positive', 'users_sessionVersion_nonnegative',
       'payments_refund_pending_nonnegative', 'payments_refund_failed_nonnegative', 'rate_limit_buckets_hash_format', 'rate_limit_buckets_bounded_hits', 'bookings_time_snapshot_complete',
-      'package_purchases_amounts_valid', 'package_purchases_hash_valid', 'package_purchases_terms_version')`
-  assert.equal(constraints.length, 10)
-  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable') AND NOT tgisinternal`
-  assert.equal(triggers.length, 2)
+      'package_purchases_amounts_valid', 'package_purchases_hash_valid', 'package_purchases_terms_version', 'package_checkout_attempts_sequence_positive')`
+  assert.equal(constraints.length, 11)
+  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable') AND NOT tgisinternal`
+  assert.equal(triggers.length, 3)
   const indexes = await client.$queryRaw<Array<{ indexdef: string }>>`
     SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'checkout_attempts_one_active_payment'`
   assert.equal(indexes.length, 1)
   assert.match(indexes[0].indexdef, /UNIQUE.*WHERE.*retiredAt.*IS NULL/)
+  const packageIndexes = await client.$queryRaw<Array<{ indexdef: string }>>`
+    SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'package_checkout_attempts_one_active_purchase'`
+  assert.equal(packageIndexes.length, 1)
+  assert.match(packageIndexes[0].indexdef, /UNIQUE.*WHERE.*retiredAt.*IS NULL/)
   console.log(`PASS: ${migrations.length} migration checksums, completion records and SQL-only safeguards`)
 }
 

@@ -7,6 +7,8 @@ import Stripe from 'stripe'
 import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
 import { SettlementConflict } from '@/lib/stripe-settlement'
 import { reconcileFinancialEvent } from '@/lib/stripe-financial-events'
+import { reconcilePackageCheckout } from '@/lib/package-settlement'
+import { PackagePurchaseError } from '@/lib/package-purchases'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -37,6 +39,13 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.async_payment_succeeded': {
         if (event.account) break
         const session = event.data.object as Stripe.Checkout.Session
+        if (session.metadata?.paymentKind === 'package' || session.metadata?.packagePurchaseId || session.metadata?.packageCheckoutAttemptId) {
+          if (session.metadata.paymentKind !== 'package' || session.metadata.bookingId || session.metadata.paymentId || !session.metadata.packagePurchaseId || !session.metadata.packageCheckoutAttemptId) {
+            throw new PackagePurchaseError('Package payment event identity is ambiguous.')
+          }
+          if (session.payment_status === 'paid') await reconcilePackageCheckout(session.metadata.packagePurchaseId, session.metadata.packageCheckoutAttemptId, session.id)
+          break
+        }
         if (session.payment_status !== 'paid' || !session.metadata?.bookingId) break
         await applyPaymentEvidence({
           bookingId: session.metadata.bookingId, paymentId: session.metadata.paymentId,
@@ -127,7 +136,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     if (error instanceof RefundReconciliationError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (error instanceof PaymentEventConflict || error instanceof SettlementConflict) {
+    if (error instanceof PaymentEventConflict || error instanceof SettlementConflict || error instanceof PackagePurchaseError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
     }
     console.error('Stripe webhook persistence failed', { eventId: event.id, type: event.type })

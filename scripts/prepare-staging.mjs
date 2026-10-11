@@ -9,7 +9,7 @@ export const STAGING_PROJECT = 'steep-field-81581985'
 export const STAGING_BRANCH = 'codex/payment-readiness-20261006'
 // Only reviewed additive upgrades may run automatically on this owned audit database.
 const STAGING_UPGRADES = new Set(['20261011080000_add_trainer_time_zone', '20261011090000_add_booking_instants',
-  '20261011193000_add_package_purchase_snapshots'])
+  '20261011193000_add_package_purchase_snapshots', '20261011200000_add_package_checkout_attempts'])
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function requireCondition(condition, code) {
