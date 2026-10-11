@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-11 07:59 UTC: time-zone capture source `c810c5983fce44dc160a17e42acaff99ca6c1231` is deployed Ready to isolated Preview, including its guarded additive migration. Hosted PARENT access to trainer profile/onboarding correctly redirects to the parent dashboard. [Publication and exact local/hosted distinction](TRAINER_TIME_ZONE_REPORT.md#publication-and-hosted-retest). Actual hosted TRAINER edits, Connect and payouts are still unverified; full scheduling remains incomplete.
+
 2026-10-11 07:56 UTC: onboarding/profile now require and persist an explicit schedule time zone, without guessing one for legacy trainers. Real local HTTP/SQL browser flows passed at 1440px and 390px; both save/readback and subsequent UTC edits preserve weekly clock strings. [Scope, screenshots, migration and retest proof](TRAINER_TIME_ZONE_REPORT.md). Hosted trainer/Connect and complete scheduling semantics remain unverified/incomplete, not passed by this foundation. Publication pending; overall **HOLD**.
 
 2026-10-11 06:45 UTC: trainer dashboard now preserves the booking's saved calendar date, matching parent and admin views across Los Angeles/Tokyo and desktop/mobile. All 28 date/booking/dashboard browser regressions, 1,016 unit tests and build passed. [Exact source baseline, local-account evidence and limits](BOOKING_CALENDAR_DATE_REPORT.md). Hosted trainer onboarding, connected-account money movement and payouts remain unverified; publication pending. No Production signoff.

@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 07:59 UTC: schedule time-zone/readability source `c810c5983fce44dc160a17e42acaff99ca6c1231` is Ready on audit Preview. Retained parent routes and browse/reset pass hosted smoke; no hosted trainer editor is accessible with that parent role. [Local screenshots, publication and unverified hosted trainer scope](TRAINER_TIME_ZONE_REPORT.md). Overall UI/production signoff remains open.
+
 2026-10-11 07:56 UTC: trainer schedule screens now provide labeled explicit time-zone selection, responsive onboarding time fields, readable selected-day text and visible native clock controls. Final 12 desktop/mobile browser cases passed after a screenshot-driven contrast correction. [Before/after screenshots, exact steps and proof limits](TRAINER_TIME_ZONE_REPORT.md). This is scoped local UI evidence, not full scheduling, hosted trainer or money-flow signoff; publication pending.
 
 2026-10-11 06:45 UTC: [Booking calendar date audit](BOOKING_CALENDAR_DATE_REPORT.md) records the rendered previous-day defect, shared date-only formatting fix, 28 passing desktop/mobile browser regressions and retained before/after screenshots. Existing session clock times and ordinary timestamps are unchanged; no trainer time zone was assumed. Full UI and money-flow signoff remain open.

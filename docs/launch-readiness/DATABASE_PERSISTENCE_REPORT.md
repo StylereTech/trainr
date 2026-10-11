@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11 07:59 UTC: isolated Preview source `c810c5983fce44dc160a17e42acaff99ca6c1231` is Ready; its deployed initializer reports `Audit staging schema upgraded; migration checksums verified.` Parent/athlete hosted readback still passes. [Exact migration/deployment evidence and limits](TRAINER_TIME_ZONE_REPORT.md#publication-and-hosted-retest). This is not independent hosted trainer-field readback or a Production migration; those remain unverified.
+
 2026-10-11 07:56 UTC: nullable trainer time-zone migration passed fresh, legacy and recorded-phone-history rehearsals, schema parity, all 12 checksums and no-op replay. Legacy zones remain NULL and existing booking/payment rows are preserved. The fresh-schema SQL suite passed 318 tests; real local browser saves/readback passed. [Exact guard, failed legacy-local deployment attempt, recovery and cleanup](TRAINER_TIME_ZONE_REPORT.md). Preview migration/hosted retest pending; no Production database change.
 
 2026-10-11: actual UI-created synthetic athlete `cmv3bs3xr0001jn0694fd2p2f` was edited and reopened, then independently read through Neon SQL (808 ms). Birth date, Intermediate skill and updated goals matched; both sports were verified in the reopened form. [Exact scope and steps](PARENT_STAGING_WORKFLOW_REPORT.md). This is child-profile persistence evidence, not booking/payment persistence or production DB signoff.

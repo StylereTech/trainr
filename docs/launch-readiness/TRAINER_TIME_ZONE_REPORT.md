@@ -3,7 +3,7 @@
 ## Scope And Environment
 
 - Date: 2026-10-11, work began approximately 07:35 UTC.
-- Baseline: `baff8faff81a091693b18aef915908124b065678`; current changes initially uncommitted. Publication identity and hosted retest are recorded below when verified.
+- Baseline: `baff8faff81a091693b18aef915908124b065678`; published application source: `c810c5983fce44dc160a17e42acaff99ca6c1231`. Publication identity and hosted retest are recorded below.
 - Branch: `codex/payment-readiness-20261006`; Vercel audit Preview project `trainr` only. No main merge, Production (`trainr-node`), Story, Resend or live Stripe change.
 - Local: Windows, Node, PostgreSQL 16.15 on `127.0.0.1:55439`; guarded disposable test databases, synthetic `@example.test` TRAINER/PARENT accounts. No hosted session injection or real credentials.
 - Browser target: local optimized Next.js server at `http://127.0.0.1:3107`, Chrome, 1440x900 and 390x900, browser zone Pacific/Honolulu. Existing hosted parent remains signed in separately.
@@ -30,7 +30,7 @@ This change implements **capture only**, not the complete scheduling fix:
 | SQL suite run by rehearsal on fresh migration-created schema | Real handler saves/readbacks, invalid/stale denial, rollback and unchanged historical booking rows | 318/318 passed, 11 files, 59.73s; simulated Stripe receipts are not provider proof |
 | Full `npm run check` | Lint/type/unit/build success | Final rerun PASS, exit 0: 1,091 tests / 53 files, optimized 73-page build; existing lint and Browserslist warnings remain |
 | Browser profile/onboarding at both widths | No inferred Honolulu zone; require choice; save Chicago; refresh/read SQL; edit UTC; refresh without moving weekly clock strings | Final 12/12 PASS in 2.0m, exit 0, no skips/retries/deadline increases; includes contrast assertions |
-| Hosted Preview deployment and smoke | Ready exact source, guarded migration, retained parent access | Pending |
+| Hosted Preview deployment and smoke | Ready exact source, guarded migration, retained parent access | PASS for published source and scoped parent/route/browse smoke; actual hosted trainer edit remains unverified |
 
 SQL scenario explicitly reserves a synthetic booking, snapshots its complete row, selects `US/Eastern`, reads canonical `America/New_York` through an independent database client and GET, rejects the old-revision UTC edit, and compares the entire booking row unchanged. The injected later availability SQL failure also verifies timeZone remains NULL. Neither test establishes real session instants.
 
@@ -59,4 +59,17 @@ Actual hosted trainer signup/profile/Connect, approved bookable services, provid
 
 ## Publication And Hosted Retest
 
-Pending local browser verification and publication. Do not interpret this report as production or money-flow signoff.
+Verified 2026-10-11 approximately 07:59 UTC:
+
+- Application commit `c810c5983fce44dc160a17e42acaff99ca6c1231` pushed to `origin/codex/payment-readiness-20261006`; local HEAD matched the remote-tracking branch and working tree was clean before this documentation update.
+- Vercel Preview `7d3zr1gJbG7hV9NxybesuwYtqM4u` is Ready, duration 1m 8s, displayed timestamp Oct 11 00:58:50 PDT. Unique URL: https://trainr-9nt8d0s1m-styleres-projects.vercel.app.
+- Stable alias https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app is listed on that exact deployment/source.
+- Expanded build log at 00:58:04.325 PDT: `Audit staging schema upgraded; migration checksums verified.` This is deployed initializer evidence for the marked isolated Neon Preview database, not a Production migration or independent hosted row-by-row comparison.
+- Reload `/parent/dashboard` using the owner's existing signed-in PARENT account: one saved athlete, zero bookings, correct empty state and disabled pagination. PASS.
+- Navigate directly to `/trainer/profile?tab=availability`, then `/trainer/onboarding`: both return to `/parent/dashboard`, no trainer form exposed. PASS for parent page isolation; not a claim that every API/role is tested by these two navigations.
+- Open `/parent/athletes/cmv3bs3xr0001jn0694fd2p2f`: Sandbox Athlete, 2014-01-15, Intermediate, Basketball/Soccer, stored synthetic goals and not-a-real-child notes all read back. PASS; no edits/submission.
+- Open `/browse`, click Reset search, confirm Texas/default filter removed and completed result still says zero trainers / No trainers found. PASS for browsing/reset; no eligible hosted booking path available.
+- Restore `/parent/dashboard`; parent session remains intact. No hosted trainer account, booking, payment, transfer or payout created. Authenticated hosted trainer time-zone save is **NOT TESTED**, despite real local trainer tests passing.
+- Vercel detail navigation briefly timed out; the same tab had reached the observed URL and recovered on inspection. No alternate credentials, browser security bypass or Production action was used.
+
+Documentation publication follows this application smoke. Overall production and money-flow signoff remain **HOLD**.
