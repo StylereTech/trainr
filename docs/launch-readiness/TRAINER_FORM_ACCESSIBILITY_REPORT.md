@@ -31,7 +31,7 @@ Onboarding cases separately exercise keyboard sport/specialty selection, all fie
 | Focused rebuilt profile and onboarding interaction cases | 4 passed, 42.6s, exit 0 | PASS; `.postgres-test/trainer-form-focused.log` |
 | Broader affected browser suite | 34 passed / 6 files, 2.9m, exit 0 | PASS; `.postgres-test/trainer-form-browser-final.log` |
 | Full PostgreSQL integration suite | 396 passed / 12 files, 76.72s, exit 0 | PASS; `.postgres-test/trainer-form-sql-final.log` |
-| Hosted exact-source Preview and smoke | Pending | Not inferred from local tests |
+| Hosted exact-source Preview and smoke | Source `f70db98` Ready; three anonymous API denials and two parent-role page denials passed | PASS for access boundaries only; details below |
 
 An earlier full quality gate also passed (`.postgres-test/profile-label-check.log`, 1,290 units and build), but onboarding changes were finalized during that run. The later settled-source gate is the authoritative final check; no application edits followed it.
 
@@ -44,3 +44,11 @@ Actual hosted trainer onboarding, actual sandbox booking/transfer/payout, packag
 ## Cleanup
 
 Independent psql readback after all suites verified database `trainr_audit_timezone_20261011`, role `trainr_test`, guard `disposable integration database`, and zero users/bookings/payments/packages/package-items/services/sports/Connect attempts. Both owned local app servers and the disposable PostgreSQL server are stopped. No hosted data was deleted. Git whitespace validation passed, and fetched audit remote remained at baseline before publication.
+
+## Publication And Hosted Retest
+
+- Source `f70db980873d2e8443de9b717254137654bb9052`, `fix: make trainer onboarding and profile controls accessible`, committed and pushed only to `codex/payment-readiness-20261006`; clean worktree after source push.
+- Vercel [deployment GuaHrSZeanRDbXfWitQXemf17ASS](https://vercel.com/styleres-projects/trainr/GuaHrSZeanRDbXfWitQXemf17ASS) observed Ready before 12:57:57 UTC probes, duration 1m14s, source exactly `f70db98`. Details mapped `trainr-o5k6djj12-styleres-projects.vercel.app` and the stable audit branch alias. No promotion, production domain change or credential mutation.
+- Anonymous hosted GET and PUT `/api/trainer/onboarding` and GET `/api/payments/connect` returned 401 Unauthorized at 12:57:57 UTC. PUT used empty JSON, no account/profile data. These prove access denial, not a successful trainer save.
+- Owner-authenticated PARENT navigation to `/trainer/onboarding` and `/trainer/profile` redirected to `/parent/dashboard`; rendered state retained one Sandbox Athlete and zero bookings. Existing session preserved, no hosted trainer created or terms accepted.
+- Hosted authenticated TRAINER form interaction remains unverified; local browser evidence is not relabeled hosted trainer proof. This docs follow-up changes no application source. Full production and money-flow readiness remain **HOLD**.
