@@ -46,6 +46,12 @@ it('returns conflict details without misclassifying them as server errors', asyn
   expect(response.status).toBe(409)
   expect(await response.json()).toEqual({ error: 'Session is full' })
 })
+it('returns a specific safe-to-requote price conflict', async () => {
+  mock.create.mockRejectedValue(new BookingCreationError('Review price', 409, 'PRICE_CHANGED'))
+  const response = await post({ ...input, expectedTotalInCents: 6000 })
+  expect(response.status).toBe(409)
+  expect(await response.json()).toEqual({ error: 'Review price', code: 'PRICE_CHANGED' })
+})
 it('does not expose database errors', async () => {
   mock.create.mockRejectedValue(new Error('postgres://private-host/secret'))
   const response = await post()

@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-11 price-review pass, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: accepted totals are compared with a server recalculation before reservation/coupon writes. Zero-due confirmation creates no Stripe charge or trainer payout. [Exact price-review verification and remaining gates](BOOKING_PRICE_REVIEW_REPORT.md). Actual sandbox Checkout/Connect/destination-transfer/payout remain unverified; **HOLD**.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Checkout timing safeguards and simulated provider tests do not constitute money-flow signoff. Actual sandbox Checkout, destination transfer and payout evidence are still required. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-09 04:38 UTC: free isolated Preview DB, sandbox API keys and two webhook destinations are configured with owner approval. Configuration success does not establish payment or payout success. Application schema deployment, independent auth secret, webhook ingress, actual sandbox Checkout/Connect/persistence/transfer/payout tests remain required. [Exact current evidence](STAGING_PROVISIONING_REPORT.md). Signoff remains **HOLD**; no live funds or production promotion.

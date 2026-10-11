@@ -109,10 +109,15 @@ afterAll(async () => {
   await Promise.all([prisma.$disconnect(), independent.$disconnect()])
 })
 
-const reserve = (athlete = 0, startTime = '09:00', couponCode?: string) => createBooking(fixture.parent, {
+const reserve = async (athlete = 0, startTime = '09:00', couponCode?: string) => {
+  const coupon = couponCode ? await prisma.coupon.findUniqueOrThrow({ where: { code: couponCode } }) : null
+  const price = (await prisma.serviceOffering.findUniqueOrThrow({ where: { id: fixture.service } })).priceInCents
+  return createBooking(fixture.parent, {
+  expectedTotalInCents: Math.max(0, price - (coupon?.discountPercent ? Math.round(price * coupon.discountPercent / 100) : coupon?.discountAmountInCents || 0)),
   requestId: randomUUID(),
   serviceOfferingId: fixture.service, athleteProfileId: fixture.athletes[athlete], date: fixture.date, startTime, timeZone: 'UTC', couponCode,
-})
+  })
+}
 async function pendingPayment(bookingId: string) {
   return prisma.payment.create({ data: { bookingId, amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } })
 }

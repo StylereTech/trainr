@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AthleteEditor } from '@/components/shared/AthleteEditor'
 import { bookingTrainerSchema } from '@/lib/public-trainer-schema'
 import { requestCheckout } from '@/lib/checkout-client'
+import { useBookingQuote } from '@/lib/use-booking-quote'
 import { z } from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -95,6 +96,7 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState('')
   const [notes, setNotes] = useState('')
   const [couponCode, setCouponCode] = useState('')
+  const pricing = useBookingQuote(selectedService, couponCode, Boolean(trainer && isAuthenticated))
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 15000)
@@ -179,13 +181,18 @@ export default function BookingPage() {
       toast({ title: 'Choose another time', description: 'The selected time is no longer available for checkout.', variant: 'destructive' })
       return
     }
+    if (!bookingRequest.current && !pricing.quote) {
+      setBookingError('Confirm the current price before booking.')
+      return
+    }
 
     bookingInFlight.current = true
     setSubmitting(true)
     setBookingError('')
     try {
       bookingRequest.current ??= JSON.stringify({ requestId: crypto.randomUUID(), serviceOfferingId: selectedService, athleteProfileId: selectedAthlete,
-        date: selectedDate, startTime: selectedTime, timeZone: trainer?.timeZone, notes, couponCode: couponCode || undefined })
+        date: selectedDate, startTime: selectedTime, timeZone: trainer?.timeZone, notes, couponCode: couponCode || undefined,
+        expectedTotalInCents: pricing.quote!.totalAmountInCents })
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,7 +204,13 @@ export default function BookingPage() {
       if (!res.ok) {
         const message = typeof data.error === 'string' ? data.error : 'Booking could not be confirmed.'
         setBookingError(message)
-        if (res.status === 400) { bookingRequest.current = null; setBookingUncertain(false) }
+        if (res.status === 409 && data.code === 'PRICE_CHANGED') {
+          bookingRequest.current = null
+          setBookingUncertain(false)
+          pricing.refresh()
+          setSummaryOpen(true)
+        }
+        else if (res.status === 400) { bookingRequest.current = null; setBookingUncertain(false); pricing.refresh() }
         else if ([401, 403, 404, 409].includes(res.status)) setBookingReviewRequired(true)
         else setBookingUncertain(true)
         return
@@ -274,7 +287,7 @@ export default function BookingPage() {
               <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-300 md:text-sm">
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.totalReviews > 0 ? `${trainer.totalReviews} parent reviews` : 'No parent reviews yet'}</span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.locationType === 'VIRTUAL' ? 'Virtual-ready coaching' : trainer.locationType === 'BOTH' ? 'In-person + virtual' : 'In-person coaching'}</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">Payment collected at Stripe checkout</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{pricing.quote?.totalAmountInCents === 0 ? 'No payment due' : 'Payment collected at Stripe checkout'}</span>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 {[
@@ -327,7 +340,7 @@ export default function BookingPage() {
           >
             <div>
               <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Booking summary</div>
-              <div className="mt-1 text-sm font-semibold text-white">{service ? `${service.title} • ${formatCurrency(service.priceInCents)}` : 'Select a service to start'}</div>
+              <div className="mt-1 text-sm font-semibold text-white">{service ? `${service.title} • ${pricing.quote ? formatCurrency(pricing.quote.totalAmountInCents) : 'Price not confirmed'}` : 'Select a service to start'}</div>
             </div>
             {summaryOpen ? <ChevronUp className="h-5 w-5 text-slate-300" /> : <ChevronDown className="h-5 w-5 text-slate-300" />}
           </button>
@@ -363,7 +376,7 @@ export default function BookingPage() {
                         </div>
                         <div className="text-left sm:text-right">
                           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Starting price</div>
-                          <div className="mt-1 text-2xl font-bold text-emerald-700">{formatCurrency(s.priceInCents)}</div>
+                          <div className="mt-1 text-2xl font-bold text-emerald-700">{formatCurrency(s.id === selectedService && pricing.quote ? pricing.quote.subtotalInCents : s.priceInCents)}</div>
                         </div>
                       </div>
                     </button>
@@ -507,7 +520,12 @@ export default function BookingPage() {
                 </div>
                 <div className="md:col-span-2 lg:col-span-1">
                   <Label htmlFor="coupon" className="text-slate-700">Promo code</Label>
-                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12 border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 disabled:bg-slate-100 disabled:opacity-100" />
+                  <Input id="coupon" maxLength={32} placeholder="Enter code" value={couponCode} onChange={(e) => { setCouponCode(e.target.value); setBookingError('') }} className="mt-2 h-12 border-slate-300 bg-white text-slate-950 placeholder:text-slate-500 disabled:bg-slate-100 disabled:opacity-100" />
+                  <div className="mt-2 text-sm" aria-live="polite">
+                    {pricing.loading && <p>Checking price...</p>}
+                    {pricing.error && <><p role="alert" className="text-rose-700">{pricing.error}</p><Button type="button" variant="outline" onClick={pricing.refresh} className="mt-2"><RefreshCw className="mr-2 h-4 w-4" />Retry price</Button></>}
+                    {pricing.quote && <p className="text-emerald-800">{pricing.quote.discountInCents > 0 ? `Promo applied: ${formatCurrency(pricing.quote.discountInCents)} off. ` : ''}Total due: {formatCurrency(pricing.quote.totalAmountInCents)}</p>}
+                  </div>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100 md:col-span-2 lg:col-span-1">
                   <div className="font-semibold text-slate-900">Helpful note ideas</div>
@@ -531,20 +549,24 @@ export default function BookingPage() {
               <CardContent className="space-y-5 p-6">
                 {service ? (
                   <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 grow basis-40">
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected service</div>
-                        <div className="mt-1 font-semibold text-slate-950">{service.title}</div>
+                        <div className="mt-1 break-words font-semibold text-slate-950">{service.title}</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                           <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200"><Clock className="h-3 w-3" /> {service.durationMinutes} min</span>
                           <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200"><User className="h-3 w-3" /> {service.type === 'INDIVIDUAL' ? '1-on-1 session' : service.type === 'GROUP' ? 'Group session' : 'Virtual session'}</span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500">Total</div>
-                        <div className="text-2xl font-bold text-emerald-700">{formatCurrency(service.priceInCents)}</div>
+                      <div className="shrink-0 text-right" aria-live="polite">
+                        <div className="text-xs text-slate-500">Total due</div>
+                        <div data-testid="booking-total" className="whitespace-nowrap text-xl font-bold text-emerald-700">{pricing.quote ? formatCurrency(pricing.quote.totalAmountInCents) : 'Not confirmed'}</div>
                       </div>
                     </div>
+                    {pricing.quote && <dl className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
+                      <div className="flex flex-wrap justify-between gap-2"><dt>Session price</dt><dd>{formatCurrency(pricing.quote.subtotalInCents)}</dd></div>
+                      {pricing.quote.discountInCents > 0 && <div className="flex flex-wrap justify-between gap-2"><dt>Promo discount</dt><dd>-{formatCurrency(pricing.quote.discountInCents)}</dd></div>}
+                    </dl>}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Choose a service to reveal pricing, duration, and the session format.</div>
@@ -561,7 +583,7 @@ export default function BookingPage() {
                 <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950">
                   <div className="font-semibold">What happens next</div>
                   <div className="mt-3 space-y-2">
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Pay securely through Stripe to lock in your session.</div>
+                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> {pricing.quote?.totalAmountInCents === 0 ? 'No payment is due for this reservation.' : 'Complete payment securely through Stripe.'}</div>
                     <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Trainer is notified instantly and confirms the details.</div>
                     <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Messaging opens for goals, logistics, and follow-up.</div>
                   </div>
@@ -577,12 +599,12 @@ export default function BookingPage() {
                 <Button
                   className="w-full gradient-primary border-0 text-white"
                   size="lg"
-                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting || bookingReviewRequired}
+                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting || bookingReviewRequired || (!bookingUncertain && !pricing.quote)}
                   onClick={handleSubmit}
                 >
-                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : bookingUncertain ? <><RefreshCw className="mr-2 h-4 w-4" />Retry same reservation</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
+                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : bookingUncertain ? <><RefreshCw className="mr-2 h-4 w-4" />Retry same reservation</> : pricing.quote?.totalAmountInCents === 0 ? <><CheckCircle2 className="mr-2 h-4 w-4" />Confirm free booking</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
                 </Button>
-                <p className="text-center text-xs text-slate-500">You&apos;ll be taken to secure checkout to confirm your session.</p>
+                <p className="text-center text-xs text-slate-500">{pricing.quote?.totalAmountInCents === 0 ? 'No Stripe charge or trainer payout will be created.' : 'Price and availability are checked again before checkout.'}</p>
               </CardContent>
             </Card>
           </div>

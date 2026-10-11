@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '@/lib/fees'
+import { calculateSplit } from '@/lib/fees'
+import { bookingPrice, BookingPriceError, normalizeCouponCode } from '@/lib/booking-price'
 import { isTimeSlotAvailable } from '@/lib/availability'
 import { PAID_BOOKING_LEAD_MS, resolveBookingTime } from '@/lib/booking-time'
 import { canonicalTimeZone } from '@/lib/time-zone'
@@ -9,7 +10,7 @@ import { bookingSchema, type BookingInput } from '@/lib/validations'
 import { effectiveFeeValues } from '@/lib/fee-config'
 
 export class BookingCreationError extends Error {
-  constructor(message: string, public readonly status: number) { super(message) }
+  constructor(message: string, public readonly status: number, public readonly code?: string) { super(message) }
 }
 
 const bookingDetails = { serviceOffering: true, trainerProfile: { include: { sports: { include: { sport: true } } } }, athleteProfile: true } satisfies Prisma.BookingInclude
@@ -97,30 +98,20 @@ export async function createBooking(userId: string, input: BookingInput) {
       throw new BookingCreationError('This time overlaps an existing session or the group is full', 409)
     }
 
-    let discount = 0
+    let coupon = null
     if (data.couponCode) {
-      const code = data.couponCode.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const code = normalizeCouponCode(data.couponCode)
       await tx.$queryRaw`SELECT id FROM coupons WHERE code = ${code} FOR UPDATE`
-      const coupon = await tx.coupon.findUnique({ where: { code } })
-      if (!coupon || !coupon.isActive || coupon.currentUses >= coupon.maxUses ||
-          (coupon.expiresAt && coupon.expiresAt <= new Date()) ||
-          (coupon.applicableSportId && coupon.applicableSportId !== service.sportId)) {
-        throw new BookingCreationError('Coupon is invalid, expired, exhausted or does not apply to this sport', 400)
-      }
-      const percent = coupon.discountPercent
-      const fixed = coupon.discountAmountInCents
-      if ((percent === null) === (fixed === null) ||
-          (percent !== null && (!Number.isInteger(percent) || percent < 1 || percent > 100)) ||
-          (fixed !== null && (!Number.isInteger(fixed) || fixed <= 0))) {
-        throw new BookingCreationError('Coupon discount requires correction', 400)
-      }
-      discount = Math.min(service.priceInCents, calculateDiscount(service.priceInCents, percent, fixed))
-      await tx.coupon.update({ where: { id: coupon.id }, data: { currentUses: { increment: 1 } } })
+      coupon = await tx.coupon.findUnique({ where: { code } })
     }
-    const total = service.priceInCents - discount
-    if (!isSupportedBookingTotal(total)) {
-      throw new BookingCreationError('Booking total must be zero or between $0.50 and $999,999.99. Change the promo code or contact support.', 400)
+    let total: number
+    try { total = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(data.couponCode), coupon).totalAmountInCents }
+    catch (error) {
+      if (error instanceof BookingPriceError) throw new BookingCreationError(error.message, error.status)
+      throw error
     }
+    if (data.expectedTotalInCents !== total) throw new BookingCreationError('Price changed or needs confirmation. Review the latest total before booking.', 409, 'PRICE_CHANGED')
+    if (coupon) await tx.coupon.update({ where: { id: coupon.id }, data: { currentUses: { increment: 1 } } })
     const { platformFee, trainerShare } = calculateSplit(total, fees.platformCommissionPercent)
     const free = total === 0
     if (timing.startsAt.getTime() <= Date.now() + (free ? 0 : PAID_BOOKING_LEAD_MS)) {

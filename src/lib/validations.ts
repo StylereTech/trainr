@@ -79,6 +79,8 @@ export const packageSchema = z.object({
 })
 
 export const bookingSchema = z.object({
+  // Optional only to recover previously committed requests from older clients.
+  expectedTotalInCents: z.number().int().min(0).max(99999999).optional(),
   timeZone: timeZoneSchema,
   requestId: z.string().uuid('Reload the booking form before reserving'),
   serviceOfferingId: z.string().trim().min(1).max(128),

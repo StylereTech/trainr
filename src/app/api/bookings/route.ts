@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!input.success) return NextResponse.json({ error: input.error.errors[0].message }, { status: 400 })
     return NextResponse.json(await createBooking(user.id, input.data), { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
-    if (error instanceof BookingCreationError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof BookingCreationError) return NextResponse.json({ error: error.message, ...(error.code ? { code: error.code } : {}) }, { status: error.status, headers: { 'Cache-Control': 'private, no-store' } })
     console.error('Booking transaction failed')
     return NextResponse.json({ error: 'Booking could not be confirmed. Retry the same request or check your dashboard.' }, { status: 503 })
   }

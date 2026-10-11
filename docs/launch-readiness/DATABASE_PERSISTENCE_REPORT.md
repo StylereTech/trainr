@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11 09:23 UTC, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: 335 real PostgreSQL tests passed. Quotes are read-only; changed accepted totals commit no reservation, coupon, notification or ledger writes; reviewed retries and legacy exact replay persist correctly. No schema migration was added in this pass. [Exact setup, assertions, cleanup and publication status](BOOKING_PRICE_REVIEW_REPORT.md). Final local users/bookings/payments/coupons/sports counts were zero; hosted money flow remains **HOLD**.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Fresh/legacy/phone-history migration rehearsals passed all 13 checksums and schema parity, preserving legacy rows with NULL booking instants. The complete local SQL suite passed 330 cases; a later focused retest passed 83. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-11 07:59 UTC: isolated Preview source `c810c5983fce44dc160a17e42acaff99ca6c1231` is Ready; its deployed initializer reports `Audit staging schema upgraded; migration checksums verified.` Parent/athlete hosted readback still passes. [Exact migration/deployment evidence and limits](TRAINER_TIME_ZONE_REPORT.md#publication-and-hosted-retest). This is not independent hosted trainer-field readback or a Production migration; those remain unverified.

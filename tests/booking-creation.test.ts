@@ -7,7 +7,11 @@ vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 let state: any
 let fail: string | null
 const input = { serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2030-11-04', startTime: '09:00', timeZone: 'UTC' }
-const reserve = (overrides = {}) => createBooking('parent-user', { ...input, requestId: randomUUID(), ...overrides })
+const reserve = (overrides: { couponCode?: string; expectedTotalInCents?: number; [key: string]: unknown } = {}) => createBooking('parent-user', {
+  ...input, requestId: randomUUID(), expectedTotalInCents: overrides.couponCode
+    ? Math.max(0, state.service.priceInCents - (state.coupon?.discountPercent ? Math.round(state.service.priceInCents * state.coupon.discountPercent / 100) : state.coupon?.discountAmountInCents || 0))
+    : state.service.priceInCents, ...overrides,
+})
 afterEach(() => vi.useRealTimers())
 
 beforeEach(() => {
@@ -77,6 +81,18 @@ beforeEach(() => {
 })
 
 describe('atomic reservation creation', () => {
+  it.each([undefined, 0, 5999, 6001])('rejects missing or changed accepted price %s without writes', async expectedTotalInCents => {
+    await expect(reserve({ expectedTotalInCents })).rejects.toMatchObject({ status: 409, code: 'PRICE_CHANGED' })
+    expect(state.bookings).toHaveLength(0)
+    expect(state.requests).toHaveLength(0)
+    expect(state.notifications).toHaveLength(0)
+    expect(state.coupon.currentUses).toBe(0)
+  })
+  it('does not consume a coupon when the discounted price changes after review', async () => {
+    await expect(reserve({ couponCode: 'SAVE10', expectedTotalInCents: 5000 })).rejects.toMatchObject({ code: 'PRICE_CHANGED' })
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+  })
   it('rolls back the coupon and all records inside the paid checkout lead window', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2030-11-04T08:30:00Z'))
@@ -220,7 +236,7 @@ describe('atomic reservation creation', () => {
 
   it.each([49, 100000000])('rejects unsupported legacy service price %s without a coupon', async (price) => {
     state.service.priceInCents = price
-    await expect(reserve()).rejects.toMatchObject({ status: price < 1500 ? 409 : 400 })
+    await expect(reserve({ expectedTotalInCents: 6000 })).rejects.toMatchObject({ status: price < 1500 ? 409 : 400 })
     expect(state.bookings).toHaveLength(0)
   })
 

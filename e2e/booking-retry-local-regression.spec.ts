@@ -54,7 +54,7 @@ for (const width of [1440, 390]) {
           await page.getByRole('button', { name: '09:00', exact: true }).click()
           await page.getByLabel('Promo code', { exact: true }).fill(coupon.code)
           if (width < 1024) await page.getByRole('button', { name: /Booking summary/ }).click()
-          await page.getByRole('button', { name: 'Book & Pay', exact: true }).click()
+          await page.getByRole('button', { name: scenario === 'free' ? 'Confirm free booking' : 'Book & Pay', exact: true }).click()
           await expect(page.getByRole('button', { name: 'Retry same reservation', exact: true })).toBeVisible()
           expect(checkoutCalls).toBe(0)
           await expect(page.getByLabel('Promo code', { exact: true })).toBeDisabled()

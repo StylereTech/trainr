@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { beforeAll, beforeEach, afterEach, afterAll, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -6,6 +6,8 @@ import { encode } from 'next-auth/jwt'
 import { prisma } from '@/lib/prisma'
 import { createBooking } from '@/lib/booking-creation'
 import { POST } from '@/app/api/bookings/route'
+import { POST as QUOTE } from '@/app/api/bookings/quote/route'
+import { bookingSchema } from '@/lib/validations'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 const secret = 'local-booking-request-test-only'
@@ -48,14 +50,63 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect(); vi.unstubAllEnvs() })
 
 async function input() {
+  const offer = await prisma.coupon.findUniqueOrThrow({ where: { id: coupon } })
   return { requestId: randomUUID(), serviceOfferingId: service, athleteProfileId: athlete, date: '2030-11-04', startTime: '09:00', timeZone: 'UTC', notes: 'Synthetic note',
-    couponCode: (await prisma.coupon.findUniqueOrThrow({ where: { id: coupon } })).code }
+    expectedTotalInCents: 6000 - Math.round(6000 * offer.discountPercent! / 100), couponCode: offer.code }
 }
-async function post(body: unknown, userId = parent) {
+async function post(body: unknown, userId = parent, handler: (req: NextRequest) => Promise<Response> = POST) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } })
   const token = await encode({ secret, token: { sub: user.id, role: user.role, sessionVersion: user.sessionVersion } })
-  return POST(new NextRequest('http://localhost/api/bookings', { method: 'POST', headers: { 'content-type': 'application/json', cookie: `next-auth.session-token=${token}` }, body: JSON.stringify(body) }))
+  return handler(new NextRequest('http://localhost/api/bookings', { method: 'POST', headers: { 'content-type': 'application/json', cookie: `next-auth.session-token=${token}` }, body: JSON.stringify(body) }))
 }
+
+it('quotes repeatedly without consuming coupons or reserving, then rejects a changed service price until reviewed', async () => {
+  const body = await input()
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await post({ serviceOfferingId: service, couponCode: body.couponCode }, parent, QUOTE)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ subtotalInCents: 6000, discountInCents: 600, totalAmountInCents: 5400 })
+  }
+  expect(await independent.booking.count()).toBe(0)
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(0)
+  await prisma.serviceOffering.update({ where: { id: service }, data: { priceInCents: 7000 } })
+  const changed = await post(body)
+  expect(changed.status).toBe(409)
+  expect(await changed.json()).toMatchObject({ code: 'PRICE_CHANGED' })
+  expect(await independent.booking.count()).toBe(0)
+  expect(await independent.notification.count()).toBe(0)
+  expect(await independent.bookingCreateRequest.count()).toBe(0)
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(0)
+  const reviewed = await (await post({ serviceOfferingId: service, couponCode: body.couponCode }, parent, QUOTE)).json()
+  expect(reviewed.totalAmountInCents).toBe(6300)
+  expect((await post({ ...body, expectedTotalInCents: reviewed.totalAmountInCents })).status).toBe(201)
+  expect((await independent.booking.findFirstOrThrow()).totalAmountInCents).toBe(6300)
+})
+it.each(['expired', 'exhausted', 'discount-changed'])('revalidates coupon %s after quoting without a silent full-price reservation', async change => {
+  const body = await input()
+  expect((await post({ serviceOfferingId: service, couponCode: body.couponCode }, parent, QUOTE)).status).toBe(200)
+  await prisma.coupon.update({ where: { id: coupon }, data: change === 'expired' ? { expiresAt: new Date(0) } : change === 'exhausted' ? { maxUses: 0 } : { discountPercent: 5 } })
+  expect((await post(body)).status).toBe(change === 'discount-changed' ? 409 : 400)
+  expect(await independent.booking.count()).toBe(0)
+  expect(await independent.bookingCreateRequest.count()).toBe(0)
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(0)
+})
+it('rejects an unconfirmed new price but preserves exact replay of legacy committed requests', async () => {
+  const current = await input()
+  const { expectedTotalInCents: _price, ...legacy } = current
+  expect((await post(legacy)).status).toBe(409)
+  expect(await independent.booking.count()).toBe(0)
+  const saved = await (await post(current)).json()
+  // Model a ledger committed before the accepted-price field existed.
+  const { requestId: _request, ...legacyPayload } = bookingSchema.parse(legacy)
+  const ledger = await independent.bookingCreateRequest.findFirstOrThrow()
+  await prisma.bookingCreateRequest.update({ where: { parentProfileId_requestId: { parentProfileId: ledger.parentProfileId, requestId: ledger.requestId } }, data: { payloadHash: createHash('sha256').update(JSON.stringify(legacyPayload)).digest('hex') } })
+  const response = await post(legacy)
+  expect(response.status).toBe(201)
+  expect((await response.json()).id).toBe(saved.id)
+  expect(await independent.booking.count()).toBe(1)
+  expect((await independent.coupon.findUniqueOrThrow({ where: { id: coupon } })).currentUses).toBe(1)
+})
 
 it('returns one booking for concurrent identical authenticated requests, consuming the coupon once', async () => {
   const body = await input()
