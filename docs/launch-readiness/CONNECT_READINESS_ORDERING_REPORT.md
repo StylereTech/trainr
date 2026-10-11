@@ -54,7 +54,7 @@ Stripe documents non-guaranteed webhook event order and current-resource retriev
 | Full SQL regression | Shared money/auth/booking persistence remains valid | PASS: 373 tests / 11 files, 70.40s, exit 0 |
 | Final full check | Lint, types, units and optimized build | PASS: 1,239 units / 58 files, 75 generated pages, compile 59s, exit 0; existing lint/Browserslist warnings remain |
 | Desktop/mobile Connect, payout and checkout recovery | Safe status, errors, links and persistence | PASS on complete rerun: 36/36, 7.3m, exit 0, no retries/skips; initial failures and focused retest recorded below |
-| Preview deployment and hosted smoke | Exact source Ready, parent state and role/signature boundaries preserved | Pending |
+| Preview deployment and hosted smoke | Exact source Ready, parent state and role/signature boundaries preserved | PASS: source `428feda`, Ready audit Preview, five anonymous denials and authenticated parent refresh/history/trainer-page denial; actual provider onboarding remains unverified |
 
 The focused fixture retest and first corrected full check initially could not resolve Vitest configuration because the Windows filesystem sandbox denied directory access; no tests ran on those attempts. Escalated local-test execution passed the focused suite and is used for the final full gate. These environment failures are not hidden as test passes.
 
@@ -72,7 +72,11 @@ Final browser rerun: all 36 cases passed in 7.3m with `--timeout=60000`, exit 0,
 
 ## Publication And Hosted Retest
 
-Pending. Do not infer publication or authenticated hosted provider readiness from local test results.
+- Committed/pushed source `428feda18cf8e34577e4b82cbc02401589bf8840` to `codex/payment-readiness-20261006`; local HEAD matched remote-tracking SHA and worktree was clean before this documentation follow-up.
+- Vercel Preview project `trainr`, deployment [`EDqytJcuwdGjfdWmXmRVZvZZaPRk`](https://vercel.com/styleres-projects/trainr/EDqytJcuwdGjfdWmXmRVZvZZaPRk), Ready 2026-10-11 11:05:05 UTC. Exact source and stable branch alias were visibly confirmed. Unique host `trainr-joidx8vsv-styleres-projects.vercel.app`. Transient browser inspection timeouts were resolved by reading the same tab's accessibility state; no new deployment or credentials were needed.
+- Hosted checks at 11:07:14 UTC used `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`. Anonymous GET `/api/payments/connect`, GET `/api/trainer/stripe-connect`, POST `/api/payments/connect` and POST `/api/payments/checkout` each returned 401 `{"error":"Unauthorized"}`. POST `/api/payments/webhook` without a signature returned 400 `{"error":"Missing stripe-signature header"}`. POST bodies were `{}`; no cookies, secrets, actual account/booking identities or payment details were sent. Five checks passed, command exit 0. These prove rejection boundaries, not authenticated provider refresh.
+- Existing owner-authenticated PARENT browser: reloaded `/parent/dashboard` and waited for persisted content; one Sandbox Athlete, zero open bookings/reviews and no upcoming sessions, PASS. Navigated `/trainer/dashboard` and was redirected to `/parent/dashboard`, PASS for the parent/trainer page boundary. Clicked Past (0), saw No past sessions yet, PASS. No sign-out, new account, hosted financial mutation, credential change or role grant.
+- The following documentation commit is separately checked for Preview readiness after push. This report identifies the verified application source above rather than inventing its own containing commit hash. Actual hosted `account.updated` handling, trainer Connect refresh, paid Checkout, destination transfer and payout are still unverified because the required trainer/account/catalog/booking do not exist. Main/Production/Story remain unchanged.
 
 ## Remaining Gates
 
