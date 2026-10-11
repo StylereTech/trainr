@@ -3,7 +3,7 @@
 ## Scope
 
 - Date: 2026-10-11, work began approximately 08:03 UTC.
-- Baseline SHA: `9f03ca6304546f7bdd31941d2f880148b3f0439c`; implementation publication and final browser retest pending below.
+- Baseline SHA: `9f03ca6304546f7bdd31941d2f880148b3f0439c`; published implementation SHA: `558d50084b55bb1dd1b43f023a765d92bcded988`. Local and scoped hosted retests completed below.
 - Branch: `codex/payment-readiness-20261006`, audit Preview project `trainr`. No main merge, Production (`trainr-node`), Story, Resend or live Stripe changes.
 - Local environment: Windows, Node, PostgreSQL 16.15 on loopback port 55439, guarded disposable databases and synthetic `@example.test` accounts. Provider responses in automated tests are simulated, not actual Stripe payments.
 - Routes: POST `/api/bookings`, POST `/api/payments/checkout`, GET `/api/dashboard/bookings`, public trainer detail, `/book/[slug]`, parent/trainer dashboards and administrator booking views.
@@ -32,7 +32,7 @@
 | Reserve UTC Nov 4 09:00, then propose Honolulu Nov 3 23:00 | Detect same instant despite different calendar dates; old booking remains UTC | PASS, only one booking persisted |
 | Legacy NULL snapshot / missing or stale trainer zone / past start | No new payment/provider request or invalid reservation | PASS in SQL and route tests |
 | Desktop/mobile browser with LA visitor, New York trainer | Correct label, save/refresh original zone after profile changes, clear unknown-time payment error, no overflow | PASS: final 28/28 affected cases in 4.2m, exit 0, no skips/retries/deadline increases |
-| Hosted Preview deploy / migration / existing parent smoke | Exact source Ready; parent and athlete preserved; no Production change | Pending publication |
+| Hosted Preview deploy / migration / existing parent smoke | Exact source Ready; parent and athlete preserved; no Production change | PASS within the read-only scope below, 2026-10-11 08:48-08:50 UTC. Actual hosted booking/payment remains unverified |
 
 New migration SHA256: `d517e80c8e4aac917565910ab3768e006f2ba286296c38e37935cc8bf62f3e3f`. Applied to the existing guarded local browser-test database using `prisma migrate deploy`; no reset or schema push. The final gate log is `.postgres-test/booking-instants-final-check.log`; SQL retest log is `.postgres-test/booking-instants-sql.log`. Neither contains provider credentials.
 
@@ -53,6 +53,24 @@ The four split journeys use real local HTTP handlers/SQL: create synthetic paren
 Additional final cases cover 12 parent/trainer/admin cross-zone date views, 8 dashboard persistence/error cases and 4 trainer zone onboarding/profile cases. [Desktop booking](evidence/booking-instants-20261011/booking-desktop.png), [mobile parent](evidence/booking-instants-20261011/parent-mobile.png) and [mobile trainer](evidence/booking-instants-20261011/trainer-mobile.png) evidence is retained. Labels and recorded times fit the inspected layouts; synthetic long identifiers wrap. This is not a complete site-wide visual signoff.
 
 Independent final psql read: the disposable marker remains present, users=0, bookings=0, payments=0 and sports=0. No hosted parent or trainer data was changed by these fixtures.
+
+## Publication And Hosted Retest
+
+- Source `558d50084b55bb1dd1b43f023a765d92bcded988` committed and pushed to `origin/codex/payment-readiness-20261006`. Local HEAD and remote-tracking branch matched and the worktree was clean at 08:48 UTC. This report's follow-up commit changes documentation only.
+- Vercel audit Preview [BJBDaGo9jGWzRZ83Edkfsn5YPeNu](https://vercel.com/styleres-projects/trainr/BJBDaGo9jGWzRZ83Edkfsn5YPeNu) visibly Ready, source 558d500, completed 2026-10-11 01:47:36 PDT (08:47:36 UTC), duration 1m16s.
+- Unique deployment: `https://trainr-lm5aar64n-styleres-projects.vercel.app`. Vercel visibly mapped the [stable audit alias](https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app) to that deployment. Environment was Preview; main and Production were not promoted or changed.
+- Expanded build log at 01:46:48.916 PDT: `Audit staging schema upgraded; migration checksums verified.` This is the guarded isolated database initializer's successful upgrade/checksum result, not a manual production schema push. Existing build warnings remain.
+- Account: existing owner-signed-in Preview PARENT, identified by its sole synthetic Sandbox Athlete. No password, token, or cookie was copied; no hosted fixture or financial record was written in this retest.
+
+| Exact hosted steps / route | Expected | Actual / status |
+| --- | --- | --- |
+| Reload `/parent/dashboard` after Ready | Session survives, persisted counts load | PASS: Parent dashboard, 1 athlete, 0 open bookings, 0 reviews |
+| Click Past (0) | Correct empty history and pagination | PASS: No past sessions yet; Page 1 of 1 (0 bookings), both paging controls disabled |
+| Click Sandbox Athlete, `/parent/athletes/cmv3bs3xr0001jn0694fd2p2f` | Original saved fields survive deploy/migration | PASS: Sandbox Athlete, DOB 2014-01-15, Intermediate, Basketball/Soccer checked, original synthetic goals/notes; no save or deletion performed |
+| Follow Browse trainers to `/browse`, then Reset search | Remove default Texas restriction and render catalog | PASS for navigation/filter/empty state: Filters has no count, 0 trainers found, No trainers found and Clear Filters visible |
+| Select trainer/service and pay using actual Stripe sandbox | Eligible trainer and completed Connect prerequisite | BLOCKED: unfiltered hosted catalog is empty. No hosted charge, destination transfer, Connect completion or payout is claimed |
+
+Local production test server and the owned loopback PostgreSQL server were stopped after the completed browser/SQL runs. All test processes had returned before publication. Provider-mocked tests and local zero-due reservations do not substitute for actual sandbox money-flow evidence. Fix status: scheduling/checkout-timing implementation published and scoped retests passed; launch status remains HOLD.
 
 ## Legacy Operations
 
