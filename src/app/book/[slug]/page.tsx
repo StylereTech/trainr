@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AthleteEditor } from '@/components/shared/AthleteEditor'
 import { bookingTrainerSchema } from '@/lib/public-trainer-schema'
+import { requestCheckout } from '@/lib/checkout-client'
 import { z } from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -204,25 +205,13 @@ export default function BookingPage() {
         return
       }
 
-      let checkoutError = 'Payment could not be started. Your booking has been saved.'
       try {
-        const checkoutRes = await fetch('/api/payments/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: data.id }),
-          signal: AbortSignal.timeout(15000),
-        })
-        const checkoutData = await checkoutRes.json()
-        if (checkoutRes.ok && checkoutData.checkoutUrl) {
-          window.location.href = checkoutData.checkoutUrl
-          return
-        }
-        checkoutError = checkoutData.error || checkoutError
-      } catch {
-        checkoutError = 'Unable to reach checkout. Your booking has been saved.'
+        window.location.href = await requestCheckout(saved.id)
+        return
+      } catch (error) {
+        toast({ title: 'Check booking payment', description: error instanceof Error ? error.message : 'Your booking has been saved. Check its payment status before trying again.', variant: 'destructive' })
       }
 
-      toast({ title: 'Check booking payment', description: checkoutError, variant: 'destructive' })
       router.push('/parent/dashboard')
     } catch {
       setBookingUncertain(true)

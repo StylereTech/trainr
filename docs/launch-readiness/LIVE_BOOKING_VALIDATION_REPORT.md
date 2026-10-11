@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-11 07:26 UTC: parent checkout recovery passed local verification (1,053 unit tests, build, 40 browser regressions), including real local saved-reservation/readback and simulated provider failure/redirect cases. [Exact evidence and limits](PARENT_CHECKOUT_RECOVERY_REPORT.md). This does not verify a live or sandbox provider payment: the hosted parent still has no booking and trainer onboarding remains pending. Publication/hosted smoke pending; money-flow **HOLD**.
+
 2026-10-08 package audit (baseline `a92204dcc6e52bd738f84549804105e664fd1115`): [Package Flow And Booking Contract Audit](PACKAGE_FLOW_AUDIT_REPORT.md) confirms that package listings do not provide trainer management, purchasing or a credit ledger. Unsupported package/credit fields are now rejected instead of silently creating/replaying a single-session booking. Exact failures/retests and remaining implementation requirements are recorded there. Package flows remain **FAIL / INCOMPLETE**, not waived; production and money-flow signoff remain **HOLD**.
 
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.

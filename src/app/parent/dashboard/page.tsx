@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { dashboardResponseSchema, type DashboardBooking as Booking, athletesResp
 import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { formatBookingDate } from '@/lib/booking-date'
+import { requestCheckout } from '@/lib/checkout-client'
 
 function isTrainerPaymentReady(booking: Booking) {
   return booking.trainerProfile.paymentReady
@@ -35,6 +36,8 @@ export default function ParentDashboard() {
   const bookings = dashboard.data?.bookings || []
   const athletes = athleteData.data?.athletes || []
   const [startingCheckoutId, setStartingCheckoutId] = useState<string | null>(null)
+  const checkoutInFlight = useRef(false)
+  const [checkoutError, setCheckoutError] = useState('')
 
   useEffect(() => {
     const paymentState = searchParams.get('payment')
@@ -44,29 +47,18 @@ export default function ParentDashboard() {
   }, [searchParams, toast])
 
   const handleCheckout = async (bookingId: string) => {
+    if (checkoutInFlight.current) return
+    checkoutInFlight.current = true
     setStartingCheckoutId(bookingId)
+    setCheckoutError('')
     try {
-      const res = await fetch('/api/payments/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        toast({ title: 'Unable to start checkout', description: data.error || 'Please try again.', variant: 'destructive' })
-        return
-      }
-
-      if (!data.checkoutUrl) {
-        toast({ title: 'Unable to start checkout', description: 'Stripe did not return a checkout URL.', variant: 'destructive' })
-        return
-      }
-
-      window.location.href = data.checkoutUrl
-    } catch {
-      toast({ title: 'Unable to start checkout', description: 'Something went wrong starting payment.', variant: 'destructive' })
+      window.location.href = await requestCheckout(bookingId)
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Check the current booking and payment status before trying again.')
+      // Checkout may have progressed server-side even when the browser did not receive its response.
+      await dashboard.reload()
     } finally {
+      checkoutInFlight.current = false
       setStartingCheckoutId(null)
     }
   }
@@ -142,6 +134,12 @@ export default function ParentDashboard() {
           </CardContent>
         </Card>
 
+        {checkoutError && <div role="alert" className="mt-6 border-l-2 border-amber-400 bg-amber-400/10 p-4 text-sm text-amber-100">
+          <h2 className="font-semibold">Checkout could not be opened</h2>
+          <p className="mt-1 break-words">{checkoutError}</p>
+          <Button variant="outline" className="mt-3" onClick={() => void dashboard.reload()}><RefreshCw className="mr-2 h-4 w-4" />Refresh bookings</Button>
+        </div>}
+
         <Tabs value={view} onValueChange={value => { setView(value); setPage(1) }} className="mt-6">
           <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-slate-900 p-2 sm:w-auto">
             <TabsTrigger value="upcoming">Open ({counts.PENDING + counts.CONFIRMED})</TabsTrigger>
@@ -171,7 +169,7 @@ export default function ParentDashboard() {
                       </div>
                       <div className="md:text-right">
                         <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                        {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : 'Awaiting payment'}</div>}
+                        {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : b.payment?.status === 'PROCESSING' ? 'Payment processing' : 'Awaiting payment'}</div>}
                         {canStartCheckout(b) && (
                           isTrainerPaymentReady(b) ? (
                             <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={!!startingCheckoutId}>
