@@ -193,7 +193,7 @@ export default function TrainerOnboardingPage() {
                   <Label className="text-base font-semibold">What are your specialties?</Label>
                   <div className="flex flex-wrap gap-2 mt-3">
                     {availableSpecialties.map(spec => (
-                      <button key={spec.id} type="button" onClick={() => toggleSpecialty(spec.id)}
+                      <button key={spec.id} type="button" aria-pressed={selectedSpecialties.includes(spec.id)} onClick={() => toggleSpecialty(spec.id)}
                         className={`max-w-full break-words px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedSpecialties.includes(spec.id) ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-gray-300'}`}>
                         {spec.name} ({spec.sportName})
                       </button>
@@ -210,18 +210,18 @@ export default function TrainerOnboardingPage() {
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>First Name</Label><Input value={profile.firstName} onChange={e => setProfile({...profile, firstName: e.target.value})} /></div>
-                <div><Label>Last Name</Label><Input value={profile.lastName} onChange={e => setProfile({...profile, lastName: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-first-name">First Name</Label><Input id="onboarding-first-name" value={profile.firstName} onChange={e => setProfile({...profile, firstName: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-last-name">Last Name</Label><Input id="onboarding-last-name" value={profile.lastName} onChange={e => setProfile({...profile, lastName: e.target.value})} /></div>
               </div>
-              <div><Label>Headline</Label><Input placeholder="e.g. Former D1 QB Coach, 10+ years experience" value={profile.headline} onChange={e => setProfile({...profile, headline: e.target.value})} maxLength={100} /></div>
-              <div><Label>Bio</Label><Textarea placeholder="Tell parents about yourself, your coaching philosophy, and experience..." value={profile.bio} onChange={e => setProfile({...profile, bio: e.target.value})} maxLength={2000} rows={5} /></div>
-              <div><Label>Phone</Label><Input placeholder="(555) 123-4567" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} /></div>
+              <div><Label htmlFor="onboarding-headline">Headline</Label><Input id="onboarding-headline" placeholder="e.g. Former D1 QB Coach, 10+ years experience" value={profile.headline} onChange={e => setProfile({...profile, headline: e.target.value})} maxLength={100} /></div>
+              <div><Label htmlFor="onboarding-bio">Bio</Label><Textarea id="onboarding-bio" placeholder="Tell parents about yourself, your coaching philosophy, and experience..." value={profile.bio} onChange={e => setProfile({...profile, bio: e.target.value})} maxLength={2000} rows={5} /></div>
+              <div><Label htmlFor="onboarding-phone">Phone</Label><Input id="onboarding-phone" placeholder="(555) 123-4567" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>Years Experience</Label><Input type="number" min={0} max={50} value={profile.yearsExperience} onChange={e => setProfile({...profile, yearsExperience: parseInt(e.target.value) || 0})} /></div>
+                <div><Label htmlFor="onboarding-experience">Years Experience</Label><Input id="onboarding-experience" type="number" min={0} max={50} value={profile.yearsExperience} onChange={e => setProfile({...profile, yearsExperience: parseInt(e.target.value) || 0})} /></div>
                 <div>
-                  <Label>Location Type</Label>
+                  <Label htmlFor="onboarding-location-type">Location Type</Label>
                   <Select value={profile.locationType} onValueChange={v => setProfile({...profile, locationType: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="onboarding-location-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="IN_PERSON">In Person</SelectItem>
                       <SelectItem value="VIRTUAL">Virtual Only</SelectItem>
@@ -231,11 +231,11 @@ export default function TrainerOnboardingPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>City</Label><Input value={profile.city} onChange={e => setProfile({...profile, city: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-city">City</Label><Input id="onboarding-city" value={profile.city} onChange={e => setProfile({...profile, city: e.target.value})} /></div>
                 <div>
-                  <Label>State</Label>
+                  <Label htmlFor="onboarding-state">State</Label>
                   <Select value={profile.state} onValueChange={state => setProfile({...profile, state})}>
-                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectTrigger id="onboarding-state"><SelectValue placeholder="Select state" /></SelectTrigger>
                     <SelectContent>
                       {US_STATES.map(state => (
                         <SelectItem key={state.code} value={state.code}>{state.name}</SelectItem>
@@ -245,8 +245,8 @@ export default function TrainerOnboardingPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>Zip Code</Label><Input value={profile.zipCode} onChange={e => setProfile({...profile, zipCode: e.target.value})} /></div>
-                <div><Label>Travel Radius (miles)</Label><Input type="number" min={5} max={100} value={profile.travelRadius} onChange={e => setProfile({...profile, travelRadius: parseInt(e.target.value) || 25})} /></div>
+                <div><Label htmlFor="onboarding-zip">Zip Code</Label><Input id="onboarding-zip" value={profile.zipCode} onChange={e => setProfile({...profile, zipCode: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-radius">Travel Radius (miles)</Label><Input id="onboarding-radius" type="number" min={5} max={100} value={profile.travelRadius} onChange={e => setProfile({...profile, travelRadius: parseInt(e.target.value) || 25})} /></div>
               </div>
 
               <Separator />
@@ -254,9 +254,9 @@ export default function TrainerOnboardingPage() {
                 <Label className="text-base font-semibold">Certifications</Label>
                 {certifications.map((cert, i) => (
                   <div key={i} className="flex gap-2 mt-2">
-                    <Input placeholder="Certification name" value={cert.name} onChange={e => { const c = [...certifications]; c[i].name = e.target.value; setCertifications(c) }} />
-                    <Input placeholder="Issuing org" value={cert.issuingOrg} onChange={e => { const c = [...certifications]; c[i].issuingOrg = e.target.value; setCertifications(c) }} />
-                    {certifications.length > 1 && <Button variant="ghost" size="icon" onClick={() => setCertifications(certifications.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
+                    <Input aria-label={`Certification ${i + 1} name`} placeholder="Certification name" value={cert.name} onChange={e => { const c = [...certifications]; c[i].name = e.target.value; setCertifications(c) }} />
+                    <Input aria-label={`Certification ${i + 1} organization`} placeholder="Issuing org" value={cert.issuingOrg} onChange={e => { const c = [...certifications]; c[i].issuingOrg = e.target.value; setCertifications(c) }} />
+                    {certifications.length > 1 && <Button aria-label={`Remove certification ${i + 1}`} title={`Remove certification ${i + 1}`} variant="ghost" size="icon" onClick={() => setCertifications(certifications.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="mt-2" onClick={() => setCertifications([...certifications, { name: '', issuingOrg: '' }])}>
@@ -275,7 +275,7 @@ export default function TrainerOnboardingPage() {
                 <div key={i} className="p-4 border rounded-lg space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-sm">Service {i + 1}</span>
-                    {services.length > 1 && <Button variant="ghost" size="icon" onClick={() => setServices(services.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
+                    {services.length > 1 && <Button aria-label={`Remove service ${i + 1}`} title={`Remove service ${i + 1}`} variant="ghost" size="icon" onClick={() => setServices(services.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                   <div>
                     <Label htmlFor={`service-sport-${i}`}>Sport *</Label>
@@ -284,15 +284,15 @@ export default function TrainerOnboardingPage() {
                       <SelectContent>{catalog.filter(sport => sport.isActive && selectedSports.includes(sport.slug)).map(sport => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Title</Label><Input placeholder="e.g. 1-on-1 Quarterback Training" value={svc.title} onChange={e => { const s = [...services]; s[i].title = e.target.value; setServices(s) }} /></div>
-                  <div><Label>Description</Label><Textarea placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
+                  <div><Label htmlFor={`onboarding-service-title-${i}`}>Title</Label><Input id={`onboarding-service-title-${i}`} placeholder="e.g. 1-on-1 Quarterback Training" value={svc.title} onChange={e => { const s = [...services]; s[i].title = e.target.value; setServices(s) }} /></div>
+                  <div><Label htmlFor={`onboarding-service-description-${i}`}>Description</Label><Textarea id={`onboarding-service-description-${i}`} placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div><Label>Duration (min)</Label><Input type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
-                    <div><Label>Price ($)</Label><Input type="number" min={minServicePrice / 100} step={0.01} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = Math.round(Number(e.target.value) * 100); setServices(s) }} /></div>
+                    <div><Label htmlFor={`onboarding-service-durationMinutes-${i}`}>Duration (min)</Label><Input id={`onboarding-service-durationMinutes-${i}`} type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
+                    <div><Label htmlFor={`onboarding-service-priceInCents-${i}`}>Price ($)</Label><Input id={`onboarding-service-priceInCents-${i}`} type="number" min={minServicePrice / 100} step={0.01} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = Math.round(Number(e.target.value) * 100); setServices(s) }} /></div>
                     <div>
-                      <Label>Type</Label>
+                      <Label htmlFor={`onboarding-service-type-${i}`}>Type</Label>
                       <Select value={svc.type} onValueChange={v => { const s = [...services]; s[i].type = v; setServices(s) }}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`onboarding-service-type-${i}`}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="INDIVIDUAL">1-on-1</SelectItem>
                           <SelectItem value="GROUP">Group</SelectItem>

@@ -246,6 +246,7 @@ function TrainerProfileContent() {
             <button
               key={tab.id}
               ref={activeTab === tab.id ? activeTabButton : undefined}
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                 activeTab === tab.id ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:bg-white/5 hover:text-white'
@@ -265,30 +266,30 @@ function TrainerProfileContent() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label>First Name *</Label>
-                    <Input value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-first-name">First Name *</Label>
+                    <Input id="profile-first-name" value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>Last Name *</Label>
-                    <Input value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-last-name">Last Name *</Label>
+                    <Input id="profile-last-name" value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
                 <div>
-                  <Label>Headline</Label>
-                  <Input value={profile.headline} onChange={e => setProfile(p => ({ ...p, headline: e.target.value }))} placeholder="e.g. Elite Quarterback Coaching" className="mt-1.5 bg-white/5 border-white/10" maxLength={100} />
+                  <Label htmlFor="profile-headline">Headline</Label>
+                  <Input id="profile-headline" value={profile.headline} onChange={e => setProfile(p => ({ ...p, headline: e.target.value }))} placeholder="e.g. Elite Quarterback Coaching" className="mt-1.5 bg-white/5 border-white/10" maxLength={100} />
                 </div>
                 <div>
-                  <Label>Bio</Label>
-                  <Textarea value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} placeholder="Tell families about your coaching experience, philosophy, and what makes your sessions special." className="mt-1.5 min-h-[120px] bg-white/5 border-white/10" maxLength={2000} />
+                  <Label htmlFor="profile-bio">Bio</Label>
+                  <Textarea id="profile-bio" value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} placeholder="Tell families about your coaching experience, philosophy, and what makes your sessions special." className="mt-1.5 min-h-[120px] bg-white/5 border-white/10" maxLength={2000} />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label>Phone</Label>
-                    <Input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+1 (555) 123-4567" className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-phone">Phone</Label>
+                    <Input id="profile-phone" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+1 (555) 123-4567" className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>Years of Experience</Label>
-                    <Input type="number" value={profile.yearsExperience} onChange={e => setProfile(p => ({ ...p, yearsExperience: parseInt(e.target.value) || 0 }))} min={0} max={50} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-experience">Years of Experience</Label>
+                    <Input id="profile-experience" type="number" value={profile.yearsExperience} onChange={e => setProfile(p => ({ ...p, yearsExperience: parseInt(e.target.value) || 0 }))} min={0} max={50} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
               </CardContent>
@@ -299,9 +300,9 @@ function TrainerProfileContent() {
               <CardHeader><h2 className="flex items-center gap-2 text-lg font-semibold"><MapPin className="h-5 w-5 text-emerald-300" /> Training Location</h2></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Location Type</Label>
+                  <Label htmlFor="profile-location-type">Location Type</Label>
                   <Select value={profile.locationType} onValueChange={v => setProfile(p => ({ ...p, locationType: v }))}>
-                    <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="profile-location-type" className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="IN_PERSON">In-Person Only</SelectItem>
                       <SelectItem value="VIRTUAL">Virtual Only</SelectItem>
@@ -310,31 +311,31 @@ function TrainerProfileContent() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Address / Facility</Label>
-                  <Input value={profile.address} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="e.g. North Dallas Sports Complex" className="mt-1.5 bg-white/5 border-white/10" />
+                  <Label htmlFor="profile-address">Address / Facility</Label>
+                  <Input id="profile-address" value={profile.address} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="e.g. North Dallas Sports Complex" className="mt-1.5 bg-white/5 border-white/10" />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <Label>City</Label>
-                    <Input value={profile.city} onChange={e => setProfile(p => ({ ...p, city: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-city">City</Label>
+                    <Input id="profile-city" value={profile.city} onChange={e => setProfile(p => ({ ...p, city: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>State</Label>
+                    <Label htmlFor="profile-state">State</Label>
                     <Select value={profile.state} onValueChange={v => setProfile(p => ({ ...p, state: v }))}>
-                      <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectTrigger id="profile-state" className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label>ZIP Code</Label>
-                    <Input value={profile.zipCode} onChange={e => setProfile(p => ({ ...p, zipCode: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-zip">ZIP Code</Label>
+                    <Input id="profile-zip" value={profile.zipCode} onChange={e => setProfile(p => ({ ...p, zipCode: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
                 <div>
-                  <Label>Travel Radius (miles)</Label>
-                  <Input type="number" value={profile.travelRadius} onChange={e => setProfile(p => ({ ...p, travelRadius: parseInt(e.target.value) || 25 }))} min={5} max={100} className="mt-1.5 w-32 bg-white/5 border-white/10" />
+                  <Label htmlFor="profile-radius">Travel Radius (miles)</Label>
+                  <Input id="profile-radius" type="number" value={profile.travelRadius} onChange={e => setProfile(p => ({ ...p, travelRadius: parseInt(e.target.value) || 25 }))} min={5} max={100} className="mt-1.5 w-32 bg-white/5 border-white/10" />
                 </div>
               </CardContent>
             </Card>
@@ -349,6 +350,7 @@ function TrainerProfileContent() {
                     {catalog.filter(sport => sport.isActive || selectedSports.includes(sport.slug)).map(sport => (
                       <button
                         key={sport.slug}
+                        aria-pressed={selectedSports.includes(sport.slug)}
                         onClick={() => toggleSport(sport.slug)}
                         className={`rounded-full border px-4 py-2 text-sm transition ${
                           selectedSports.includes(sport.slug)
@@ -369,6 +371,7 @@ function TrainerProfileContent() {
                       {catalogSpecialties(catalog, selectedSports).map(spec => (
                         <button
                           key={spec.id}
+                          aria-pressed={selectedSpecialties.includes(spec.id)}
                           onClick={() => setSelectedSpecialties(prev => prev.includes(spec.id) ? prev.filter(s => s !== spec.id) : [...prev, spec.id])}
                           className={`max-w-full break-words rounded-full border px-3 py-1.5 text-xs transition ${
                             selectedSpecialties.includes(spec.id)
@@ -424,7 +427,7 @@ function TrainerProfileContent() {
                   <div className="flex items-start justify-between">
                     <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-500/30">Service {i + 1}</Badge>
                     {services.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removeService(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" aria-label={`Remove service ${i + 1}`} title={`Remove service ${i + 1}`} onClick={() => removeService(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
                     )}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -436,30 +439,30 @@ function TrainerProfileContent() {
                       </Select>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Service Title *</Label>
-                      <Input value={svc.title} onChange={e => updateService(i, 'title', e.target.value)} placeholder="e.g. Private Football Session" className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-title-${i}`}>Service Title *</Label>
+                      <Input id={`service-title-${i}`} value={svc.title} onChange={e => updateService(i, 'title', e.target.value)} placeholder="e.g. Private Football Session" className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Description</Label>
-                      <Textarea value={svc.description} onChange={e => updateService(i, 'description', e.target.value)} placeholder="What does this session include?" className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-description-${i}`}>Description</Label>
+                      <Textarea id={`service-description-${i}`} value={svc.description} onChange={e => updateService(i, 'description', e.target.value)} placeholder="What does this session include?" className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div>
-                      <Label>Price ($) *</Label>
-                      <Input type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={minServicePrice / 100} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-price-${i}`}>Price ($) *</Label>
+                      <Input id={`service-price-${i}`} type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={minServicePrice / 100} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div>
-                      <Label>Duration (minutes)</Label>
+                      <Label htmlFor={`service-duration-${i}`}>Duration (minutes)</Label>
                       <Select value={String(svc.durationMinutes)} onValueChange={v => updateService(i, 'durationMinutes', parseInt(v))}>
-                        <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`service-duration-${i}`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {[30, 45, 60, 75, 90, 120].map(d => <SelectItem key={d} value={String(d)}>{d} min</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label>Session Type</Label>
+                      <Label htmlFor={`service-type-${i}`}>Session Type</Label>
                       <Select value={svc.type} onValueChange={v => updateService(i, 'type', v)}>
-                        <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`service-type-${i}`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="INDIVIDUAL">1-on-1</SelectItem>
                           <SelectItem value="GROUP">Group</SelectItem>
@@ -468,8 +471,8 @@ function TrainerProfileContent() {
                       </Select>
                     </div>
                     <div>
-                      <Label>Max Participants</Label>
-                      <Input type="number" value={svc.maxParticipants} onChange={e => updateService(i, 'maxParticipants', parseInt(e.target.value) || 1)} min={1} max={50} className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-participants-${i}`}>Max Participants</Label>
+                      <Input id={`service-participants-${i}`} type="number" value={svc.maxParticipants} onChange={e => updateService(i, 'maxParticipants', parseInt(e.target.value) || 1)} min={1} max={50} className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                   </div>
                 </CardContent>
