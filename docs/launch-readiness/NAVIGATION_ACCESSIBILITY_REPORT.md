@@ -33,7 +33,24 @@ The unmodified [desktop parent navigation](evidence/navigation-20261011/desktop-
 
 At approximately 16:06 UTC, independent psql readback matched the exact disposable database, `trainr_test` role and `disposable integration database` guard. Counts were zero for users, bookings, payments, packages/items, services, athletes, checkout attempts, refunds, trainer wallets, wallet entries and withdrawal requests. The owned local app server and PostgreSQL instance were stopped. No hosted record was deleted. Local password-reset email-unavailable logs are expected with the provider disabled, and do not establish hosted delivery.
 
-Commit/push and hosted Preview smoke are pending. Only the audit branch/Preview is in scope; no main, Production, Story or provider-configuration change is included.
+Source `440c4a31303113c4cc3b77566d23c7951bcfd291` was committed and pushed to `codex/payment-readiness-20261006`; HEAD and the remote-tracking branch matched and the worktree was clean before this documentation follow-up. The final standalone `tsc --noEmit` also passed, including the screenshot assertion added after the build gate.
+
+Vercel [deployment 7TxeqAhGuGhEDvXGbTKNs16Vm3xT](https://vercel.com/styleres-projects/trainr/7TxeqAhGuGhEDvXGbTKNs16Vm3xT) was visibly Ready at 16:08:39 UTC, duration 43s, source exactly `440c4a3`. Its details mapped both `trainr-p1cadgrx3-styleres-projects.vercel.app` and the [stable audit Preview](https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app). No main, Production, Story, provider configuration, credentials or domain mapping was changed.
+
+Hosted retest on that source, approximately 16:08-16:09 UTC:
+
+| Account / steps | Expected | Actual | Status |
+| --- | --- | --- | --- |
+| Existing owner PARENT: refresh `/parent/dashboard` | Session and saved athlete retained | One Sandbox Athlete, zero bookings; Find Trainers/Add Athlete are single links; zero nested main controls | PASS limited readback |
+| Same account: open mobile menu, inspect header, press Enter on Dashboard | Single links and menu closes | Zero nested header controls; button returns to Open navigation | PASS |
+| Same account: press Enter on Add Athlete | Athlete form loads | `/parent/athletes/new`, Add athlete heading and labelled fields rendered; no form submission | PASS navigation only |
+| Same account: return, visit `/trainer/profile` | Parent cannot access trainer profile | Redirects to `/parent/dashboard`; captured error log empty | PASS |
+| Anonymous GET `/api/bookings`, `/api/trainer/onboarding`, `/api/payments/connect`, `/api/admin/users` | 401 | Four 401 Unauthorized responses at 16:08:58-59 UTC | PASS |
+| Anonymous POST `/api/payments/webhook` with `{}` and no signature | Reject before provider processing | 400 Missing stripe-signature header at 16:08:59 UTC | PASS; no valid financial event |
+
+Fresh [GitHub Actions run 38154166858](https://github.com/StylereTech/trainr/actions/runs/38154166858) completed with failure before executing checks. The authenticated run page explicitly says both jobs were not started because the account is locked due to a billing issue. This external CI blocker is not a green check and is not relabeled as a code-test failure; no billing setting was changed.
+
+Hosted authenticated TRAINER/ADMIN workflows, listing-to-paid-booking, webhook delivery, actual destination transfer and payout remain NOT VERIFIED. The local synthetic fixture results above do not substitute for them. This follow-up contains publication evidence only, with no additional application change.
 
 ## Separate Package Gate
 
