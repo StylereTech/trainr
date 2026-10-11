@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 hydration pass: the intermittent admin reload failure was traced to renderer replay state and fixed through the maintained framework. The focused 220-render check and final full 252-case desktop/mobile browser rerun passed. Booking and approval-dialog screenshots were visually inspected. [Exact source environment, original failures, compatibility correction, evidence and deployment status](HYDRATION_READINESS_REPORT.md). This does not establish hosted trainer/Stripe money-flow or full accessibility signoff; overall **HOLD** remains.
+
 2026-10-11 trainer form accessibility pass: reproduced twelve unassociated profile labels at desktop/mobile widths; initial onboarding had equivalent source omissions. Personal/location and service labels, certification/removal names and selected-button semantics are repaired. [Exact environment, baseline, verification and publication status](TRAINER_FORM_ACCESSIBILITY_REPORT.md). This is not site-wide accessibility or money-flow signoff; **HOLD** remains.
 
 2026-10-11 transfer-readiness/navigation pass: trainer dashboards and payout settings now require explicit transfer support before saying Payments ready. Screenshot inspection and a six-case rendered baseline also found partly/fully hidden active mobile profile-navigation buttons; the scroll repair passed all six focused cases and the final 72-case desktop/mobile suite. [Exact failures, screenshots, test and deployment status](TRANSFER_CAPABILITY_REPORT.md). No full accessibility or production-readiness signoff is implied.

@@ -14,7 +14,11 @@ for (const authorization of ['Bearer %', 'Bearer %E0%A4%A', 'Bearer %FF', 'Beare
     for (const path of ['/parent/dashboard', '/trainer/profile', '/admin']) {
       const response = await request.get(path, { headers, maxRedirects: 0 })
       expect(response.status()).toBe(307)
-      expect(new URL(response.headers().location).pathname).toBe('/auth/signin')
+      expect(response.headers().location).toBeTruthy()
+      const redirect = new URL(response.headers().location, process.env.BASE_URL!)
+      expect(redirect.origin).toBe(new URL(process.env.BASE_URL!).origin)
+      expect(redirect.pathname).toBe('/auth/signin')
+      expect(redirect.searchParams.get('callbackUrl')).toBe(path)
     }
   })
 }

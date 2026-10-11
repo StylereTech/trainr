@@ -1,5 +1,7 @@
 # Dependency Security Report
 
+2026-10-11 follow-up: [hydration diagnosis and candidate framework fix](HYDRATION_READINESS_REPORT.md). Correction to the development-test entry below: the temporary custom server did not honor the intended separate build directory; it wrote to `.next`. The development results remain valid, but output isolation was not achieved. A fresh production baseline build preceded the follow-up reproducer. Earlier production failures remain recorded.
+
 ## Scope And Baseline
 
 - Date: 2026-10-11, baseline captured approximately 13:05 UTC.
