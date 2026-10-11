@@ -77,6 +77,7 @@ model ParentProfile {
   athleteRequests AthleteCreateRequest[]
   bookingRequests BookingCreateRequest[]
   bookings Booking[]  @relation("ParentBookings")
+  packagePurchases PackagePurchase[]
   reviews  Review[]   @relation("ParentReviews")
   favorites Favorite[]
 
@@ -132,6 +133,7 @@ model TrainerProfile {
   certifications Certification[]
   serviceOfferings ServiceOffering[]
   packages        Package[]
+  packagePurchases PackagePurchase[]
   availabilitySlots AvailabilitySlot[]
   bookings        Booking[]   @relation("TrainerBookings")
   reviews         Review[]    @relation("TrainerReviews")
@@ -333,6 +335,7 @@ model Package {
   trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
   items          PackageItem[]
   bookings       Booking[]
+  purchases      PackagePurchase[]
 
   @@map("packages")
 }
@@ -347,6 +350,33 @@ model PackageItem {
   serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
 
   @@map("package_items")
+}
+
+// A pending purchase is not an entitlement or a booking payment.
+model PackagePurchase {
+  id                   String @id @default(cuid())
+  parentProfileId      String
+  trainerProfileId     String
+  packageId            String
+  requestId            String
+  payloadHash          String
+  catalogRevision      DateTime @db.Timestamptz(3)
+  terms                Json
+  amountInCents        Int
+  platformFeeInCents   Int
+  trainerPayoutInCents Int
+  status               PaymentStatus @default(PENDING)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  parentProfile  ParentProfile  @relation(fields: [parentProfileId], references: [id], onDelete: Restrict)
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Restrict)
+  package        Package        @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  @@unique([parentProfileId, requestId])
+  @@index([trainerProfileId, createdAt])
+  @@index([packageId])
+  @@map("package_purchases")
 }
 
 // ==================

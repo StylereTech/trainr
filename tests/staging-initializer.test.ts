@@ -70,9 +70,9 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all thirteen committed migrations with SHA256 hashes', () => {
+  it('reads all fourteen committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(13)
+    expect(migrations).toHaveLength(14)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -94,6 +94,15 @@ describe('isolated audit preview initializer', () => {
     const deploy = vi.fn()
     await expect(initializeStaging(db, [...manifest, upgrade], deploy)).resolves.toBe('upgraded')
     expect(deploy).toHaveBeenCalledOnce()
+  })
+  it('allows the rehearsed additive package purchase snapshot migration in the owned Preview only', async () => {
+    const migration = { name: '20261011193000_add_package_purchase_snapshots', checksum: 'reviewed-package-snapshot' }
+    const db = database({ count: 30 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    const deploy = vi.fn()
+    await expect(initializeStaging(db, [...manifest, migration], deploy)).resolves.toBe('upgraded')
+    expect(deploy).toHaveBeenCalledOnce()
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
   })
   it('verifies the completed ledger after an upgrade', async () => {
     const db = database({ count: 30 })
