@@ -30,11 +30,20 @@
 | Full lint/type/unit/build gate | Existing behavior remains green | PASS: 1,234 units / 58 files, 75 generated pages, compile 39.1s, exit 0; existing lint/Browserslist warnings remain |
 | Full PostgreSQL suite | Shared financial/auth/booking regressions | PASS: 365 tests / 11 files, 91.73s, exit 0 |
 | Desktop/mobile response handling | Clickable control, reload after uncertain outcome, safe errors, persisted display and no overflow | PASS: 26/26 in 2.5m, exit 0, no retries/skips; 10 payment-recovery cases plus 16 existing outcome cases |
-| Publication and hosted smoke | Matching source Ready; role boundary retained | Pending |
+| Publication and hosted smoke | Matching source Ready; role boundary retained | PASS for deployment, anonymous API rejection, parent refresh/history and parent denial of admin page; authenticated hosted recovery is not tested |
 
 Commands: `node node_modules/vitest/vitest.mjs run tests/payment-reconciliation-route.test.ts tests/stripe-webhook-ordering.test.ts tests/refund-route.test.ts`; guarded `node node_modules/vitest/vitest.mjs run --config vitest.postgres.config.ts tests/integration/stripe-settlement.integration.ts`; `npm run check`; `npm run test:postgres`. Local logs are `.postgres-test/payment-reconciliation-focused-sql.log`, `payment-reconciliation-check.log`, `payment-reconciliation-full-sql.log`.
 
 The first unit command was blocked by sandbox filesystem access before tests executed; rerunning with the approved local-test permission passed. The first independent psql invocation misparsed positional arguments and did not execute its query; it is not evidence. The corrected invocation used explicit PG environment variables and piped SQL: database name and disposable marker matched, users/bookings/payments were zero after the focused suite. The SQL harness independently checks the marker before each suite. No hosted database reset or schema change occurred.
+
+## Publication And Hosted Retest
+
+- Source `4591ce735a17528a525281b5e4fb814c51805abd` committed/pushed to `codex/payment-readiness-20261006`; local and remote-tracking SHAs match, clean working tree before this documentation follow-up.
+- Vercel Preview project `trainr`, deployment [`GDmCuh8xAhb8jJpCdD36c24u5kCR`](https://vercel.com/styleres-projects/trainr/GDmCuh8xAhb8jJpCdD36c24u5kCR), Ready 2026-10-11 10:21:42 UTC, duration 1m 9s. Exact source and stable alias mapping were visible on deployment details. Unique host `trainr-jp4ydk26b-styleres-projects.vercel.app`.
+- Hosted checks about 10:22 UTC used `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`. Anonymous POST `/api/admin/payments/reconcile` with `{"bookingId":"TRAINR_SYNTHETIC_AUDIT_MISSING"}` and malformed JSON `{` each returned 401 `{"error":"Unauthorized"}`, PASS for the hosted unauthenticated boundary. No real booking IDs or browser cookies were supplied; no provider activity requested. These denials do not prove authenticated reconciliation.
+- Existing owner-authenticated PARENT browser session: reloaded `/parent/dashboard`, observed one saved Sandbox Athlete, zero open bookings/reviews and no upcoming sessions, PASS. Clicked Past (0), observed No past sessions yet, PASS. Navigated `/admin/bookings`, returned to settled `/parent/dashboard`, PASS. No sign-out, account/role change or hosted data mutation.
+- Hosted administrator payment refresh remains UNVERIFIED: the current session is a parent and there is no actual TRAINR paid booking available for this exercise. Local SQL/browser evidence must not be relabeled as sandbox provider proof. Main/Production/Story, database schema and environment settings were not changed.
+- The follow-up documentation commit is checked for Preview readiness after push, separately from the application source above; no self-referential commit hash is invented.
 
 ## Operations And Limits
 
