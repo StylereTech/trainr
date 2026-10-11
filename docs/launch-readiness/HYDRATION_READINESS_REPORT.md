@@ -1,6 +1,6 @@
 # Hydration Readiness Report
 
-Updated 2026-10-11 15:18 UTC: the observed hydration defect is fixed and locally retested. The final clean-build browser run passed all 252 cases. Publication and hosted verification are pending below; overall production readiness remains **HOLD**.
+Updated 2026-10-11 15:26 UTC: the observed hydration defect is fixed and locally retested. The final clean-build browser run passed all 252 cases. Source `ccce0074b7e744b48bbf4a54b033d555ed396d85` is pushed and Ready on audit Preview, with the limited hosted smoke below passing. Overall production readiness remains **HOLD**.
 
 ## Scope And Failed Baseline
 
@@ -55,7 +55,7 @@ The separate `npm audit --omit=dev --json` also exits 1, with 12 affected packag
 | First full local browser matrix | 247 passed, 5 failed / 252 cases, 22.5m, exit 1; all failures are relative-redirect URL parsing in the test | FAIL; `hydration-framework-browser.log`; correction and focused retest below |
 | Empty-build full check | Fresh route types, typecheck, 1,290 unit tests / 60 files, optimized production build completed, exit 0; same documented warnings | PASS; `hydration-framework-clean-check.log`; generated `.next` and `next-env.d.ts` were moved to an ignored, path-verified in-workspace backup before the command |
 | Complete corrected browser rerun | 252 passed / 33 files, 21.3m, exit 0; no skipped or failed cases | PASS; `hydration-framework-browser-retest.log` |
-| Publication / hosted retest | Not yet published | Pending |
+| Publication / hosted retest | Source `ccce0074b7e744b48bbf4a54b033d555ed396d85` pushed; Preview Ready; eight anonymous HTTP checks and authenticated parent refresh/role-denial/catalog smoke passed | PASS for this limited scope; exact results below, not money-flow signoff |
 
 Build warnings include retained Edge middleware deprecation and Node API references in Next's own Edge import graph. No application import was added to middleware. The compiled local browser suite passed its real credential, revocation, malformed-header and role-boundary cases. Hosted compatibility is recorded separately; the warnings are not represented as repaired application code.
 
@@ -76,3 +76,22 @@ Overall **HOLD**. Hosted trainer onboarding and actual Stripe sandbox payment/tr
 ## Cleanup
 
 At 15:18 UTC, independent psql readback verified the disposable database name, `trainr_test` role and exact guard marker. Counts were zero for users, parent/trainer/athlete profiles, bookings, payments, packages/items, services, sports, Connect/checkout attempts, refunds, trainer wallets, wallet entries and withdrawal requests. Owned app servers and the PostgreSQL instance are stopped. Only the generated first-build/type backups were removed after absolute-path and reparse-point checks; raw logs/traces and the clean build remain local and ignored. No hosted record was deleted. Local password-reset email-unavailable messages are expected in the provider-disabled fixture environment; real email delivery remains unverified/deferred.
+
+## Publication And Hosted Retest
+
+Source `ccce0074b7e744b48bbf4a54b033d555ed396d85` was committed and pushed to `codex/payment-readiness-20261006` at approximately 15:20 UTC. Local HEAD and the remote-tracking branch matched, with a clean worktree before this evidence update. Vercel Preview deployment [DZ7jXx1gsc8h6fwDHhAg9WHvrs4Q](https://vercel.com/styleres-projects/trainr/DZ7jXx1gsc8h6fwDHhAg9WHvrs4Q) became Ready at 15:24:33 UTC, duration 1m 13s. The detail page identifies the exact source and both the unique `trainr-16ias0dow-styleres-projects.vercel.app` URL and [stable audit Preview](https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app). No Production promotion or domain/security-setting change was made.
+
+Fresh [GitHub Actions run 38150886788](https://github.com/StylereTech/trainr/actions/runs/38150886788) failed before execution: both `check` and `migrations` have zero steps, and the authenticated run page states, "The job was not started because your account is locked due to a billing issue." This is an external CI execution blocker, not a passing remote check or a reproduced code failure. Billing settings were not changed. The connector rejected the check-annotations endpoint, so the annotation was independently read from the run's browser UI.
+
+Hosted retest, 15:24:58-15:26 UTC, stable alias above, source `ccce0074b7e744b48bbf4a54b033d555ed396d85`:
+
+| Account / exact steps | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| Anonymous GET `/`, `/browse`, `/auth/signin` | HTTP 200 | All three HTTP 200 | PASS availability only |
+| Anonymous GET `/api/bookings`, `/api/trainer/onboarding`, `/api/payments/connect`, `/api/admin/users` | HTTP 401 | All four HTTP 401, `Unauthorized` | PASS |
+| Anonymous POST `/api/payments/webhook`, JSON `{}`, no signature | HTTP 400 before provider processing | HTTP 400, `Missing stripe-signature header` | PASS; no valid event or financial mutation |
+| Existing owner PARENT browser session: reload `/parent/dashboard` | Session and saved athlete retained | Parent dashboard, one Sandbox Athlete, zero bookings; captured error log empty | PASS limited readback |
+| Same PARENT: directly visit `/trainer/profile`, then `/admin` | Deny privileged views | Both redirected to `/parent/dashboard`, rendered heading verified | PASS |
+| Same PARENT: click Find Trainers, then Reset search | Reach catalog and show truthful result | `/browse`, zero unfiltered trainers, No trainers found, usable reset/filter controls | PASS empty state; booking-selection gate remains blocked by absent hosted listing |
+
+The first shell probe could not open sockets inside the sandbox and recorded status 0, not HTTP responses. The approved network-capable retest above completed all eight checks and exited 0. The browser role checks used the existing session without exporting cookies or credentials. No hosted account, listing, booking, payment, transfer or payout was created or deleted. Hosted trainer/admin functionality, provider checkout success, webhook delivery and settlement remain unverified; local fixture results do not substitute for those gates. These publication updates are documentation-only and will be pushed separately from the tested source.
