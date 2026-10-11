@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
+import { formatBookingDate } from '@/lib/booking-date'
 import { Users, UserCheck, Calendar, DollarSign, Clock, AlertCircle, ArrowRight, Loader2, Sparkles, ShieldCheck, Activity } from 'lucide-react'
 
 interface DashboardStats {
@@ -120,7 +121,7 @@ export default function AdminOverview() {
                       <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                     </div>
                     <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
-                    <div className="mt-2 text-xs text-slate-400">{new Date(b.date).toLocaleDateString()} at {b.startTime}</div>
+                    <div className="mt-2 text-xs text-slate-400">{formatBookingDate(b.date)} at {b.startTime}</div>
                   </div>
                   <div className="text-left md:text-right">
                     <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>

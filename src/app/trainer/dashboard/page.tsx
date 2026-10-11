@@ -22,6 +22,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
+import { formatBookingDate } from '@/lib/booking-date'
 import { useToast } from '@/components/ui/use-toast'
 import { RefundSummary } from '@/components/shared/RefundSummary'
 import { dashboardResponseSchema, payoutBalanceSchema } from '@/lib/dashboard-contract'
@@ -273,7 +274,7 @@ export default function TrainerDashboard() {
                           <RefundSummary payment={b.payment} />
                           <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                           <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
-                            <span>{new Date(b.date).toLocaleDateString()}</span>
+                            <span>{formatBookingDate(b.date)}</span>
                             <span>{b.startTime} – {b.endTime}</span>
                           </div>
                           {b.notes && <div className="mt-2 text-xs italic text-slate-400">&ldquo;{b.notes}&rdquo;</div>}

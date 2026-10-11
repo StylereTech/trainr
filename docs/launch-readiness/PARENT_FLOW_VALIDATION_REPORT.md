@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-11 06:45 UTC: parent dashboards no longer shift saved booking dates to the previous day in western time zones. All 28 focused/broader browser cases passed, including actual local reservation retries with selected-date readback after refresh, alongside 1,016 unit tests and the build. [Reproduced failure, exact accounts, routes and evidence](BOOKING_CALENDAR_DATE_REPORT.md). Actual hosted paid booking and Stripe settlement remain unverified; publication pending. No Production signoff.
+
 2026-10-11: [Real staging parent workflow validation](PARENT_STAGING_WORKFLOW_REPORT.md) records athlete creation/editing, refresh and SQL persistence, dashboard/empty states, mobile rendering and sign-out. Browse fixes passed full check and eight local browser regressions. Email verification, real trainer selection and paid booking remain unverified; this is not parent end-to-end signoff.
 
 2026-10-08 package audit (baseline `a92204dcc6e52bd738f84549804105e664fd1115`): [Package Flow And Booking Contract Audit](PACKAGE_FLOW_AUDIT_REPORT.md) confirms that package listings do not provide trainer management, purchasing or a credit ledger. Unsupported package/credit fields are now rejected instead of silently creating/replaying a single-session booking. Exact failures/retests and remaining implementation requirements are recorded there. Package flows remain **FAIL / INCOMPLETE**, not waived; production and money-flow signoff remain **HOLD**.

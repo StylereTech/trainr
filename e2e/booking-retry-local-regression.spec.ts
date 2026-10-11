@@ -6,7 +6,7 @@ test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 
 for (const width of [1440, 390]) {
   test.describe(`booking retry ${width}px`, () => {
-    test.use({ viewport: { width, height: 900 }, timezoneId: 'UTC' })
+    test.use({ viewport: { width, height: 900 }, timezoneId: 'America/Los_Angeles', locale: 'en-US' })
     for (const scenario of ['lost', 'malformed', 'cancelled', 'free']) {
       test(`recovers ${scenario} committed response with one reservation`, async ({ page, localAuth }, testInfo) => {
         const db = localAuth.database
@@ -81,6 +81,8 @@ for (const width of [1440, 390]) {
           expect(saved.payment?.status || null).toBe(scenario === 'free' ? 'SUCCEEDED' : null)
           await page.reload()
           await expect(page.getByRole('heading', { name: 'My Athletes', exact: true })).toBeVisible()
+          if (scenario === 'cancelled') await page.getByRole('tab', { name: 'Past (1)', exact: true }).click()
+          await expect(page.getByText(new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).format(saved.date), { exact: true })).toBeVisible()
           expect(await db.booking.count({ where: { parentProfileId: parentProfile.id } })).toBe(1)
         } finally {
           await db.booking.deleteMany({ where: { parentProfile: { userId: parent.id } } })

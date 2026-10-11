@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 06:45 UTC: [Booking calendar date audit](BOOKING_CALENDAR_DATE_REPORT.md) records the rendered previous-day defect, shared date-only formatting fix, 28 passing desktop/mobile browser regressions and retained before/after screenshots. Existing session clock times and ordinary timestamps are unchanged; no trainer time zone was assumed. Full UI and money-flow signoff remain open.
+
 2026-10-11 05:39 UTC: [Public profile and booking recovery audit](PUBLIC_PROFILE_RECOVERY_REPORT.md) records hosted missing-trainer crashes, bounded retry/not-found fixes, shared legacy profile rendering, working copy-link/fallback, and service/review/weekly-availability empty states. All 30 local desktop/mobile regressions passed; screenshots inspected. Dead favorite controls were removed; favorites remain unimplemented. Resend is deliberately deferred, not verified.
 
 2026-10-11: [Parent staging and browse regression evidence](PARENT_STAGING_WORKFLOW_REPORT.md) records fixes for the inert Explore action, false-empty errors, stale responses, incomplete clearing, unnamed controls and developer-facing messaging copy. Eight local desktop/mobile browser checks passed; real parent dashboard mobile screenshot was inspected. Trainer favorites remain an incomplete control; full UI coverage is not claimed.

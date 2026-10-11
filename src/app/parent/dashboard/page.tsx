@@ -14,6 +14,7 @@ import { RefundSummary } from '@/components/shared/RefundSummary'
 import { dashboardResponseSchema, type DashboardBooking as Booking, athletesResponseSchema } from '@/lib/dashboard-contract'
 import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
+import { formatBookingDate } from '@/lib/booking-date'
 
 function isTrainerPaymentReady(booking: Booking) {
   return booking.trainerProfile.paymentReady
@@ -164,7 +165,7 @@ export default function ParentDashboard() {
                         <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
-                          <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString()}</span>
+                          <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
                           <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{b.startTime} – {b.endTime}</span>
                         </div>
                       </div>
@@ -213,7 +214,7 @@ export default function ParentDashboard() {
                         <RefundSummary payment={b.payment} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
-                          <span>{new Date(b.date).toLocaleDateString()}</span>
+                          <span>{formatBookingDate(b.date)}</span>
                           <span>{formatCurrency(b.totalAmountInCents)}</span>
                         </div>
                       </div>

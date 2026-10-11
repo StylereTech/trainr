@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
+import { formatBookingDate } from '@/lib/booking-date'
 import { Loader2, Calendar, RefreshCw } from 'lucide-react'
 import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 
@@ -148,7 +149,7 @@ export default function AdminBookings() {
                     <RefundSummary payment={b.payment} />
                     <div className="mt-2 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
-                      <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(b.date).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
+                      <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
                       <span>{b.startTime} – {b.endTime}</span>
                       <span>Booked {new Date(b.createdAt).toLocaleDateString()}</span>
                     </div>

@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-11 06:45 UTC: trainer dashboard now preserves the booking's saved calendar date, matching parent and admin views across Los Angeles/Tokyo and desktop/mobile. All 28 date/booking/dashboard browser regressions, 1,016 unit tests and build passed. [Exact source baseline, local-account evidence and limits](BOOKING_CALENDAR_DATE_REPORT.md). Hosted trainer onboarding, connected-account money movement and payouts remain unverified; publication pending. No Production signoff.
+
 2026-10-10 23:52 UTC: the missing staging sports/specialties prerequisite is resolved using a guarded reference-only SQL script. Real Neon verification confirms 5 sports, 32 specialties and replay-safe contents. No trainer account or approval was fabricated; authenticated profile editing, provider Connect onboarding and payout status are not passed by this setup work. [Exact evidence and pending owner actions](STAGING_CATALOG_VALIDATION_REPORT.md). Production **HOLD**.
 
 2026-10-08 package audit (baseline `a92204dcc6e52bd738f84549804105e664fd1115`): [Package Flow And Booking Contract Audit](PACKAGE_FLOW_AUDIT_REPORT.md) confirms that package listings do not provide trainer management, purchasing or a credit ledger. Unsupported package/credit fields are now rejected instead of silently creating/replaying a single-session booking. Exact failures/retests and remaining implementation requirements are recorded there. Package flows remain **FAIL / INCOMPLETE**, not waived; production and money-flow signoff remain **HOLD**.
