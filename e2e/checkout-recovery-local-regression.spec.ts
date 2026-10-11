@@ -64,7 +64,7 @@ for (const width of [1440, 390]) for (const entry of ['dashboard', 'booking'] as
             await page.getByRole('option', { name: /Synthetic Athlete/ }).click()
             await page.getByRole('button', { name: `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]} ${tomorrow.getUTCDate()}`, exact: true }).click()
             await page.getByRole('button', { name: '09:00', exact: true }).click()
-            if (width < 1024) await page.getByRole('button', { name: /Booking summary/ }).click()
+            await expect(page.getByRole('heading', { name: 'Review booking', exact: true })).toBeVisible()
             await page.getByRole('button', { name: 'Book & Pay', exact: true }).click()
           }
           if (scenario !== 'success') {

@@ -1,5 +1,7 @@
 # Package Flow And Booking Contract Audit
 
+2026-10-11 owner decision: purchased session credits are **shared across the parent's children**, not assigned to one child at purchase. The authenticated purchasing parent owns the entitlement; redemption must validate that the selected athlete belongs to that parent. This decision resolves credit ownership only, not expiry, cancellation/restoration or refund policy. Purchase and redemption remain unimplemented and unverified.
+
 2026-10-11 update: the historical missing trainer-management finding below is superseded by [Trainer Package Management](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). A trainer-only catalog editor, ownership/revision checks and service-retirement protection passed the full quality gate, 392 SQL tests and all 40 affected desktop/mobile browser cases; publication status is recorded in that report. This is not package purchasing: the purchase/payment identity, credit ledger, parent balance/history and policy findings below remain **INCOMPLETE/HOLD**.
 
 ## Identity
@@ -51,7 +53,11 @@ The existing booking schema is now strict. Unsupported fields return 400 with `U
 
 ## Required Next Work
 
-Owner input requested: should purchased session credits belong to one selected child or be shared across that parent's children? No entitlement ownership was silently invented.
+Owner confirmed on 2026-10-11 that purchased session credits are shared across the parent's children. Implement parent-owned balances with an owned-athlete check on each redemption; do not lock credits to a selected child at purchase.
+
+Current implementation boundaries re-read on 2026-10-11: `checkout-attempts.ts`, `stripe-settlement.ts` and `stripe-payment-events.ts` bind immutable checkout parameters, provider receipts and notifications to one booking. `booking-creation.ts` treats a zero-due reservation as a separate zero-dollar payment. Neither path is a package purchase or redemption mechanism. Package work must preserve those existing contracts while introducing an explicit purchase identity, immutable per-service credit quantities and idempotent parent-owned redemption; it must not disguise a package redemption as another Stripe charge or a free-session receipt.
+
+An owner question is pending for automatic restoration of one credit when a parent cancels more than 24 hours before a package-funded session. The public refund page contains package refund wording but does not fully specify credit restoration, late cancellation, expiry timing or partial multi-service allocation. Those decisions remain distinct from the confirmed shared-family ownership decision.
 
 Package completion still requires trainer CRUD with validated owned service counts/pricing, immutable purchase terms, payment-attempt identity and current Stripe receipt verification, ownership-scoped atomic credit redemption, persisted booking linkage, expiry and cancellation/refund/credit policy, parent balance/history, migration rehearsal and end-to-end refresh/retry/concurrency tests. The advertised validity period is not permission to invent missing refund/expiry rules. Package payouts must use the defined Stripe destination-charge path without a second wallet payment.
 

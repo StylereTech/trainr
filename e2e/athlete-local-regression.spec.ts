@@ -117,7 +117,8 @@ for (const width of [1440, 390]) {
       try {
         await page.route('**/api/trainers/local-athlete', route => route.fulfill({ json: {
           id: 'fixture', slug: 'local-athlete', firstName: 'Synthetic', lastName: 'Trainer', headline: 'Training', avgRating: 0, totalReviews: 0,
-          city: 'Austin', state: 'TX', locationType: 'IN_PERSON', sports: [{ sport: { name: sport.name, icon: null } }], serviceOfferings: [], availabilitySlots: [],
+          city: 'Austin', state: 'TX', locationType: 'IN_PERSON', timeZone: 'UTC', sports: [{ sport: { name: sport.name, icon: null } }],
+          serviceOfferings: [{ id: 'inline-athlete-service', title: 'Synthetic service', description: null, durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL' }], availabilitySlots: [],
         } }))
         await page.route('**/api/athletes', async route => {
           if (route.request().method() === 'GET') return failRead ? route.fulfill({ status: 503, json: { error: 'Synthetic read failure' } }) : route.continue()

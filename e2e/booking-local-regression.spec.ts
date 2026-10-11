@@ -74,7 +74,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
         await page.getByRole('button', { name: '11:00', exact: true }).click()
         if (free) await page.getByLabel('Promo code').fill('FREE100')
         if (invalidCoupon) await page.getByLabel('Promo code').fill('LEAVE49')
-        if (viewport.width < 1024) await page.getByRole('button', { name: /Booking summary/ }).click()
+        await expect(page.getByRole('heading', { name: 'Review booking', exact: true })).toBeVisible()
         const submit = page.getByRole('button', { name: free ? 'Confirm free booking' : 'Book & Pay', exact: true })
         await submit.scrollIntoViewIfNeeded()
         if (invalidCoupon) {

@@ -74,7 +74,7 @@ for (const width of [1440, 390]) test.describe(`booking price ${width}px`, () =>
       future.setUTCDate(future.getUTCDate() + 2)
       await page.getByRole('button', { name: `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][future.getUTCDay()]} ${future.getUTCDate()}`, exact: true }).click()
       await page.getByRole('button', { name: '09:00', exact: true }).click()
-      if (width < 1024) await page.getByRole('button', { name: /Booking summary/ }).click()
+      await expect(page.getByRole('heading', { name: 'Review booking', exact: true })).toBeVisible()
       if (scenario === 'maximum') {
         await expect(page.getByText('Total due: $999,999.99', { exact: true })).toBeVisible()
         await expectSingleLineTotal('$999,999.99')
