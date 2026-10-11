@@ -74,4 +74,13 @@ Fresh authenticated GitHub read for [run 38141366686](https://github.com/Stylere
 
 Independent psql readback after all tests verified the disposable database name, `trainr_test` role and guard marker, then zero users, bookings, payments, packages, package items, services, sports, Connect attempts, checkout attempts, refunds, wallet entries and withdrawal requests. Both owned local app servers are stopped; the PostgreSQL instance was stopped after verification. No hosted records were deleted. Temporary diagnostic scripts, raw logs and traces remain local and ignored by Git.
 
-Only the dependency patch, five added authorization regressions, this report, the final-report pointer and two synthetic screenshots are intended for the audit branch. Hosted publication/retest is pending. Preview publication is not a production release or a passing full-browser quality gate.
+Only the dependency patch, five added authorization regressions, this report, the final-report pointer and two synthetic screenshots were committed. Preview publication is not a production release or a passing full-browser quality gate.
+
+### Published Source And Hosted Retest
+
+- Source commit `295bfb543d9f852dbaa1602ec911659cabe7d62d`, `security: patch critical framework and test dependencies`, pushed only to the audit branch. Worktree was clean after the source push.
+- Vercel [deployment A2UH8zQiwxAEyGcFGfBWc96Sa32L](https://vercel.com/styleres-projects/trainr/A2UH8zQiwxAEyGcFGfBWc96Sa32L) verified Ready on exact source `295bfb5`, build duration 1m19s. UI verified both `trainr-ke41wp3hr-styleres-projects.vercel.app` and the stable audit branch alias. The GitHub Vercel commit status independently reported success. A stalled Vercel browser tab required a fresh tab before the Ready state could be observed; no redundant deployment was requested.
+- At 14:00:00-14:00:01 UTC, anonymous GET `/api/bookings`, `/api/trainer/onboarding`, `/api/payments/connect` and `/api/admin/users` each returned the expected 401. No credentials or financial data were submitted.
+- Existing owner-authenticated PARENT refreshed `/parent/dashboard`: one saved Sandbox Athlete, zero bookings, session retained. Direct navigation to `/trainer/profile` and `/admin` redirected back to the parent dashboard. These hosted checks passed only for parent persistence/read access and role boundaries, not for a trainer's form, Stripe checkout or payouts.
+- [GitHub Actions run 38145111111](https://github.com/StylereTech/trainr/actions/runs/38145111111), exact source `295bfb5`, failed before either job started (zero steps). Fresh check annotation again identifies an account billing lock. Local check success and Vercel Ready must not be relabeled GitHub CI success.
+- Main, Production domains/project, Story, account roles, email setup and provider financial state were not changed. This documentation follow-up changes no application source. Release decision remains **HOLD**.
