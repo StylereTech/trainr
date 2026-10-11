@@ -7,7 +7,7 @@ import { preparePackagePurchase } from '@/lib/package-purchases'
 import { startOrResumePackageCheckout } from '@/lib/package-checkout'
 import { reconcilePackageCheckout } from '@/lib/package-settlement'
 import { POST } from '@/app/api/payments/webhook/route'
-import { settlementFixture } from '../helpers/stripe-settlement-fixture'
+import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), account: vi.fn(), intent: vi.fn(), charge: vi.fn(),
   transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), signature: '' }))
@@ -81,6 +81,118 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it.each(['transfer.created', 'transfer.updated', 'transfer.reversed', 'application_fee.created', 'application_fee.refunded',
+    'application_fee.refund.updated', 'charge.updated', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed',
+    'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated'])('reconciles package lifecycle %s even before checkout completion delivery', async type => {
+    await paidSession()
+    let object: any
+    if (type.startsWith('transfer.')) { f.transfer.amount_reversed = 500; object = f.transfer }
+    else if (type.startsWith('application_fee.')) {
+      f.fee.amount_refunded = 100
+      object = type === 'application_fee.refund.updated' ? { id: 'fr_test', fee: f.fee.id } : f.fee
+    } else if (type.startsWith('charge.dispute.')) {
+      f.disputes = [settlementDispute(f)]; object = f.disputes[0]
+    } else { f.charge.amount_refunded = 1000; object = f.charge }
+    expect((await webhook(object, type)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', stripeChargeId: f.charge.id,
+      stripeTransferId: f.transfer.id, settlementVerifiedAt: expect.any(Date), financialReview: { key: expect.any(String) } })
+    expect(await prisma.payment.count()).toBe(0); expect(await prisma.booking.count()).toBe(0); expect(await prisma.walletEntry.count()).toBe(0)
+  })
+  it('uses current receipts for delayed and repeated lifecycle snapshots', async () => {
+    const { session } = await paidSession()
+    await webhook(session)
+    const old = structuredClone(f.transfer)
+    f.transfer.amount_reversed = 6000; f.transfer.reversed = true
+    expect((await webhook(old, 'transfer.updated')).status).toBe(200)
+    const reviewed = await readPurchase()
+    expect(reviewed.financialReview).toMatchObject({ details: { transferReversedInCents: 6000, transferReversed: true } })
+    expect((await webhook(old, 'transfer.updated')).status).toBe(200)
+    expect((await readPurchase()).financialReview).toEqual(reviewed.financialReview)
+    expect(await prisma.walletEntry.count()).toBe(0)
+  })
+  it.each(['kind', 'purchase', 'attempt', 'booking', 'payment', 'booking-attempt', 'wrong-purchase', 'wrong-attempt'])('rejects %s package lifecycle identity without changing verified receipts', async mode => {
+    const { session } = await paidSession(); await webhook(session)
+    const previous = await readPurchase()
+    if (mode === 'kind') delete f.charge.metadata.paymentKind
+    if (mode === 'purchase') delete f.charge.metadata.packagePurchaseId
+    if (mode === 'attempt') delete f.charge.metadata.packageCheckoutAttemptId
+    if (mode === 'booking') f.charge.metadata.bookingId = 'unrelated'
+    if (mode === 'payment') f.charge.metadata.paymentId = 'unrelated'
+    if (mode === 'booking-attempt') f.charge.metadata.checkoutAttemptId = 'unrelated'
+    if (mode === 'wrong-purchase') f.charge.metadata.packagePurchaseId = 'unknown'
+    if (mode === 'wrong-attempt') f.charge.metadata.packageCheckoutAttemptId = 'unknown'
+    expect((await webhook(f.charge, 'charge.updated')).status).toBe(409)
+    expect(await readPurchase()).toEqual(previous)
+  })
+  it.each(['destination', 'fee', 'transfer-source', 'fee-source', 'intent', 'dispute-missing', 'provider-outage'])('refuses lifecycle %s mismatches without replacing stored state', async mode => {
+    const { session } = await paidSession(); await webhook(session)
+    const previous = await readPurchase()
+    let type = 'charge.updated', object = f.charge
+    if (mode === 'destination') f.intent.transfer_data.destination = 'acct_wrong'
+    if (mode === 'fee') f.fee.amount++
+    if (mode === 'transfer-source') {
+      type = 'transfer.reversed'; object = { ...f.transfer, id: 'tr_wrong' }
+      provider.transfer.mockResolvedValueOnce(object)
+    }
+    if (mode === 'fee-source') {
+      type = 'application_fee.refunded'; object = { ...f.fee, id: 'fee_wrong' }
+      provider.fee.mockResolvedValueOnce(object)
+    }
+    if (mode === 'intent') provider.charge.mockResolvedValueOnce({ ...f.charge, payment_intent: 'pi_wrong' })
+    if (mode === 'dispute-missing') { type = 'charge.dispute.updated'; object = settlementDispute(f) }
+    if (mode === 'provider-outage') provider.disputes.mockRejectedValue(new Error('provider unavailable'))
+    expect((await webhook(object, type)).status).toBe(['provider-outage', 'dispute-missing'].includes(mode) ? 503 : 409)
+    expect(await readPurchase()).toEqual(previous)
+  })
+  it('requests retry for a financial event before the lost create response is attached', async () => {
+    provider.create.mockImplementationOnce(async parameters => { createSession(parameters); throw new Error('lost response') })
+    await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow('lost response')
+    const attempt = await readAttempt(), session = [...sessions.values()][0]
+    f.charge.metadata = f.intent.metadata = structuredClone(session.metadata)
+    Object.assign(session, { status: 'complete', payment_status: 'paid', payment_intent: f.intent.id })
+    expect((await webhook(f.transfer, 'transfer.created')).status).toBe(503)
+    expect((await readPurchase()).status).toBe('PENDING')
+    expect((await readAttempt()).stripeCheckoutSessionId).toBeNull()
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    expect((await webhook(f.transfer, 'transfer.created')).status).toBe(200)
+  })
+  it('rejects lifecycle events that resolve different purchases through provider identity and metadata', async () => {
+    const { session } = await paidSession(); await webhook(session)
+    const previous = await readPurchase()
+    const second = await preparePackagePurchase(parentId, { requestId: randomUUID(), packageId: previous.packageId,
+      catalogRevision: previous.catalogRevision.toISOString(), expectedTotalInCents: 6000 })
+    f.charge.metadata.packagePurchaseId = second.id
+    expect((await webhook(f.charge, 'charge.updated')).status).toBe(409)
+    expect(await readPurchase()).toEqual(previous)
+    expect((await prisma.packagePurchase.findUniqueOrThrow({ where: { id: second.id } })).status).toBe('PENDING')
+  })
+  it('does not ignore a recorded package transfer whose provider source charge disappears', async () => {
+    const { session } = await paidSession(); await webhook(session)
+    f.transfer.source_transaction = null
+    expect((await webhook(f.transfer, 'transfer.updated')).status).toBe(409)
+  })
+  it('rejects a late financial event for a retired package attempt', async () => {
+    await startOrResumePackageCheckout(purchaseId, parentId)
+    const old = await readAttempt(), session = sessions.get(old.stripeCheckoutSessionId!)
+    f.charge.metadata = f.intent.metadata = structuredClone(session.metadata)
+    session.status = 'expired'
+    await startOrResumePackageCheckout(purchaseId, parentId)
+    const current = await readPurchase()
+    expect((await webhook(f.charge, 'charge.updated')).status).toBe(409)
+    expect(await readPurchase()).toEqual(current)
+  })
+  it('does not let lifecycle verification undo an existing refund status', async () => {
+    await paidSession()
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { status: 'REFUNDED' } })
+    expect((await webhook(f.charge, 'charge.updated')).status).toBe(200)
+    expect((await readPurchase()).status).toBe('REFUNDED')
+  })
+  it('ignores connected-account lifecycle delivery without reading platform receipts', async () => {
+    await paidSession(); provider.charge.mockClear(); provider.transfer.mockClear()
+    expect((await webhook(f.transfer, 'transfer.updated', 'acct_settlement')).status).toBe(200)
+    expect(provider.charge).not.toHaveBeenCalled(); expect(provider.transfer).not.toHaveBeenCalled()
+    expect((await readPurchase()).status).toBe('PENDING')
+  })
   it('saves a distinct immutable package destination charge request and resumes its session', async () => {
     const result = await startOrResumePackageCheckout(purchaseId, parentId)
     expect(result).toMatchObject({ purchaseId, checkoutUrl: expect.stringMatching(/^https:\/\/checkout.stripe.com\//) })

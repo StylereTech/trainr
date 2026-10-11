@@ -1,5 +1,7 @@
 # Package Checkout And Receipt Verification
 
+Follow-up on 2026-10-11: [package financial-event reconciliation](PACKAGE_FINANCIAL_EVENT_REPORT.md) adds package routing for current charge/transfer/fee/dispute lifecycle evidence. The baseline limits below describe the initial checkout phase; package-specific refund history, credit fulfillment and public purchasing remain incomplete.
+
 ## Scope And Identity
 
 - Date: 2026-10-11 UTC. Baseline `45054c1f478f806ce437ab8b8d47cb28d230a2f5`, branch `codex/payment-readiness-20261006`.

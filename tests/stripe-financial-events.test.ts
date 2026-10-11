@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reconcileFinancialEvent } from '@/lib/stripe-financial-events'
 import { settlementFixture } from './helpers/stripe-settlement-fixture'
 
-const mock = vi.hoisted(() => ({ charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), apply: vi.fn() }))
+const mock = vi.hoisted(() => ({ charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), apply: vi.fn(), packageMatches: vi.fn(), packageLinked: vi.fn() }))
 vi.mock('@/lib/stripe', () => ({ stripe: { charges: { retrieve: mock.charge }, transfers: { retrieve: mock.transfer }, applicationFees: { retrieve: mock.fee } } }))
-vi.mock('@/lib/prisma', () => ({ prisma: { payment: { findMany: mock.findMany, findFirst: mock.findFirst } } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { payment: { findMany: mock.findMany, findFirst: mock.findFirst }, packagePurchase: { findMany: mock.packageMatches, findFirst: mock.packageLinked } } }))
 // Route-to-settlement resolution only; the SQL suite uses the real paid-evidence and verifier implementations.
 vi.mock('@/lib/stripe-payment-events', () => ({ applyPaymentEvidence: mock.apply }))
 let f: any
@@ -14,9 +14,17 @@ beforeEach(() => {
   for (const key of ['charge', 'transfer', 'fee'] as const) mock[key].mockImplementation(async () => structuredClone(f[key]))
   mock.findMany.mockResolvedValue([{ id: 'payment', bookingId: 'booking' }])
   mock.findFirst.mockResolvedValue(null)
+  mock.packageMatches.mockResolvedValue([])
+  mock.packageLinked.mockResolvedValue(null)
 })
 
 describe('financial lifecycle event resolution', () => {
+  it('rejects a provider charge linked to both a booking payment and a package purchase', async () => {
+    mock.packageMatches.mockResolvedValue([{ id: 'package-purchase' }])
+    f.charge.metadata = { paymentKind: 'package', packagePurchaseId: 'package-purchase', packageCheckoutAttemptId: 'package-attempt' }
+    await expect(reconcileFinancialEvent({ kind: 'charge', id: f.charge.id })).rejects.toThrow('unambiguous')
+    expect(mock.apply).not.toHaveBeenCalled()
+  })
   it.each(['transfer', 'fee', 'charge'] as const)('resolves %s through current provider relationships and delegates current amounts', async kind => {
     const id = f[kind].id
     expect(await reconcileFinancialEvent({ kind, id })).toEqual({ ignored: false })
