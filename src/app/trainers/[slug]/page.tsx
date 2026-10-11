@@ -10,70 +10,63 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import {
-  MapPin, Clock, Award, Heart, Share2, MessageSquare, Calendar,
+  MapPin, Clock, Award, MessageSquare, Calendar,
   Video, Users, Shield, ChevronLeft, CheckCircle2, Loader2, Sparkles, ArrowUpRight, Quote
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-
-interface Review {
-  id: string
-  rating: number
-  knowledgeRating: number
-  communicationRating: number
-  punctualityRating: number
-  comment: string | null
-  createdAt: string
-}
-
-interface TrainerData {
-  id: string
-  firstName: string
-  lastName: string
-  slug: string
-  headline: string | null
-  bio: string | null
-  city: string | null
-  state: string | null
-  locationType: string
-  travelRadius: number
-  yearsExperience: number
-  avgRating: number
-  totalReviews: number
-  totalSessions: number
-  sports: { sport: { name: string; icon: string | null } }[]
-  specialties: { specialty: { name: string; slug: string } }[]
-  certifications: { name: string; issuingOrg: string | null; isVerified: boolean }[]
-  serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string; maxParticipants: number }[]
-  packages: { id: string; title: string; description: string | null; totalSessions: number; priceInCents: number; validForDays: number; items: { serviceOffering: { title: string }; sessionsCount: number }[] }[]
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean; isAvailable: boolean }[]
-  assets: { url: string; type: string; order: number }[]
-  reviews: Review[]
-  _count: { reviews: number }
-}
+import { publicTrainerSchema, type PublicTrainer } from '@/lib/public-trainer-schema'
+import { CopyProfileLink } from '@/components/shared/CopyProfileLink'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function TrainerProfilePage() {
   const params = useParams()
   const slug = params.slug as string
-  const [trainer, setTrainer] = useState<TrainerData | null>(null)
+  const [trainer, setTrainer] = useState<PublicTrainer | null>(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    fetch(`/api/trainers/${slug}`)
-      .then(res => res.json())
-      .then(data => setTrainer(data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [slug])
+    const controller = new AbortController()
+    let active = true
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    setLoading(true)
+    setTrainer(null)
+    setFailed(false)
+    async function load() {
+      try {
+        const res = await fetch(`/api/trainers/${encodeURIComponent(slug)}`, { signal: controller.signal })
+        if (res.status === 404) return
+        if (!res.ok) throw new Error('Profile unavailable')
+        const data = publicTrainerSchema.parse(await res.json())
+        if (active) setTrainer(data)
+      } catch {
+        if (active) setFailed(true)
+      } finally {
+        clearTimeout(timeout)
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => { active = false; clearTimeout(timeout); controller.abort() }
+  }, [slug, attempt])
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
+      <div role="status" aria-label="Loading trainer profile" className="flex justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
+  }
+
+  if (failed) {
+    return <div className="container py-20 text-center" role="alert">
+      <h1 className="mb-2 text-2xl font-bold">Trainer profile unavailable</h1>
+      <p className="mb-4 text-muted-foreground">We couldn&apos;t load this profile. Please try again.</p>
+      <Button onClick={() => setAttempt(value => value + 1)}>Retry profile</Button>
+    </div>
   }
 
   if (!trainer) {
@@ -81,7 +74,7 @@ export default function TrainerProfilePage() {
       <div className="container py-20 text-center">
         <h2 className="mb-2 text-2xl font-bold">Trainer Not Found</h2>
         <p className="mb-4 text-muted-foreground">The trainer you&apos;re looking for doesn&apos;t exist or is no longer available.</p>
-        <Link href="/browse"><Button>Browse Trainers</Button></Link>
+        <Button asChild><Link href="/browse">Browse Trainers</Link></Button>
       </div>
     )
   }
@@ -99,8 +92,8 @@ export default function TrainerProfilePage() {
 
   const availabilityByDay: Record<string, { start: string; end: string }[]> = {}
   trainer.availabilitySlots.forEach(slot => {
-    if (!slot.isAvailable) return
-    const day = slot.dayOfWeek !== null ? DAY_NAMES[slot.dayOfWeek] : 'One-time'
+    if (!slot.isAvailable || !slot.isRecurring || slot.dayOfWeek === null) return
+    const day = DAY_NAMES[slot.dayOfWeek]
     if (!availabilityByDay[day]) availabilityByDay[day] = []
     availabilityByDay[day].push({ start: slot.startTime, end: slot.endTime })
   })
@@ -155,8 +148,7 @@ export default function TrainerProfilePage() {
                       </div>
 
                       <div className="flex gap-2 self-start">
-                        <Button variant="outline" size="icon" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Heart className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Share2 className="h-4 w-4" /></Button>
+                        <CopyProfileLink slug={trainer.slug} />
                       </div>
                     </div>
 
@@ -305,6 +297,9 @@ export default function TrainerProfilePage() {
 
           <TabsContent value="services" className="mt-4">
             <div className="space-y-4">
+              {trainer.serviceOfferings.length === 0 && trainer.packages.length === 0 && (
+                <p className="py-6 text-sm text-slate-300">No services published yet.</p>
+              )}
               {trainer.serviceOfferings.map((service) => (
                 <Card key={service.id} className="border-white/10 bg-white/[0.04] text-white">
                   <CardContent className="p-5">
@@ -394,6 +389,9 @@ export default function TrainerProfilePage() {
           <TabsContent value="reviews" className="mt-4">
             <Card className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-5 md:p-6">
+                {trainer.reviews.length === 0 ? (
+                  <p className="text-sm text-slate-300">No reviews yet.</p>
+                ) : <>
                 <div className="grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
                   <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-5">
                     <div className="text-4xl font-bold">{trainer.avgRating.toFixed(1)}</div>
@@ -419,6 +417,7 @@ export default function TrainerProfilePage() {
                 </div>
 
                 <Separator className="my-6 bg-white/10" />
+                </>}
 
                 <div className="space-y-5">
                   {trainer.reviews.map((review) => (

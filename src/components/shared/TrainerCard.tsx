@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StarRating } from "@/components/shared/StarRating"
 import { formatCurrency, truncate } from "@/lib/utils"
-import { MapPin, Users, Video, Heart, ShieldCheck, ArrowUpRight, Clock3, Sparkles } from "lucide-react"
+import { MapPin, Users, Video, ShieldCheck, ArrowUpRight, Clock3, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 interface TrainerCardProps {
@@ -75,13 +75,6 @@ export function TrainerCard({ trainer }: TrainerCardProps) {
                 </Badge>
               )}
             </div>
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
-              className="rounded-full bg-white/90 p-2 text-slate-500 shadow-sm transition-colors hover:bg-white"
-              aria-label="Save trainer"
-            >
-              <Heart className="h-4 w-4 transition-colors hover:text-rose-500" />
-            </button>
           </div>
 
           <div className="absolute inset-x-0 bottom-0 p-4">

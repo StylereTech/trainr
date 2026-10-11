@@ -32,7 +32,10 @@ describe('public trust claims', () => {
   })
 
   it.each(['trainers', 'trainer'])('%s profile distinguishes individual credential status from screening', route => {
-    const source = readFileSync(`src/app/${route}/[slug]/page.tsx`, 'utf8')
+    if (route === 'trainer') {
+      expect(readFileSync('src/app/trainer/[slug]/page.tsx', 'utf8').trim()).toBe("export { default } from '@/app/trainers/[slug]/page'")
+    }
+    const source = readFileSync('src/app/trainers/[slug]/page.tsx', 'utf8')
     expect(source).toContain("cert.isVerified ? 'Marked verified' : 'Not verified'")
     expect(source).toContain('Profile approval does not establish identity or background screening.')
     expect(source).toContain('href="/legal/safety"')

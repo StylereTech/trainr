@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AthleteEditor } from '@/components/shared/AthleteEditor'
+import { bookingTrainerSchema } from '@/lib/public-trainer-schema'
 import { z } from 'zod'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -71,6 +72,7 @@ export default function BookingPage() {
   const [trainer, setTrainer] = useState<TrainerData | null>(null)
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [loading, setLoading] = useState(true)
+  const [trainerError, setTrainerError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [bookingUncertain, setBookingUncertain] = useState(false)
   const [bookingError, setBookingError] = useState('')
@@ -93,11 +95,22 @@ export default function BookingPage() {
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
     setLoading(true)
+    setTrainer(null)
+    setTrainerError(false)
     setAthleteError('')
     Promise.all([
-      fetch(`/api/trainers/${slug}`).then((r) => r.json()),
-      fetch('/api/athletes', { cache: 'no-store', signal: AbortSignal.timeout(15000) }).then(async (r) => {
+      fetch(`/api/trainers/${encodeURIComponent(slug)}`, { signal: controller.signal }).then(async (r) => {
+        if (r.status === 404) return null
+        if (!r.ok) throw new Error('Trainer unavailable')
+        return bookingTrainerSchema.parse(await r.json())
+      }).catch(() => {
+        if (active) setTrainerError(true)
+        return null
+      }),
+      fetch('/api/athletes', { cache: 'no-store', signal: controller.signal }).then(async (r) => {
         if (r.status === 401) {
           if (active) setIsAuthenticated(false)
           return { athletes: [] }
@@ -115,9 +128,8 @@ export default function BookingPage() {
         setTrainer(trainerData)
         setAthletes(athletesData.athletes)
       })
-      .catch(console.error)
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
+      .finally(() => { clearTimeout(timeout); if (active) setLoading(false) })
+    return () => { active = false; clearTimeout(timeout); controller.abort() }
   }, [slug, loadAttempt])
 
   const service = trainer?.serviceOfferings.find((s) => s.id === selectedService)
@@ -225,11 +237,19 @@ export default function BookingPage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
 
+  if (trainerError) {
+    return <div className="container py-20 text-center" role="alert">
+      <h1 className="mb-2 text-2xl font-bold">Trainer profile unavailable</h1>
+      <p className="mb-4 text-muted-foreground">We couldn&apos;t load this trainer. Please try again before booking.</p>
+      <Button onClick={() => setLoadAttempt(value => value + 1)}>Retry profile</Button>
+    </div>
+  }
+
   if (!trainer) {
     return (
       <div className="container py-20 text-center">
         <h2 className="mb-4 text-2xl font-bold">Trainer Not Found</h2>
-        <Link href="/browse"><Button>Browse Trainers</Button></Link>
+        <Button asChild><Link href="/browse">Browse Trainers</Link></Button>
       </div>
     )
   }

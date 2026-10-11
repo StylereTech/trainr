@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 05:39 UTC: [Public profile and booking recovery audit](PUBLIC_PROFILE_RECOVERY_REPORT.md) records hosted missing-trainer crashes, bounded retry/not-found fixes, shared legacy profile rendering, working copy-link/fallback, and service/review/weekly-availability empty states. All 30 local desktop/mobile regressions passed; screenshots inspected. Dead favorite controls were removed; favorites remain unimplemented. Resend is deliberately deferred, not verified.
+
 2026-10-11: [Parent staging and browse regression evidence](PARENT_STAGING_WORKFLOW_REPORT.md) records fixes for the inert Explore action, false-empty errors, stale responses, incomplete clearing, unnamed controls and developer-facing messaging copy. Eight local desktop/mobile browser checks passed; real parent dashboard mobile screenshot was inspected. Trainer favorites remain an incomplete control; full UI coverage is not claimed.
 
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.
