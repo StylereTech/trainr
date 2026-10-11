@@ -7,11 +7,11 @@ for (const width of [1440, 390]) {
     await localAuth.signIn(await localAuth.create('TRAINER'))
     let phase = 'error'
     const ready = { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
-      chargesEnabled: true, payoutsEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
+      chargesEnabled: true, payoutsEnabled: true, transfersEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
     await page.route('**/api/payments/connect', async route => {
       if (phase === 'error') return route.fulfill({ status: 503, json: { error: 'synthetic outage' } })
       if (phase === 'malformed') return route.fulfill({ json: { stripeOnboardingComplete: true } })
-      if (phase === 'stale') return route.fulfill({ json: { ...ready, providerError: 'Current Stripe status could not be verified.', chargesEnabled: null, payoutsEnabled: null } })
+      if (phase === 'stale') return route.fulfill({ json: { ...ready, providerError: 'Current Stripe status could not be verified.', chargesEnabled: null, payoutsEnabled: null, transfersEnabled: null } })
       if (route.request().method() === 'POST') return route.fulfill({ json: { dashboardUrl: 'https://attacker.example.test/private' } })
       return route.fulfill({ json: ready })
     })
@@ -43,10 +43,39 @@ for (const width of [1440, 390]) {
     const status = await page.request.get('/api/payments/connect')
     expect(status.status()).toBe(200)
     expect(status.headers()['cache-control']).toBe('private, no-store')
-    expect(await status.json()).toMatchObject({ stripeAccountId: null, stripeOnboardingComplete: false, dashboardSupported: false, onboardingSupported: true })
-    expect(await (await page.request.get('/api/trainer/stripe-connect')).json()).toMatchObject({ hasAccount: false, connected: false, onboardingComplete: false })
+    expect(await status.json()).toMatchObject({ stripeAccountId: null, stripeOnboardingComplete: false, transfersEnabled: null, dashboardSupported: false, onboardingSupported: true })
+    expect(await (await page.request.get('/api/trainer/stripe-connect')).json()).toMatchObject({ hasAccount: false, connected: false, onboardingComplete: false, transfersEnabled: null })
     await page.goto('/trainer/dashboard')
     await expect(page.getByText('Stripe not started', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start Stripe setup' })).toBeEnabled()
   })
+  for (const path of ['/trainer/dashboard', '/trainer/profile?tab=payouts']) {
+    test(`transfer capability gates ready status on ${path} ${width}px`, async ({ page, localAuth }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await localAuth.signIn(await localAuth.create('TRAINER'))
+      let phase = 'inactive'
+      await page.route('**/api/payments/connect', route => route.fulfill({ json: {
+        providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
+        chargesEnabled: true, payoutsEnabled: true, providerError: '', dashboardSupported: phase === 'active', onboardingSupported: phase !== 'active',
+        ...(phase === 'missing' ? {} : { transfersEnabled: phase === 'active' }),
+      } }))
+      await page.goto(path)
+      await expect(page.getByText('Transfers not enabled', { exact: true })).toBeVisible()
+      await expect(page.getByText('Setup in progress', { exact: true })).toBeVisible()
+      await expect(page.getByText('Payments ready', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Resume Stripe setup', exact: true })).toBeEnabled()
+      await page.getByText('Transfers not enabled', { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({ path: testInfo.outputPath('transfers-unavailable.png'), fullPage: true })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      phase = 'active'
+      await page.getByRole('button', { name: 'Refresh Stripe status', exact: true }).click()
+      await expect(page.getByText('Transfers enabled', { exact: true })).toBeVisible()
+      await expect(page.getByText('Payments ready', { exact: true })).toBeVisible()
+      phase = 'missing'
+      await page.getByRole('button', { name: 'Refresh Stripe status', exact: true }).click()
+      await expect(page.getByText('Stripe status unverified', { exact: true })).toBeVisible()
+      await expect(page.getByText('Payments ready', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /Start Stripe setup|Resume Stripe setup|Open Stripe dashboard/ })).toBeDisabled()
+    })
+  }
 }

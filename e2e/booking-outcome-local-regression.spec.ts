@@ -41,7 +41,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
       const paymentBefore = await db.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
       await localAuth.signIn(actor)
       // Only provider observations are mocked; session actions, authorization and persistence are real.
-      await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, providerError: '', dashboardSupported: false, onboardingSupported: true } }))
+      await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, transfersEnabled: null, providerError: '', dashboardSupported: false, onboardingSupported: true } }))
       await page.route('**/api/trainer/wallet', route => route.fulfill({ json: { source: 'stripe', connected: false, wallet: null } }))
       await page.goto(role === 'TRAINER' ? '/trainer/dashboard' : '/admin/bookings')
       if (role === 'TRAINER') await page.getByRole('tab', { name: 'Confirmed (1)', exact: true }).click()

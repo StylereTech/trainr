@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/local-auth'
 
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || 'msedge' })
 const ready = { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
-  chargesEnabled: true, payoutsEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
+  chargesEnabled: true, payoutsEnabled: true, transfersEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
 const wallet = { source: 'stripe', connected: true, currency: 'usd', wallet: { availableBalance: 12345, pendingBalance: 6789 },
   schedule: { interval: 'daily' }, payouts: [{ id: 'po_synthetic', amountInCents: 4500, currency: 'usd', status: 'paid', arrivalDate: 1791590400, createdAt: 1791504000 }] }
 

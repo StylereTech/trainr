@@ -16,7 +16,7 @@ export function TrainerPayouts() {
   const status = useRemoteData('/api/payments/connect', connectStatusSchema)
   const [opening, setOpening] = useState(false)
   const unknown = !status.data || !!status.error || !!status.data.providerError || !status.data.providerConfigured
-  const ready = !unknown && status.data?.stripeOnboardingComplete && status.data.chargesEnabled === true && status.data.payoutsEnabled === true
+  const ready = !unknown && status.data?.stripeOnboardingComplete && status.data.chargesEnabled === true && status.data.payoutsEnabled === true && status.data.transfersEnabled === true
   const started = !!status.data?.stripeAccountId
   const canOpen = !status.loading && !unknown && (status.data?.dashboardSupported || status.data?.onboardingSupported)
   const schedule = balance.data?.schedule?.interval
@@ -51,6 +51,7 @@ export function TrainerPayouts() {
             {status.loading ? 'Checking Stripe' : unknown ? 'Stripe status unverified' : ready ? 'Payments ready' : started ? 'Setup in progress' : 'Stripe not started'}
           </p>
           {!status.loading && unknown && <p role="alert" className="mt-2 text-sm text-amber-200">Current Stripe status could not be verified. Refresh to try again.</p>}
+          {!status.loading && !unknown && status.data?.transfersEnabled != null && <p className={`mt-2 text-sm ${status.data.transfersEnabled ? 'text-emerald-200' : 'text-amber-200'}`}>Transfers {status.data.transfersEnabled ? 'enabled' : 'not enabled'}</p>}
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto">
           <Button variant="outline" onClick={() => void openStripe()} disabled={opening || !canOpen}>

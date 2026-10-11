@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const status = await response.json()
   return NextResponse.json({ connected: !!status.stripeAccountId && !status.providerError && status.providerConfigured,
     stripeConfigured: status.providerConfigured, hasAccount: !!status.stripeAccountId,
-    chargesEnabled: status.chargesEnabled, payoutsEnabled: status.payoutsEnabled, detailsSubmitted: status.detailsSubmitted,
+    chargesEnabled: status.chargesEnabled, payoutsEnabled: status.payoutsEnabled, transfersEnabled: status.transfersEnabled, detailsSubmitted: status.detailsSubmitted,
     onboardingComplete: status.stripeOnboardingComplete, error: status.providerError }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 

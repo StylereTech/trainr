@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
-import { isStripeAccountReady } from '@/lib/stripe-account'
+import { hasStripeTransferCapability, isStripeAccountReady } from '@/lib/stripe-account'
 import { createAccountLink, createDashboardLink, stripeRuntimeStatus } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { ConnectAccountError, currentConnectTrainer, ensureConnectAccount, verifiedConnectAccount } from '@/lib/connect-accounts'
@@ -19,13 +19,14 @@ export async function GET(request: NextRequest) {
     const runtime = stripeRuntimeStatus()
     const result = { providerConfigured: runtime.secretConfigured, publishableKeyConfigured: runtime.publishableConfigured,
       stripeAccountId: trainer.stripeAccountId, stripeOnboardingComplete: false, chargesEnabled: null as boolean | null,
-      payoutsEnabled: null as boolean | null, detailsSubmitted: null as boolean | null, providerError: '', dashboardSupported: false,
+      payoutsEnabled: null as boolean | null, transfersEnabled: null as boolean | null, detailsSubmitted: null as boolean | null, providerError: '', dashboardSupported: false,
       onboardingSupported: runtime.secretConfigured && !trainer.stripeAccountId }
     if (runtime.secretConfigured && trainer.stripeAccountId) {
       try {
         const account = await verifiedConnectAccount(actor.id, trainer.stripeAccountId)
         result.chargesEnabled = account.charges_enabled
         result.payoutsEnabled = account.payouts_enabled
+        result.transfersEnabled = hasStripeTransferCapability(account)
         result.detailsSubmitted = account.details_submitted
         result.stripeOnboardingComplete = isStripeAccountReady(account)
         result.dashboardSupported = account.type === 'express' && result.stripeOnboardingComplete

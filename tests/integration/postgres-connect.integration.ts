@@ -19,7 +19,7 @@ let userId: string
 let trainerId: string
 let verified = false
 const request = () => new NextRequest('https://attacker.example.test/api/payments/connect', { headers: { 'x-forwarded-host': 'attacker.example.test' } })
-const ready = (id = 'acct_existing', type = 'express') => ({ id, type, details_submitted: true, charges_enabled: true, payouts_enabled: true })
+const ready = (id = 'acct_existing', type = 'express') => ({ id, type, details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
 const read = () => independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerId } })
 
 beforeAll(async () => {
@@ -50,6 +50,28 @@ afterEach(async () => { if (verified && userId) await prisma.user.deleteMany({ w
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('real PostgreSQL Connect identity', () => {
+  it.each(['inactive', 'pending', undefined])('revokes cached readiness and offers onboarding when transfers are %s', async transfers => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing', stripeOnboardingComplete: true } })
+    provider.retrieve.mockResolvedValue({ ...ready(), capabilities: { transfers } })
+    expect(await (await GET(request())).json()).toMatchObject({ chargesEnabled: true, payoutsEnabled: true, transfersEnabled: false,
+      stripeOnboardingComplete: false, dashboardSupported: false, onboardingSupported: true })
+    expect(await read()).toMatchObject({ stripeAccountId: 'acct_existing', stripeOnboardingComplete: false })
+    expect(await (await legacyGet(request())).json()).toMatchObject({ transfersEnabled: false, onboardingComplete: false })
+    expect(await (await POST(request())).json()).toMatchObject({ onboardingUrl: 'https://connect.stripe.com/synthetic-onboarding', stripeOnboardingComplete: false })
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(provider.dashboard).not.toHaveBeenCalled()
+    provider.retrieve.mockResolvedValue(ready())
+    expect(await (await GET(request())).json()).toMatchObject({ transfersEnabled: true, stripeOnboardingComplete: true, dashboardSupported: true })
+    expect((await read()).stripeOnboardingComplete).toBe(true)
+  })
+  it('preserves supported legacy transfers during capability migration', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing' } })
+    provider.retrieve.mockResolvedValue({ ...ready(), capabilities: { transfers: 'inactive', legacy_payments: 'active' } })
+    expect(await (await GET(request())).json()).toMatchObject({ transfersEnabled: true, stripeOnboardingComplete: true })
+    expect((await read()).stripeOnboardingComplete).toBe(true)
+    expect(await (await POST(request())).json()).toMatchObject({ dashboardUrl: 'https://connect.stripe.com/synthetic-dashboard' })
+    expect(provider.create).not.toHaveBeenCalled()
+  })
   it('serializes provider reads across concurrent readiness writers', async () => {
     await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing' } })
     let release!: () => void, entered!: () => void

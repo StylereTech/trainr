@@ -19,7 +19,7 @@ beforeEach(() => {
     id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' }, timeZone: 'UTC', startsAt: new Date('2030-11-01T09:00:00Z'), endsAt: new Date('2030-11-01T10:00:00Z'),
     trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true, isActive: true, approvalStatus: 'APPROVED' },
   })
-  mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
+  mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
   mock.checkout.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/test', paymentId: 'payment' })
 })
 
@@ -29,6 +29,13 @@ async function send(body = JSON.stringify({ bookingId: 'booking' })) {
 }
 
 describe('checkout route boundaries', () => {
+  it.each(['inactive', 'pending', undefined])('does not prepare checkout without active transfers: %s', transfers => {
+    mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers } })
+    return send().then(response => {
+      expect(response.status).toBe(400)
+      expect(mock.checkout).not.toHaveBeenCalled()
+    })
+  })
   it.each(['missing', 'past'])('rejects %s booking time before contacting Stripe', async condition => {
     const booking = await mock.booking()
     if (condition === 'missing') booking.timeZone = null

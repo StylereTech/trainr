@@ -7,6 +7,13 @@ describe('Connect contracts', () => {
   it('requires a complete provider status instead of accepting a successful malformed response', () => {
     expect(connectStatusSchema.safeParse({ stripeOnboardingComplete: true }).success).toBe(false)
   })
+  it('requires explicit transfer status, including null while unverified', () => {
+    const status = { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: 'acct_test', stripeOnboardingComplete: true,
+      chargesEnabled: true, payoutsEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
+    expect(connectStatusSchema.safeParse(status).success).toBe(false)
+    expect(connectStatusSchema.safeParse({ ...status, transfersEnabled: null }).success).toBe(true)
+    expect(connectStatusSchema.safeParse({ ...status, transfersEnabled: true }).success).toBe(true)
+  })
   it.each(['javascript:alert(1)', 'https://stripe.com.attacker.test/login', 'http://connect.stripe.com/x', 'https://user:pass@connect.stripe.com/x', 'https://connect.stripe.com:444/x', null])('rejects untrusted redirect %s', value => {
     expect(stripeRedirect(value)).toBeNull()
   })

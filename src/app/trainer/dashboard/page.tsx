@@ -148,7 +148,7 @@ export default function TrainerDashboard() {
   }
 
   const stripeUnknown = !stripeStatus || !!stripeStatusError || !!stripeStatus.providerError || !stripeStatus.providerConfigured
-  const stripeReady = !stripeUnknown && !!stripeStatus?.stripeOnboardingComplete && stripeStatus.chargesEnabled === true && stripeStatus.payoutsEnabled === true
+  const stripeReady = !stripeUnknown && !!stripeStatus?.stripeOnboardingComplete && stripeStatus.chargesEnabled === true && stripeStatus.payoutsEnabled === true && stripeStatus.transfersEnabled === true
   const stripeStarted = Boolean(stripeStatus?.stripeAccountId)
 
   return (
@@ -204,6 +204,12 @@ export default function TrainerDashboard() {
                   {!stripeStatusLoading && stripeStatus?.chargesEnabled != null && (
                     <Badge className={stripeStatus.chargesEnabled ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-100' : 'border border-amber-400/30 bg-amber-400/10 text-amber-100'}>
                       Charges {stripeStatus.chargesEnabled ? 'enabled' : 'pending'}
+                    </Badge>
+                  )}
+
+                  {!stripeStatusLoading && stripeStatus?.transfersEnabled != null && (
+                    <Badge className={stripeStatus.transfersEnabled ? 'border border-emerald-400/30 bg-emerald-400/10 text-emerald-100' : 'border border-amber-400/30 bg-amber-400/10 text-amber-100'}>
+                      Transfers {stripeStatus.transfersEnabled ? 'enabled' : 'not enabled'}
                     </Badge>
                   )}
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -65,6 +65,7 @@ function TrainerProfileContent() {
 
   const initialTab = searchParams.get('tab') || 'profile'
   const [activeTab, setActiveTab] = useState(initialTab)
+  const activeTabButton = useRef<HTMLButtonElement>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [revision, setRevision] = useState<string | null>(null)
@@ -83,6 +84,10 @@ function TrainerProfileContent() {
   const [certifications, setCertifications] = useState<CertForm[]>([])
   const [services, setServices] = useState<ServiceForm[]>([])
   const [availability, setAvailability] = useState<AvailSlot[]>([])
+
+  useEffect(() => {
+    activeTabButton.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTab, loading])
 
   useEffect(() => {
     fetchProfile()
@@ -240,6 +245,7 @@ function TrainerProfileContent() {
           {TABS.map(tab => (
             <button
               key={tab.id}
+              ref={activeTab === tab.id ? activeTabButton : undefined}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                 activeTab === tab.id ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:bg-white/5 hover:text-white'

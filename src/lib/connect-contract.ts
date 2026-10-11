@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const connectStatusSchema = z.object({
   providerConfigured: z.boolean(), publishableKeyConfigured: z.boolean(),
   stripeAccountId: z.string().nullable(), stripeOnboardingComplete: z.boolean(),
-  chargesEnabled: z.boolean().nullable(), payoutsEnabled: z.boolean().nullable(),
+  chargesEnabled: z.boolean().nullable(), payoutsEnabled: z.boolean().nullable(), transfersEnabled: z.boolean().nullable(),
   providerError: z.string(), dashboardSupported: z.boolean(), onboardingSupported: z.boolean(),
 })
 

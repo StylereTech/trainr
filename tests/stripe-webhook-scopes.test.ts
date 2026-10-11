@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mock.updateMany.mockResolvedValue({ count: 1 })
   mock.findFirst.mockResolvedValue({ id: 'trainer' })
-  mock.retrieve.mockResolvedValue({ id: 'acct_synthetic', details_submitted: true, charges_enabled: true, payouts_enabled: true })
+  mock.retrieve.mockResolvedValue({ id: 'acct_synthetic', details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
   vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_synthetic_no_network')
   vi.stubEnv('STRIPE_WEBHOOK_SECRET', platformSecret)
   vi.stubEnv('STRIPE_CONNECT_WEBHOOK_SECRET', connectSecret)
@@ -85,7 +85,7 @@ describe('separate platform and Connect webhook signing secrets', () => {
   }
 
   it.each([true, false])('uses current readiness %s instead of the opposite delayed event snapshot', async ready => {
-    mock.retrieve.mockResolvedValue({ id: 'acct_synthetic', details_submitted: true, charges_enabled: ready, payouts_enabled: ready })
+    mock.retrieve.mockResolvedValue({ id: 'acct_synthetic', details_submitted: true, charges_enabled: ready, payouts_enabled: ready, capabilities: { transfers: 'active' } })
     expect((await send({ ...connectedEvent, data: { object: { id: 'acct_synthetic', details_submitted: true, charges_enabled: !ready, payouts_enabled: !ready } } })).status).toBe(200)
     expect(mock.retrieve).toHaveBeenCalledWith('acct_synthetic', {}, { timeout: 4000, maxNetworkRetries: 0 })
     expect(mock.updateMany).toHaveBeenCalledWith({ where: { stripeAccountId: 'acct_synthetic' }, data: { stripeOnboardingComplete: ready } })
@@ -94,6 +94,11 @@ describe('separate platform and Connect webhook signing secrets', () => {
     mock.retrieve.mockRejectedValue(new Error('synthetic provider outage'))
     expect((await send(connectedEvent)).status).toBe(503)
     expect(mock.updateMany).not.toHaveBeenCalled()
+  })
+  it('revokes readiness when current transfer capability is inactive despite an active event snapshot', async () => {
+    mock.retrieve.mockResolvedValue({ id: 'acct_synthetic', details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'inactive' } })
+    expect((await send({ ...connectedEvent, data: { object: { ...connectedEvent.data.object, capabilities: { transfers: 'active' } } } })).status).toBe(200)
+    expect(mock.updateMany).toHaveBeenCalledWith({ where: { stripeAccountId: 'acct_synthetic' }, data: { stripeOnboardingComplete: false } })
   })
   it('ignores accounts not linked to a TRAINR trainer without a provider lookup', async () => {
     mock.findFirst.mockResolvedValue(null)

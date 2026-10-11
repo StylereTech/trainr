@@ -52,8 +52,8 @@ beforeEach(() => {
 
 describe('Stripe account readiness', () => {
   it('accepts the SDK active-account type without casting away its deleted field', () => {
-    const account: Pick<Stripe.Account, 'deleted' | 'details_submitted' | 'charges_enabled' | 'payouts_enabled'> = {
-      details_submitted: true, charges_enabled: true, payouts_enabled: true,
+    const account: Pick<Stripe.Account, 'deleted' | 'details_submitted' | 'charges_enabled' | 'payouts_enabled' | 'capabilities'> = {
+      details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' },
     }
     expect(isStripeAccountReady(account)).toBe(true)
   })
@@ -62,7 +62,7 @@ describe('Stripe account readiness', () => {
     [true, true, true, true], [true, true, false, false],
     [true, false, true, false], [false, true, true, false],
   ])('details=%s charges=%s payouts=%s gives readiness=%s', (details, charges, payouts, expected) => {
-    expect(isStripeAccountReady({ details_submitted: details, charges_enabled: charges, payouts_enabled: payouts })).toBe(expected)
+    expect(isStripeAccountReady({ details_submitted: details, charges_enabled: charges, payouts_enabled: payouts, capabilities: { transfers: 'active' } })).toBe(expected)
   })
 
   it('rejects deleted or incomplete accounts', () => {
