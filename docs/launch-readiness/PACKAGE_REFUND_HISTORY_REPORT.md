@@ -59,6 +59,26 @@ The first corrected focused run returned **152 passed / 28 failed** in 102.69 se
 - Visually inspected desktop/mobile checkout-recovery screenshots (`test-results/checkout-recovery-local-re-27197-icating-or-claiming-payment-chromium/checkout-recovery.png`, `checkout-recovery-local-re-b86ca-icating-or-claiming-payment-chromium/checkout-recovery.png`) and mobile parent/desktop trainer refund screenshots (`test-results/refund-local-regression-re-2cb77-failed-refunds-after-reload-chromium/refund-summary.png`, `refund-local-regression-re-d3210-failed-refunds-after-reload-chromium/refund-summary.png`). Relevant warning/status text and controls were readable without overlap; automated cases also enforce no horizontal overflow. These local ignored screenshots contain only synthetic fixtures.
 - Final independent SQL cleanup verified zero users, bookings, payments, package purchases/refunds/attempts, packages, wallet entries and sports. Log: `.postgres-test/package-refunds-final-cleanup.log`. The owned loopback app and database were stopped; no other app/process was stopped. No actual Stripe funds were moved.
 
+## Published Source And Hosted Retest
+
+- Source commit: `c91a1b406689db4d40d0a7225b56c37a75cbd541`, pushed to `codex/payment-readiness-20261006`. No main/Production promotion.
+- Vercel project `trainr`, Preview deployment [ENXFvqvWg6eqZMEYK9WobNuGARNP](https://vercel.com/styleres-projects/trainr/ENXFvqvWg6eqZMEYK9WobNuGARNP) became Ready at **2026-10-11 21:33:01 UTC**, duration 53 seconds. UI verified the exact source/branch, Preview environment, unique URL `https://trainr-9ppasvua2-styleres-projects.vercel.app` and stable audit alias `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`.
+- Build log at 21:32:22.756 UTC: `Audit staging schema upgraded; migration checksums verified.` Install audit still reports 10 vulnerabilities (1 low, 2 moderate, 7 high); this pass does not establish a clean dependency audit.
+- Existing parent session refreshed on the stable alias after Ready: Parent dashboard, Sign Out, one saved Sandbox Athlete and zero open bookings remained visible after athlete data finished loading. Captured browser error logs were empty. No credentials changed, new accounts, provider refunds or money movements were made.
+- Anonymous hosted smoke at client UTC **21:33:52-54**, log `.postgres-test/package-refunds-source-hosted-smoke.json`, exit 0:
+
+| Exact request | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| GET `/api/health` | 200, ok and DB connected | 200, `ok:true`, `dbConnected:true` | PASS |
+| GET `/api/bookings` | 401 | 401 Unauthorized | PASS |
+| GET `/api/trainer/packages` | 401 | 401 Unauthorized | PASS |
+| GET `/api/trainer/wallet` | 401 | 401 Unauthorized | PASS |
+| POST `{}` `/api/admin/refunds`, no session | 401 | 401 Unauthorized | PASS |
+| POST `{}` `/api/payments/webhook`, no signature | 400 | 400 missing signature | PASS |
+
+- GitHub [run 38176770248](https://github.com/StylereTech/trainr/actions/runs/38176770248) failed before executing either job (both step arrays empty). Fresh check-job annotation: `The job was not started because your account is locked due to a billing issue.` Check job `114580701390`, migration job `114580701217`. Local gate results are not presented as a green GitHub CI result. Billing/security settings were not changed.
+- Publication retest verifies deployment/health/access and existing parent data, not an actual package transaction. Final documentation-only commit and its Ready/alias smoke are verified after this report is published; no repeat local source test is implied by that docs-only change.
+
 ## Remaining Gates
 
 Read-only hosted check during this pass: the stable Preview still shows the existing parent session, one saved Sandbox Athlete and zero open bookings. At approximately 21:13 UTC, a refreshed Stripe sandbox Connected accounts page showed All 0, Enabled 0 and "No connected accounts". This is evidence of the remaining onboarding gap, not a passing trainer payment test. No Stripe configuration or money movement was performed. Remote heads were rechecked: audit branch still `c723356a5138aff1710c399534b4ed1d873f1a1b`, main still `2067e743c54ffee669cd484f26dc472b157f1881` before publication.
