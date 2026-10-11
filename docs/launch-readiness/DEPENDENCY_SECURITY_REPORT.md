@@ -1,5 +1,7 @@
 # Dependency Security Report
 
+2026-10-11 follow-up: [scoped Prisma dependency repair](PRISMA_DEPENDENCY_SECURITY_REPORT.md) reproduces two circular-input failures, replaces only Prisma's `deepmerge-ts` with 8.0.2, and passes all seven focused regressions. The full audit drops from 14 to 11 affected packages; remaining findings and final verification/publication status are recorded there. This is not a clean security audit or production signoff.
+
 2026-10-11 follow-up: [hydration diagnosis and candidate framework fix](HYDRATION_READINESS_REPORT.md). Correction to the development-test entry below: the temporary custom server did not honor the intended separate build directory; it wrote to `.next`. The development results remain valid, but output isolation was not achieved. A fresh production baseline build preceded the follow-up reproducer. Earlier production failures remain recorded.
 
 ## Scope And Baseline
