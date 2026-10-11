@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11: actual UI-created synthetic athlete `cmv3bs3xr0001jn0694fd2p2f` was edited and reopened, then independently read through Neon SQL (808 ms). Birth date, Intermediate skill and updated goals matched; both sports were verified in the reopened form. [Exact scope and steps](PARENT_STAGING_WORKFLOW_REPORT.md). This is child-profile persistence evidence, not booking/payment persistence or production DB signoff.
+
 2026-10-10 23:52 UTC: Preview reference catalog initialized without demo seeding: **5 sports and 32 specialties**, zero users/bookings/payments. Wrong-marker execution was rejected with zero writes; replay left counts and both complete-row fingerprints identical. [SQL artifact, exact steps, results and limits](STAGING_CATALOG_VALIDATION_REPORT.md). This supersedes the empty-sports state below only; application booking/payment persistence is still unproven.
 
 2026-10-09 04:48 UTC: source `076e9f532056618ce604b00323aca6d390753045` deployed successfully to isolated Vercel Preview and initialized the marked Neon DB. Deployed log confirms migration checksum verification; independent read-only SQL confirms **11 migrations, all 11 finished**, plus zero users/bookings/payments/sports. This supersedes the pending-schema state below, but not application persistence or production signoff. [Exact SQL, environment, account, failures and retest proof](STAGING_PROVISIONING_REPORT.md).

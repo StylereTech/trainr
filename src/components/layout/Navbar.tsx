@@ -83,11 +83,11 @@ export function Navbar() {
                   Dashboard
                 </Button>
               </Link>
-              <Link href="/messages">
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-200 hover:bg-white/10 hover:text-white">
+              <Button asChild variant="ghost" size="icon" className="h-9 w-9 text-slate-200 hover:bg-white/10 hover:text-white">
+                <Link href="/messages" aria-label="Messages" title="Messages">
                   <MessageSquare className="h-4 w-4" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
               <Link href="/account/delete">
                 <Button variant="ghost" size="sm" className="text-slate-200 hover:bg-white/10 hover:text-white">
                   <UserCog className="mr-1.5 h-4 w-4" />

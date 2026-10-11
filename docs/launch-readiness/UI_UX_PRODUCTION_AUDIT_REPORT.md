@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11: [Parent staging and browse regression evidence](PARENT_STAGING_WORKFLOW_REPORT.md) records fixes for the inert Explore action, false-empty errors, stale responses, incomplete clearing, unnamed controls and developer-facing messaging copy. Eight local desktop/mobile browser checks passed; real parent dashboard mobile screenshot was inspected. Trainer favorites remain an incomplete control; full UI coverage is not claimed.
+
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.
 
 2026-10-08 migration follow-up (baseline `ba6fb20def90af42669ceee589bdf657b0d8cf5c`): [Migration Bootstrap And Upgrade Rehearsal](MIGRATION_BOOTSTRAP_REPORT.md) records the reproduced empty-database failure, historical baseline repair, guarded fresh/legacy rehearsals, exact tests and publication evidence. This supersedes the missing-baseline finding only. Actual production schema/ledger review, tested backups, isolated staging and real Stripe checkout/Connect/payout verification remain open; production and money-flow signoff remain **HOLD**.

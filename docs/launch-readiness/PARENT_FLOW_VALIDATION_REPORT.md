@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-11: [Real staging parent workflow validation](PARENT_STAGING_WORKFLOW_REPORT.md) records athlete creation/editing, refresh and SQL persistence, dashboard/empty states, mobile rendering and sign-out. Browse fixes passed full check and eight local browser regressions. Email verification, real trainer selection and paid booking remain unverified; this is not parent end-to-end signoff.
+
 2026-10-08 package audit (baseline `a92204dcc6e52bd738f84549804105e664fd1115`): [Package Flow And Booking Contract Audit](PACKAGE_FLOW_AUDIT_REPORT.md) confirms that package listings do not provide trainer management, purchasing or a credit ledger. Unsupported package/credit fields are now rejected instead of silently creating/replaying a single-session booking. Exact failures/retests and remaining implementation requirements are recorded there. Package flows remain **FAIL / INCOMPLETE**, not waived; production and money-flow signoff remain **HOLD**.
 
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.
