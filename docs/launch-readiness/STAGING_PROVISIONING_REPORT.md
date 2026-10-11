@@ -1,5 +1,16 @@
 # Isolated Preview Provisioning
 
+## Parent Signup Email Delivery Blocker
+
+2026-10-11 04:15 UTC; isolated audit Preview; owner-created parent test account (address and credentials withheld); reviewed repository source `fa6d337`:
+
+- Owner completed signup and reported verification failure. `/account/verify-email` renders signed-in navigation, Not verified, and `Verification email is temporarily unavailable. Try again later.` Expected verification email delivery; actual delivery unavailable. **FAIL / external configuration blocker**. This is not verification success.
+- Vercel project variables, All Environments, search `RESEND`: only Production `RESEND_API_KEY`; Shared search: no results. Search `EMAIL_FROM`: no project or shared result. No values were revealed or copied. Preview lacks both required email settings.
+- Reviewed `src/lib/account-email.ts`: missing provider key or sender returns `unavailable`. `POST /api/auth/verification-email` maps that result to the displayed 503 message. This configuration failure is sufficient to explain the error; no provider acceptance/delivery evidence exists.
+- Read-only Neon query grouped users by role, counted non-null `emailVerified` and non-null `verificationToken` without retrieving their values. Actual: PARENT users **1**, verified users **0**, pending-token users **1** (853 ms). **PASS parent-account persistence**, not independent login/recovery/verification proof.
+- Fix status: no authentication bypass or manual email-verification flag edit. Opened Resend sign-in for the owner; a properly scoped sending key and verified sender require provider access before configuration and redeployment. Production credentials remain unchanged.
+- Retest pending: provider acceptance, owner receipt and one-time verification-link completion, refresh persistence, expired/replayed link behavior, and remaining authenticated booking/Connect/payout flows. Runtime commit for the owner's signup was not independently resolved in this pass; the repository review SHA is not represented as that runtime proof.
+
 ## Authentication Configuration Follow-Up
 
 2026-10-11 03:38-03:41 UTC, authenticated Vercel owner and anonymous application browser, source `a4cf3129eafc7c93e8b7b30a3c77cf81d25ca0b8`:
