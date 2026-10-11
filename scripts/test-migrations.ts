@@ -59,10 +59,11 @@ async function verifyHistory(client: PrismaClient) {
   const constraints = await client.$queryRaw<Array<{ conname: string }>>`
     SELECT conname FROM pg_constraint WHERE conname IN ('checkout_attempts_sequence_positive', 'users_sessionVersion_nonnegative',
       'payments_refund_pending_nonnegative', 'payments_refund_failed_nonnegative', 'rate_limit_buckets_hash_format', 'rate_limit_buckets_bounded_hits', 'bookings_time_snapshot_complete',
-      'package_purchases_amounts_valid', 'package_purchases_hash_valid', 'package_purchases_terms_version', 'package_checkout_attempts_sequence_positive')`
-  assert.equal(constraints.length, 11)
-  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable') AND NOT tgisinternal`
-  assert.equal(triggers.length, 3)
+      'package_purchases_amounts_valid', 'package_purchases_hash_valid', 'package_purchases_terms_version', 'package_checkout_attempts_sequence_positive',
+      'package_purchases_refund_totals_valid', 'package_refunds_amount_currency_valid')`
+  assert.equal(constraints.length, 13)
+  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable', 'package_refunds_identity_immutable') AND NOT tgisinternal`
+  assert.equal(triggers.length, 4)
   const indexes = await client.$queryRaw<Array<{ indexdef: string }>>`
     SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'checkout_attempts_one_active_payment'`
   assert.equal(indexes.length, 1)
@@ -124,6 +125,7 @@ async function main() {
         assert.equal(payment.refundPendingAmountInCents, 0); assert.equal(payment.refundFailedCount, 0); assert.equal(payment.refundsVerifiedAt, null)
         assert.equal(await client.checkoutAttempt.count(), 0); assert.equal(await client.paymentRefund.count(), 0)
         assert.equal(await client.packagePurchase.count(), 0)
+        assert.equal(await client.packageRefund.count(), 0)
         if (phoneBefore) assert.deepEqual(await client.trainerPhoneLead.findMany(), phoneBefore)
         console.log(`PASS: ${mode}: all 12 legacy tables preserved; only intended token revocation/defaults changed`)
       }

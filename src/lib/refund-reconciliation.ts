@@ -1,33 +1,14 @@
-import type Stripe from 'stripe'
 import type { RefundStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
 import { SettlementConflict, verifyDestinationSettlement } from '@/lib/stripe-settlement'
+import { loadRefunds, RefundReconciliationError } from '@/lib/stripe-refund-history'
+import { reconcilePackageCharge } from '@/lib/package-settlement'
 
-export class RefundReconciliationError extends Error {
-  constructor(message: string, public readonly status = 409) { super(message) }
-}
+export { RefundReconciliationError } from '@/lib/stripe-refund-history'
 const requestOptions = { timeout: 4000, maxNetworkRetries: 0 }
 const statuses: Record<string, RefundStatus> = { pending: 'PENDING', requires_action: 'REQUIRES_ACTION', succeeded: 'SUCCEEDED', failed: 'FAILED', canceled: 'CANCELED' }
 function objectId(value: string | { id: string } | null | undefined) { return typeof value === 'string' ? value : value?.id || null }
-
-async function loadRefunds(chargeId: string) {
-  const refunds: Stripe.Refund[] = []
-  let cursor: string | undefined
-  const seen = new Set<string>()
-  for (let page = 0; page < 10; page++) {
-    const batch = await stripe.refunds.list({ charge: chargeId, limit: 100, ...(cursor ? { starting_after: cursor } : {}) }, requestOptions)
-    for (const refund of batch.data) {
-      if (!refund.id || seen.has(refund.id)) throw new RefundReconciliationError('Refund pagination requires review')
-      seen.add(refund.id)
-      refunds.push(refund)
-    }
-    if (!batch.has_more) return refunds
-    if (!batch.data.length) throw new RefundReconciliationError('Refund pagination is incomplete')
-    cursor = batch.data[batch.data.length - 1].id
-  }
-  throw new RefundReconciliationError('Refund history exceeds the automatic reconciliation limit; contact operations')
-}
 
 export async function reconcilePaymentRefunds(bookingId: string, options: { adminUserId?: string; chargeId?: string; refundId?: string } = {}) {
   return prisma.$transaction(async tx => {
@@ -133,6 +114,7 @@ export async function reconcileRefundEvent(chargeId: string, refundId?: string) 
     { stripeChargeId: chargeId }, ...(intentId ? [{ stripePaymentIntentId: intentId }] : []),
     ...(charge.metadata?.paymentId && charge.metadata?.bookingId ? [{ id: charge.metadata.paymentId, bookingId: charge.metadata.bookingId }] : []),
   ] }, select: { id: true, bookingId: true }, take: 2 })
+  if (await reconcilePackageCharge(charge, {}, matches.length > 0, { refundId })) return { ignored: false }
   if (!matches.length) {
     if (charge.metadata?.bookingId || charge.metadata?.paymentId) throw new RefundReconciliationError('TRAINR refund payment is not linked yet')
     return { ignored: true }

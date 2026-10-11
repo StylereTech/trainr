@@ -6,11 +6,12 @@ import { prisma } from '@/lib/prisma'
 import { preparePackagePurchase } from '@/lib/package-purchases'
 import { startOrResumePackageCheckout } from '@/lib/package-checkout'
 import { reconcilePackageCheckout } from '@/lib/package-settlement'
+import { reconcileRefundEvent } from '@/lib/refund-reconciliation'
 import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), account: vi.fn(), intent: vi.fn(), charge: vi.fn(),
-  transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), signature: '' }))
+  transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_package_checkout'
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'stripe-signature': provider.signature }) }))
 vi.mock('@/lib/stripe', async () => {
@@ -19,11 +20,17 @@ vi.mock('@/lib/stripe', async () => {
     verifyWebhookSignature: (body: string, signature: string) => SDK.webhooks.constructEvent(body, signature, 'whsec_synthetic_package_checkout'),
     stripe: { accounts: { retrieve: provider.account }, checkout: { sessions: { create: provider.create, retrieve: provider.retrieve, expire: provider.expire } },
       paymentIntents: { retrieve: provider.intent }, charges: { retrieve: provider.charge }, transfers: { retrieve: provider.transfer },
-      applicationFees: { retrieve: provider.fee }, disputes: { list: provider.disputes } } }
+      applicationFees: { retrieve: provider.fee }, disputes: { list: provider.disputes }, refunds: { list: provider.refunds } } }
 })
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let parentId: string, trainerId: string, trainerProfileId: string, sportId: string, purchaseId: string
 let verified = false, sessions = new Map<string, any>(), f: any
+let refunds: any[] = []
+function refundReceipt(changes: Record<string, unknown> = {}) {
+  return { id: 're_package', charge: f.charge.id, payment_intent: f.intent.id, amount: 1000, currency: 'usd',
+    status: 'succeeded', created: 1791749000, transfer_reversal: null, source_transfer_reversal: null,
+    failure_balance_transaction: null, failure_reason: null, ...changes }
+}
 const readPurchase = () => independent.packagePurchase.findUniqueOrThrow({ where: { id: purchaseId } })
 const readAttempt = () => independent.packageCheckoutAttempt.findFirstOrThrow({ where: { purchaseId }, orderBy: { sequence: 'desc' } })
 function createSession(parameters: any) {
@@ -51,7 +58,7 @@ beforeAll(async () => {
   verified = true
 })
 beforeEach(async () => {
-  vi.resetAllMocks(); sessions = new Map(); f = settlementFixture()
+  vi.resetAllMocks(); sessions = new Map(); f = settlementFixture(); refunds = []
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `package-checkout-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
@@ -71,6 +78,7 @@ beforeEach(async () => {
   provider.expire.mockImplementation(async id => { const session = sessions.get(id); session.status = 'expired'; return structuredClone(session) })
   for (const name of ['intent', 'charge', 'transfer', 'fee'] as const) provider[name].mockImplementation(async () => structuredClone(f[name]))
   provider.disputes.mockImplementation(async () => ({ data: structuredClone(f.disputes), has_more: false }))
+  provider.refunds.mockImplementation(async () => ({ data: structuredClone(refunds), has_more: false }))
 })
 afterEach(async () => {
   if (!verified) return
@@ -81,6 +89,167 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it.each(['charge.refunded', 'refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated'])('records current package refund history from signed %s delivery', async type => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    const object = type === 'charge.refunded' ? f.charge : { ...refunds[0], amount: 6000, status: 'pending' }
+    expect((await webhook(object, type)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'PARTIALLY_REFUNDED', refundAmountInCents: 1000,
+      refundPendingAmountInCents: 0, refundFailedCount: 0, refundsVerifiedAt: expect.any(Date), stripeChargeId: f.charge.id })
+    expect(await independent.packageRefund.findMany({ where: { purchaseId } })).toMatchObject([{ id: 're_package', purchaseId, amountInCents: 1000, status: 'SUCCEEDED' }])
+    expect(await prisma.paymentRefund.count()).toBe(0); expect(await prisma.booking.count()).toBe(0); expect(await prisma.walletEntry.count()).toBe(0)
+  })
+  it.each(['pending', 'requires_action', 'succeeded', 'failed', 'canceled'])('distinguishes current %s package refunds from customer money received', async status => {
+    await paidSession(); refunds = [refundReceipt({ amount: 6000, status })]
+    if (status === 'succeeded') { f.charge.amount_refunded = 6000; f.charge.refunded = true }
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: status === 'succeeded' ? 'REFUNDED' : 'SUCCEEDED',
+      refundAmountInCents: status === 'succeeded' ? 6000 : 0,
+      refundPendingAmountInCents: ['pending', 'requires_action'].includes(status) ? 6000 : 0,
+      refundFailedCount: ['failed', 'canceled'].includes(status) ? 1 : 0 })
+  })
+  it('tracks pending to failed to replacement success without treating failures as refunds', async () => {
+    const { session } = await paidSession(); refunds = [refundReceipt({ status: 'pending' })]
+    await reconcileRefundEvent(f.charge.id, refunds[0].id)
+    refunds[0].status = 'failed'; refunds[0].failure_reason = 'declined'; refunds[0].failure_balance_transaction = 'txn_failure'
+    await reconcileRefundEvent(f.charge.id, refunds[0].id)
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 1 })
+    refunds.push(refundReceipt({ id: 're_replacement', transfer_reversal: 'trr_test' })); f.charge.amount_refunded = 1000
+    await reconcileRefundEvent(f.charge.id, 're_replacement')
+    expect((await webhook(session)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'PARTIALLY_REFUNDED', refundAmountInCents: 1000, refundFailedCount: 1 })
+    expect(await independent.packageRefund.findUniqueOrThrow({ where: { id: 're_package' } })).toMatchObject({ status: 'FAILED', failureReason: 'declined', failureBalanceTransactionId: 'txn_failure' })
+  })
+  it('reads multiple refund pages and records successful, pending and failed totals separately', async () => {
+    await paidSession(); f.charge.amount_refunded = 1000
+    const first = refundReceipt(), second = refundReceipt({ id: 're_pending', amount: 2000, status: 'pending' }), third = refundReceipt({ id: 're_failed', status: 'failed' })
+    provider.refunds.mockResolvedValueOnce({ data: [first], has_more: true }).mockResolvedValueOnce({ data: [second, third], has_more: false })
+    expect((await webhook(second, 'refund.updated')).status).toBe(200)
+    expect(provider.refunds.mock.calls[1][0]).toEqual({ charge: f.charge.id, limit: 100, starting_after: first.id })
+    expect(await readPurchase()).toMatchObject({ refundAmountInCents: 1000, refundPendingAmountInCents: 2000, refundFailedCount: 1 })
+  })
+  it('serializes repeated and concurrent package refund reconciliation', async () => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    await Promise.all([reconcileRefundEvent(f.charge.id, 're_package'), reconcileRefundEvent(f.charge.id, 're_package')])
+    await reconcileRefundEvent(f.charge.id, 're_package')
+    expect(await independent.packageRefund.count({ where: { purchaseId } })).toBe(1)
+    expect((await readPurchase()).refundAmountInCents).toBe(1000)
+  })
+  it.each(['charge', 'intent', 'currency', 'amount-zero', 'amount-negative', 'amount-over', 'amount-fraction', 'status', 'created'])('rejects invalid refund %s and rolls back all package accounting', async mode => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    if (mode === 'charge') refunds[0].charge = 'ch_wrong'
+    if (mode === 'intent') refunds[0].payment_intent = 'pi_wrong'
+    if (mode === 'currency') refunds[0].currency = 'eur'
+    if (mode === 'amount-zero') refunds[0].amount = 0
+    if (mode === 'amount-negative') refunds[0].amount = -1
+    if (mode === 'amount-over') refunds[0].amount = 6001
+    if (mode === 'amount-fraction') refunds[0].amount = 0.5
+    if (mode === 'status') refunds[0].status = 'unknown'
+    if (mode === 'created') refunds[0].created = -1
+    const previous = await readPurchase()
+    expect((await webhook(f.charge, 'charge.refunded')).status).toBe(409)
+    expect(await readPurchase()).toEqual(previous)
+    expect(await independent.packageRefund.count()).toBe(0)
+  })
+  it.each(['duplicate', 'incomplete-page', 'missing-trigger', 'missing-history', 'overflow', 'provider-down'])('does not persist a misleading refund state for %s history', async mode => {
+    await paidSession(); const previous = await readPurchase()
+    refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    if (mode === 'duplicate') refunds.push(refundReceipt())
+    if (mode === 'incomplete-page') provider.refunds.mockResolvedValue({ data: [], has_more: true })
+    if (mode === 'missing-trigger') refunds[0].id = 're_other'
+    if (mode === 'missing-history') refunds = []
+    if (mode === 'overflow') refunds.push(refundReceipt({ id: 're_pending', status: 'pending', amount: 6000 }))
+    if (mode === 'provider-down') provider.refunds.mockRejectedValue(new Error('provider unavailable'))
+    expect((await webhook(refundReceipt(), 'refund.updated')).status).toBe(mode === 'provider-down' ? 503 : 409)
+    expect(await readPurchase()).toEqual(previous)
+    expect(await independent.packageRefund.count()).toBe(0)
+  })
+  it.each(['failed', 'requires_action'])('records a late successful-refund return as %s and retains review through paid replay', async status => {
+    const { session } = await paidSession()
+    refunds = [refundReceipt({ amount: 6000 })]; f.charge.amount_refunded = 6000; f.charge.refunded = true
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
+    expect((await readPurchase()).status).toBe('REFUNDED')
+    Object.assign(refunds[0], { status, failure_reason: status === 'failed' ? 'declined' : null,
+      failure_balance_transaction: status === 'failed' ? 'txn_returned' : null })
+    f.charge.amount_refunded = 0; f.charge.refunded = false
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
+    const expected = { status: 'SUCCEEDED', refundAmountInCents: 0, refundPendingAmountInCents: status === 'requires_action' ? 6000 : 0,
+      refundFailedCount: status === 'failed' ? 1 : 0, financialReview: { key: expect.any(String), details: { packageRefunds: {
+        refundedInCents: 0, pendingInCents: status === 'requires_action' ? 6000 : 0, failedCount: status === 'failed' ? 1 : 0 } } } }
+    expect(await readPurchase()).toMatchObject(expected)
+    expect(await independent.packageRefund.findUniqueOrThrow({ where: { id: 're_package' } })).toMatchObject({
+      status: status.toUpperCase(), failureReason: refunds[0].failure_reason, failureBalanceTransactionId: refunds[0].failure_balance_transaction })
+    expect((await webhook(session)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject(expected)
+    expect((await webhook(f.charge, 'charge.updated')).status).toBe(200)
+    expect(await readPurchase()).toMatchObject(expected)
+    expect(await prisma.booking.count()).toBe(0); expect(await prisma.walletEntry.count()).toBe(0)
+  })
+  it.each(['amount', 'full-status', 'partial-status'])('rejects unexplained prior refund %s without wiping accounting', async mode => {
+    await paidSession(); refunds = [refundReceipt({ status: 'failed' })]
+    await independent.packagePurchase.update({ where: { id: purchaseId }, data: mode === 'amount' ? { refundAmountInCents: 1000 } :
+      { status: mode === 'full-status' ? 'REFUNDED' : 'PARTIALLY_REFUNDED' } })
+    const previous = await readPurchase()
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(409)
+    expect(await readPurchase()).toEqual(previous)
+    expect(await independent.packageRefund.count()).toBe(0)
+  })
+  it('retains both settlement reversal and package refund review on paid replay', async () => {
+    const { session } = await paidSession(); refunds = [refundReceipt({ status: 'failed' })]
+    f.transfer.amount_reversed = 1000
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
+    const review = (await readPurchase()).financialReview
+    expect(review).toMatchObject({ details: { transferReversedInCents: 1000, packageRefunds: { failedCount: 1 } } })
+    expect((await webhook(session)).status).toBe(200)
+    expect((await readPurchase()).financialReview).toEqual(review)
+  })
+  it.each(['missing', 'amount', 'created'])('retains recorded refund identity on later %s provider evidence', async mode => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    await reconcileRefundEvent(f.charge.id)
+    const previous = await readPurchase(), row = await independent.packageRefund.findUniqueOrThrow({ where: { id: 're_package' } })
+    if (mode === 'missing') { refunds = []; f.charge.amount_refunded = 0 }
+    if (mode === 'amount') refunds[0].amount = 900
+    if (mode === 'created') refunds[0].created++
+    expect((await webhook(f.charge, 'charge.refunded')).status).toBe(409)
+    expect(await readPurchase()).toEqual(previous)
+    expect(await independent.packageRefund.findUniqueOrThrow({ where: { id: 're_package' } })).toEqual(row)
+  })
+  it('requires full destination settlement verification on package refund events', async () => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000; f.transfer.destination = 'acct_wrong'
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(409)
+    expect(provider.refunds).not.toHaveBeenCalled()
+    expect((await readPurchase()).status).toBe('PENDING')
+  })
+  it.each(['constructor', '__proto__'])('rejects prototype-named refund status %s as a conflict', async status => {
+    await paidSession(); refunds = [refundReceipt({ status })]
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(409)
+    expect(await independent.packageRefund.count()).toBe(0)
+  })
+  it('does not silently acknowledge package refund metadata without a charge identity', async () => {
+    expect((await webhook({ id: 're_missing_charge', metadata: { paymentKind: 'package' } }, 'refund.updated')).status).toBe(409)
+    expect(provider.refunds).not.toHaveBeenCalled()
+  })
+  it('rejects a refund ID already linked to another package without editing that ledger', async () => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    const purchase = await readPurchase()
+    const other = await preparePackagePurchase(parentId, { requestId: randomUUID(), packageId: purchase.packageId,
+      catalogRevision: purchase.catalogRevision.toISOString(), expectedTotalInCents: 6000 })
+    const recorded = await independent.packageRefund.create({ data: { id: 're_package', purchaseId: other.id,
+      stripeChargeId: f.charge.id, stripePaymentIntentId: f.intent.id, amountInCents: 1000, currency: 'usd', status: 'PENDING',
+      stripeCreatedAt: new Date(1791749000000), observedAt: new Date() } })
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(409)
+    expect(await independent.packageRefund.findUniqueOrThrow({ where: { id: 're_package' } })).toEqual(recorded)
+    expect(await readPurchase()).toEqual(purchase)
+  })
+  it.each(['amount', 'currency', 'charge', 'intent', 'created'])('database rejects rewriting package refund %s', async mode => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    await reconcileRefundEvent(f.charge.id)
+    const data = mode === 'amount' ? { amountInCents: 500 } : mode === 'currency' ? { currency: 'eur' } :
+      mode === 'charge' ? { stripeChargeId: 'ch_other' } : mode === 'intent' ? { stripePaymentIntentId: 'pi_other' } : { stripeCreatedAt: new Date() }
+    await expect(independent.packageRefund.update({ where: { id: 're_package' }, data })).rejects.toThrow('immutable')
+  })
+  it.each([{ refundAmountInCents: -1 }, { refundPendingAmountInCents: -1 }, { refundFailedCount: -1 }, { refundAmountInCents: 5000, refundPendingAmountInCents: 2000 }])('database rejects invalid package refund totals %j', async data => {
+    await expect(independent.packagePurchase.update({ where: { id: purchaseId }, data })).rejects.toThrow()
+  })
   it.each(['transfer.created', 'transfer.updated', 'transfer.reversed', 'application_fee.created', 'application_fee.refunded',
     'application_fee.refund.updated', 'charge.updated', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed',
     'charge.dispute.funds_withdrawn', 'charge.dispute.funds_reinstated'])('reconciles package lifecycle %s even before checkout completion delivery', async type => {

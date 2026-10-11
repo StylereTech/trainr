@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
         const refund = event.data.object as Stripe.Refund
         const chargeId = stripeId(refund.charge)
         if (!chargeId) {
-          if (refund.payment_intent || refund.metadata?.bookingId) throw new RefundReconciliationError('Refund charge identity is missing')
+          if (refund.payment_intent || refund.metadata?.bookingId || refund.metadata?.packagePurchaseId ||
+              refund.metadata?.packageCheckoutAttemptId || refund.metadata?.paymentKind === 'package') throw new RefundReconciliationError('Refund charge identity is missing')
           break
         }
         await reconcileRefundEvent(chargeId, refund.id)

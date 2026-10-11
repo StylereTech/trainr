@@ -372,6 +372,10 @@ model PackagePurchase {
   stripeTransferId     String? @unique
   settlementVerifiedAt DateTime? @db.Timestamptz(3)
   financialReview      Json?
+  refundAmountInCents Int @default(0)
+  refundPendingAmountInCents Int @default(0)
+  refundFailedCount Int @default(0)
+  refundsVerifiedAt DateTime? @db.Timestamptz(3)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -379,6 +383,7 @@ model PackagePurchase {
   trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Restrict)
   package        Package        @relation(fields: [packageId], references: [id], onDelete: Restrict)
   checkoutAttempts PackageCheckoutAttempt[]
+  refunds PackageRefund[]
 
   @@unique([parentProfileId, requestId])
   @@index([trainerProfileId, createdAt])
@@ -398,6 +403,26 @@ model PackageCheckoutAttempt {
 
   @@unique([purchaseId, sequence])
   @@map("package_checkout_attempts")
+}
+
+model PackageRefund {
+  id String @id
+  purchaseId String
+  stripeChargeId String
+  stripePaymentIntentId String
+  amountInCents Int
+  currency String
+  status RefundStatus
+  transferReversalId String?
+  sourceTransferReversalId String?
+  failureBalanceTransactionId String?
+  failureReason String?
+  stripeCreatedAt DateTime @db.Timestamptz(3)
+  observedAt DateTime @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseId])
+  @@map("package_refunds")
 }
 
 // ==================

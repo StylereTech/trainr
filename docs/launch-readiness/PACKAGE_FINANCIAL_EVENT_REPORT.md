@@ -1,5 +1,7 @@
 # Package Financial Event Reconciliation
 
+Follow-up on 2026-10-11: [package refund history](PACKAGE_REFUND_HISTORY_REPORT.md) adds a separate package-refund ledger and refund-event reconciliation. The remaining gates below describe this earlier lifecycle phase; public package buying, credits and actual hosted money-flow proof remain unfinished.
+
 ## Scope And Baseline
 
 - Date: 2026-10-11 UTC. Baseline `98645b16e98f0b6e8d2ffecf8de469252f4b38f0`, audit branch `codex/payment-readiness-20261006`.
