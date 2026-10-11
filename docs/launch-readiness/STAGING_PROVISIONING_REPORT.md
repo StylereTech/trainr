@@ -1,5 +1,17 @@
 # Isolated Preview Provisioning
 
+## Authentication Configuration Follow-Up
+
+2026-10-11 03:38-03:41 UTC, authenticated Vercel owner and anonymous application browser, source `a4cf3129eafc7c93e8b7b30a3c77cf81d25ca0b8`:
+
+- Owner reported saving the prepared secret. Environment-variable search verified `NEXTAUTH_SECRET` as **Secret**, **Preview**, branch `codex/payment-readiness-20261006`; the success alert explicitly required a new deployment. The value was not revealed. This resolves the earlier owner-secret configuration gate, not login verification.
+- Redeployed exact audit source through Deployment Actions > Redeploy, Preview selected, same audit branch/domain, build cache unchecked. New deployment `7AMxYNEtnETbydN3gZT4uWbthVBi`, unique URL `https://trainr-angxygv92-styleres-projects.vercel.app`, reached **Ready**. No production promotion or production-secret change.
+- Browser opened the stable audit alias `/` and navigated Get Started to `/auth/signup`. Expected readable application/signup; actual both rendered. **PASS page reachability**. This supersedes the blanket browser-access blocker for those pages only.
+- Anonymous `/parent`, `/trainer/dashboard`, and `/admin` each redirected to `/auth/signin` with its corresponding encoded `callbackUrl`. **PASS anonymous page-route protection**; authenticated role isolation and API authorization are not established by these three checks.
+- `/api/health` still produced browser `ERR_BLOCKED_BY_CLIENT`. **BLOCKED health observation**, not an application failure or DB connectivity verdict. No alternate transport was used to bypass it.
+- Prepared non-sensitive names `Audit Parent` on the parent signup form. Email, password, confirmation and terms/submission remain an owner handoff. No signup success is claimed. Actual parent/trainer sessions, booking Checkout, Connect onboarding and payout tests remain pending.
+- Documentation/settings-only pass; prior unit/integration evidence was not rerun. The signed platform webhook proof in `STRIPE_WEBHOOK_INGRESS_REPORT.md` was obtained before this redeploy and is not represented as a new-runtime retest.
+
 2026-10-11 02:49 UTC follow-up: the approved domain exception is now validated by actual Stripe platform webhook deliveries, not just settings. [Provider event IDs, HTTP responses and independent negative-write proof](STRIPE_WEBHOOK_INGRESS_REPORT.md). Application money-flow and separate Connect delivery are still unverified.
 
 - Recorded: 2026-10-09 04:38 UTC; subsequent evidence is appended below.
