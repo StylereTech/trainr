@@ -27,4 +27,12 @@ Actual browser results: every expectation above passed. Both hung-request cases 
 
 ## Publication And Remaining Gates
 
-Publication and hosted retest pending. No production promotion is authorized by this report. Trainer Preview signup/onboarding, an approved bookable service, actual sandbox Checkout/settlement/transfer/payout and full package purchasing remain unverified or incomplete. Resend setup remains owner-deferred; no verification bypass was introduced. The current parent cannot access trainer payout routes by design. Package ownership rules await the owner response; no entitlement/refund policy was invented.
+Source fix `0053b01fec6d5a689bd65bd7506a91bb03cc357a` was committed and pushed to `codex/payment-readiness-20261006`; local HEAD and remote tracking SHA matched and checkout was clean. Vercel Preview `63n1GLrRWMQrKFU6FJdsQPbkQ1vN` is **Ready**, build duration 1m 3s, completed 2026-10-11 06:20:14 UTC. Exact commit, Preview environment and stable audit alias were observed in the deployment detail UI. Unique deployment: `https://trainr-4ch7qcv7w-styleres-projects.vercel.app`.
+
+Hosted retest, approximately 06:21 UTC, existing owner parent account, no mocks:
+
+1. Navigate the stable alias to `/trainer/profile?tab=payouts`. Expected role denial; actual redirect to `/parent/dashboard`, with one saved athlete and zero open bookings: **PASS**.
+2. Open saved synthetic athlete `cmv3bs3xr0001jn0694fd2p2f`. Expected saved values; actual Sandbox Athlete, 2014-01-15, Intermediate, Basketball/Soccer and previous synthetic goals/notes retained: **PASS**.
+3. Try direct browser navigation to `/api/trainer/wallet`. Actual `net::ERR_BLOCKED_BY_CLIENT`: **BLOCKED / NOT VERIFIED**, no HTTP status inference and no bypass attempt. Return to the parent dashboard succeeded.
+
+The trainer payout panel itself was exercised on the local optimized build, not with an authenticated hosted trainer. Local server and disposable PostgreSQL were stopped after cleanup. No production promotion is authorized by this report. Trainer Preview signup/onboarding, an approved bookable service, actual sandbox Checkout/settlement/transfer/payout and full package purchasing remain unverified or incomplete. Resend setup remains owner-deferred; no verification bypass was introduced. Package ownership rules await the owner response; no entitlement/refund policy was invented.
