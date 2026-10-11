@@ -36,7 +36,22 @@ Stopped the optional full-archive extraction during pgAdmin extraction and extra
 - Existing reservation retry matrix: **8/8**, including committed/lost response recovery, malformed response recovery, cancelled and zero-due paths. Existing dashboard matrix: **8/8**, real SQL pagination, persisted actions and read-failure recovery; its seeded payment state/provider observations are not actual financial transactions.
 - Inspected [desktop processing recovery](evidence/checkout-recovery-20261011/processing-after-desktop.png), [mobile error recovery](evidence/checkout-recovery-20261011/recovery-after-mobile.png), and [mobile booking processing state](evidence/checkout-recovery-20261011/processing-booking-after-mobile.png). Error text wraps and the new controls fit; browser assertions found no horizontal overflow. Raw traces remain ignored because they contain local session material.
 - Independent SQL cleanup: **PASS**, 07:26 UTC, zero users/bookings/payments/sports. Local application stopped and disposable database shut down cleanly. No schema, migration or hosted database writes.
-- Commit, push, isolated Preview deployment and hosted smoke: pending.
+- Commit, push, isolated Preview deployment and hosted smoke: verified below.
+
+## Publication And Hosted Smoke
+
+2026-10-11 07:30 UTC: source `59a8a649b409131888bfcbf4984abd6d5b3fcd4d` is committed and pushed on `codex/payment-readiness-20261006`; HEAD and origin tracking SHA match with a clean worktree. Vercel audit project `trainr` deployment `ptrE86qKnDcH6hEKyHAW37P9AqMK` is **Ready**, Preview, build duration 1m 5s. Deployment Details identifies that source and maps the stable branch alias. Unique URL: `https://trainr-h273sduoo-styleres-projects.vercel.app`.
+
+Hosted smoke used the existing owner-signed-in PARENT on `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`, without mocked responses, injected cookies or new hosted records:
+
+1. Reload `/parent/dashboard`: expected retained parent session and current persisted state; **PASS**, one saved athlete, zero bookings and no upcoming sessions.
+2. Select Past (0): expected empty history; **PASS**, No past sessions yet and disabled pagination, page 1 of 1.
+3. Open the existing synthetic athlete: expected unchanged saved fields; **PASS**, Sandbox Athlete, 2014-01-15, Intermediate, Basketball/Soccer and synthetic-only goals/notes remain intact.
+4. Open `/book/audit-missing-checkout-20261011`: expected recoverable missing trainer state; **PASS**, Trainer Not Found with Browse Trainers link rather than a crash.
+5. Follow Browse Trainers, then Reset search: expected usable unfiltered search; **PASS**, filter count/state chip removed and completed search shows 0 trainers found / No trainers found, not an error. There is no reachable trainer offering for hosted paid-booking verification.
+6. Return to `/parent/dashboard`: **PASS**, parent heading/session retained. No hosted booking or payment was created.
+
+The actual hosted checkout recovery controls cannot be exercised with this empty parent account and empty trainer catalog. Their populated-state evidence is the local SQL/browser matrix above. Actual Stripe-created URLs, payments, transfers and payouts remain unverified; only the existing Stripe-hosted checkout origin is accepted, and any future custom checkout domain would require explicit configuration/review. This publication evidence is committed separately without changing application source. Main, Production and Story were not changed.
 
 ## Remaining Gates
 
