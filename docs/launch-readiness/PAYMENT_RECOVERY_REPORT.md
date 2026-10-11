@@ -1,0 +1,49 @@
+# Administrator Payment Recovery
+
+## Identity And Scope
+
+- Date: 2026-10-11 UTC; investigation began about 10:08 UTC.
+- Baseline SHA: `c32f4331a7d071bbb6fe3a64ec5064dd2d92e0e3`, branch `codex/payment-readiness-20261006`. Fresh fetch matched HEAD; initial working tree clean.
+- Environment: Windows, local optimized app at `http://127.0.0.1:3107`; PostgreSQL 16.15 disposable database `trainr_audit_timezone_20261011` on loopback 55439. Synthetic `@example.test` parent/trainer/admin users only. Stripe receipts in local tests are simulated, not sandbox transactions.
+- Routes: POST `/api/admin/payments/reconcile`, `/admin/bookings`, existing payment webhook/checkout and refund reconciliation paths. Preview project `trainr` only for publication. Main, Production `trainr-node`, Story, email configuration and hosted financial records are excluded.
+- P1 operational gap: if a paid event is missed, the parent checkout path refuses recovery after the session starts. That timing protection is intentional, but no administrator payment-settlement refresh existed. Existing Confirm requires a settled payment; Refresh refunds requires a saved intent; Reconcile checkout is restricted to cancelled bookings. None supplies this recovery path for an ordinary pending booking with a known paid Checkout session.
+
+## Implementation
+
+1. Strict administrator-only POST accepts a booking ID, never caller-selected provider identities, destinations or amounts. Current ADMIN role and non-deleted status are checked under a user lock before reading saved payment/attempt identities, and rechecked in the settlement transaction after external lookup. Errors are private/no-store; unexpected provider diagnostics are redacted.
+2. A known Checkout session is retrieved with bounded provider reads. Its exact ID, mode, amount, currency and booking/payment/attempt metadata must match; only complete/paid sessions qualify. An already-saved intent can be verified when no session ID exists. Unknown, retired, conflicting or zero-due evidence requires review. No session is created, no old idempotency key is replayed and no new charge/refund/transfer/payout is issued.
+3. Existing settlement logic rechecks current attempt/payment identity under booking/payment locks and verifies intent, capture, immutable destination, transfer, application fee and dispute history. The operator cannot use refresh to bypass the receipt chain. A current lookup is forced for previously fully refunded payments; refund observations continue through the existing reconciliation path with administrator authorization.
+4. Concurrent refresh/webhook requests keep payment/booking effects and recipient notifications replay-safe. Each successful explicit admin verification creates its own `RECONCILE_PAYMENT` audit record in the settlement transaction. A required subsequent refund reconciliation can still fail: earlier verified identities/audit may have committed, the route returns an error, and retry continues without charging again. This is not an all-or-nothing cross-provider operation.
+5. Admin bookings expose Refresh payment for a positive payment record, including pending/cancelled rows. An uncertain, failed or malformed result disables repeat actions until Reload booking state succeeds. Success reloads persisted booking/payment state; wording does not claim a bank payout or absence of financial review.
+
+## Tests And Actual Results
+
+| Steps | Expected | Actual |
+| --- | --- | --- |
+| Focused route, webhook-ordering and refund units | Authorization/input/status/error handling and compatibility | PASS: 60 tests / 3 files, exit 0 |
+| Focused real SQL settlement suite | Recover without a payable checkout and retain the full receipt chain | PASS: 100 tests / 1 file, 32.48s, exit 0 |
+| Advance synthetic server clock past saved start, invoke parent checkout, then admin refresh plus concurrent webhook | Parent must refuse another checkout; existing paid receipt must recover exactly once | PASS: parent rejected before session lookup; refresh persisted SUCCEEDED/CONFIRMED and one party notice each; two explicit refresh audit records |
+| Revoke admin role/delete account during provider lookup | No settlement or audit write | PASS: current actor rejected after lookup; payment remains PENDING, no party notices/audit |
+| Open/expired/unpaid/mismatched/no-intent session; missing/retired/conflicting saved identity | No guessed payment or new checkout | PASS: rejected without settlement; preflight failures made no provider calls |
+| Wrong destination, provider failure then retry, concurrent attempt retirement | Validate actual receipt chain/current attempt | PASS: no false success; valid retry persists; retired attempt rejected |
+| Cancelled paid booking; previously fully refunded/reversed receipt | Keep terminal booking/refund state and issue review notices | PASS: cancellation preserved; full refund preserved and review notices delivered |
+| Full lint/type/unit/build gate | Existing behavior remains green | PASS: 1,234 units / 58 files, 75 generated pages, compile 39.1s, exit 0; existing lint/Browserslist warnings remain |
+| Full PostgreSQL suite | Shared financial/auth/booking regressions | PASS: 365 tests / 11 files, 91.73s, exit 0 |
+| Desktop/mobile response handling | Clickable control, reload after uncertain outcome, safe errors, persisted display and no overflow | PASS: 26/26 in 2.5m, exit 0, no retries/skips; 10 payment-recovery cases plus 16 existing outcome cases |
+| Publication and hosted smoke | Matching source Ready; role boundary retained | Pending |
+
+Commands: `node node_modules/vitest/vitest.mjs run tests/payment-reconciliation-route.test.ts tests/stripe-webhook-ordering.test.ts tests/refund-route.test.ts`; guarded `node node_modules/vitest/vitest.mjs run --config vitest.postgres.config.ts tests/integration/stripe-settlement.integration.ts`; `npm run check`; `npm run test:postgres`. Local logs are `.postgres-test/payment-reconciliation-focused-sql.log`, `payment-reconciliation-check.log`, `payment-reconciliation-full-sql.log`.
+
+The first unit command was blocked by sandbox filesystem access before tests executed; rerunning with the approved local-test permission passed. The first independent psql invocation misparsed positional arguments and did not execute its query; it is not evidence. The corrected invocation used explicit PG environment variables and piped SQL: database name and disposable marker matched, users/bookings/payments were zero after the focused suite. The SQL harness independently checks the marker before each suite. No hosted database reset or schema change occurred.
+
+## Operations And Limits
+
+Browser command: `node node_modules/@playwright/test/cli.js test e2e/payment-reconciliation-local-regression.spec.ts e2e/booking-outcome-local-regression.spec.ts --project=chromium --workers=1 --reporter=list --output=test-results/payment-reconciliation`; log `.postgres-test/payment-reconciliation-browser.log`. Installed Chrome at 1440px/390px, synthetic local auth and guarded SQL fixtures. Payment-recovery UI success/lost-response/error/malformed cases intercept only the new reconcile response; success/lost-response simulate the persisted outcome through SQL before responding. They are UI recovery proof, not an actual provider or server-reconciliation transaction. The missing-evidence case invokes the real new HTTP route and rejects before provider lookup. The SQL suite above independently covers the real service, settlement verifier, receipt relationships, locks and persistence with simulated Stripe reads. A final `tsc --noEmit` including the new E2E file passed, exit 0.
+
+Visually inspected [desktop recovery](evidence/payment-recovery-20261011/desktop-success.png) and [mobile recovery](evidence/payment-recovery-20261011/mobile-success.png): controls and persisted status remain legible without horizontal overflow. The mobile success toast temporarily covers part of the existing header, not the booking controls. This is a scoped inspection, not a site-wide visual signoff. Independent final SQL readback verified the disposable marker and zero users/bookings/payments/sports/services; the owned Next process was stopped (expected Ctrl-C exit 1), and PostgreSQL stopped cleanly. No hosted fixtures were deleted.
+
+Use Refresh payment on the relevant admin booking when a known payment may have succeeded without updating the app. Reload and inspect the resulting booking/payment/refund state and financial-review notifications. A successful refresh does not prove trainer bank payout, attendance, or resolve a dispute. For missing identities, investigate the original provider request; do not replace the attempt or charge again. Use existing refund review for refund decisions; this tool issues no refund.
+
+Stripe supports retrieving an existing Checkout session ([official reference](https://docs.stripe.com/api/checkout/sessions/retrieve)); webhook delivery requires retry/order-safe handling ([official webhook guidance](https://docs.stripe.com/webhooks)), both verified 2026-10-11. The implementation reuses current receipt verification rather than treating a browser success redirect as settlement proof.
+
+**HOLD:** unattended reconciliation/alert scheduling remains absent; this closes an operator recovery path, not automatic outage recovery. Real hosted trainer access/onboarding and a TRAINR Stripe sandbox booking/destination transfer/payout remain unverified. Programs/credit redemption, unpaid hold expiry policy/implementation and remaining Production release gates remain open. No launch or money-flow signoff.

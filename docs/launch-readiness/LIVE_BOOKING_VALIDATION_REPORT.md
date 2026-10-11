@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-11 recovery update: a local simulated missed paid event can be recovered by an administrator after the parent checkout window has closed, without issuing another checkout. [Exact receipt-chain, SQL/browser and hosted evidence](PAYMENT_RECOVERY_REPORT.md). This is not a live paid booking or trainer payout receipt; hosted money-flow signoff remains **HOLD**.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: The signed-in hosted parent still has one athlete and zero bookings. Clearing all catalog filters still returns zero eligible trainers. Local simulated checkout tests do not establish a hosted Stripe payment. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-11 07:26 UTC: parent checkout recovery passed local verification (1,053 unit tests, build, 40 browser regressions), including real local saved-reservation/readback and simulated provider failure/redirect cases. [Exact evidence and limits](PARENT_CHECKOUT_RECOVERY_REPORT.md). This does not verify a live or sandbox provider payment: the hosted parent still has no booking and trainer onboarding remains pending. Publication/hosted smoke pending; money-flow **HOLD**.

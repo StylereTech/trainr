@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-11 recovery update: operator payment refresh verifies existing destination-transfer and fee evidence, but never creates a transfer/payout and does not verify trainer bank receipt. Unknown identity is a review condition, not permission to charge again. [Exact implementation, tests and limitations](PAYMENT_RECOVERY_REPORT.md). Real sandbox/production payout proof remains **HOLD**.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking instant and Checkout expiry tests do not prove payouts. The defined Stripe-managed payout path still needs actual sandbox trainer/payment/transfer/payout evidence. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-11 06:21 UTC: source `0053b01` is pushed and Ready on isolated audit Preview. Hosted parent session is correctly denied the trainer payout page; direct wallet API browser navigation is client-blocked, not a passing API check. [Publication, local trainer tests and exact hosted limits](TRAINER_PAYOUT_UI_REPORT.md#publication-and-remaining-gates). No actual Stripe payout signoff; **HOLD**.

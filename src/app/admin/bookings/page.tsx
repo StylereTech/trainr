@@ -101,6 +101,25 @@ export default function AdminBookings() {
     } finally { setActionBusy(false) }
   }
 
+  const refreshPayment = async (bookingId: string) => {
+    if (actionBusy || needsReload || refreshingRefundId) return
+    setActionBusy(true)
+    setNeedsReload(true)
+    setActionError('')
+    try {
+      const response = await fetch('/api/admin/payments/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId }), signal: AbortSignal.timeout(80000) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Payment refresh could not be verified.')
+      if (result.reconciled !== true) throw new Error('Payment refresh returned an invalid response. Reload before retrying.')
+      if (!await fetchBookings()) throw new Error('Current booking state could not be loaded. Reload before another action.')
+      setNeedsReload(false)
+      toast({ title: 'Payment records refreshed', description: 'No charge, refund, transfer or payout was issued.' })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Payment refresh could not be verified. Reload before retrying.')
+    } finally { setActionBusy(false) }
+  }
+
   const totalPages = Math.ceil(total / limit)
 
   return (
@@ -166,8 +185,9 @@ export default function AdminBookings() {
                       {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                     </div>
                     <div className="flex flex-wrap gap-2 xl:justify-end">
+                      {b.payment && b.totalAmountInCents > 0 && <Button size="sm" variant="outline" disabled={actionBusy || needsReload || !!refreshingRefundId} onClick={() => void refreshPayment(b.id)}><RefreshCw className="mr-2 h-4 w-4" />Refresh payment</Button>}
                       {b.status === 'CANCELLED' && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => void handleAction(b.id, 'cancel')}><RefreshCw className="mr-2 h-4 w-4" />Reconcile checkout</Button>}
-                      {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId} onClick={() => void refreshRefunds(b.id)}>
+                      {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId || actionBusy || needsReload} onClick={() => void refreshRefunds(b.id)}>
                         {refreshingRefundId === b.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh refunds
                       </Button>}
                       {b.status === 'PENDING' && (

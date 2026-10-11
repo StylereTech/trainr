@@ -3,6 +3,7 @@ import { verifyDestinationSettlement, type SettlementSource } from '@/lib/stripe
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
 
 export class PaymentEventConflict extends Error {}
+export class PaymentEventAuthorizationError extends PaymentEventConflict {}
 
 export type PaymentEvidence = {
   bookingId: string
@@ -17,9 +18,14 @@ export type PaymentEvidence = {
   refundAmount?: number
 }
 
-export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: SettlementSource) {
+export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: SettlementSource, options: { adminUserId?: string } = {}) {
   if (evidence.outcome === 'refunded') throw new PaymentEventConflict('Refund snapshots require current Stripe refund reconciliation')
   const refundChargeId = await prisma.$transaction(async (tx) => {
+    if (options.adminUserId) {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${options.adminUserId} FOR SHARE`
+      const actor = await tx.user.findUnique({ where: { id: options.adminUserId }, select: { role: true, deletedAt: true } })
+      if (actor?.role !== 'ADMIN' || actor.deletedAt) throw new PaymentEventAuthorizationError('Administrator access is required')
+    }
     // Serialize related events, including distinct event IDs for the same payment.
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${evidence.bookingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${evidence.bookingId} FOR UPDATE`
@@ -131,8 +137,13 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
       }
     }
     if (notifications.length) await tx.notification.createMany({ data: notifications })
+    if (options.adminUserId) await tx.adminAction.create({ data: {
+      adminUserId: options.adminUserId, actionType: 'RECONCILE_PAYMENT', targetType: 'PAYMENT', targetId: payment.id,
+      description: 'Verified existing Stripe settlement without issuing money movement',
+      metadata: { bookingId: booking.id, chargeId: settlement.chargeId, transferId: settlement.transferId, requiresReview: needsReview || refundActivity, refundReconciliationRequired: settlement.hasRefunds },
+    } })
     return settlement.hasRefunds ? settlement.chargeId : undefined
   }, { maxWait: 5000, timeout: 25000 })
   // Commit verified identities first so an early refund can resolve the payment; failures remain retryable.
-  if (refundChargeId) await reconcilePaymentRefunds(evidence.bookingId, { chargeId: refundChargeId })
+  if (refundChargeId) await reconcilePaymentRefunds(evidence.bookingId, { chargeId: refundChargeId, ...options })
 }

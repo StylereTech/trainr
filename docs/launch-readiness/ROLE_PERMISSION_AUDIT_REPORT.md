@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-11 payment recovery: new POST `/api/admin/payments/reconcile` accepts only a booking ID from an administrator. Role/deletion are checked before reads and again under the settlement transaction's user lock after external lookup. Parent/trainer/anonymous, malformed identity selection and revoked-admin cases are covered. [Exact tests, environment and hosted verification status](PAYMENT_RECOVERY_REPORT.md). Full release signoff remains **HOLD**.
+
 2026-10-11 legacy coupon pass, baseline `f19bfc48d349f476896b98f9c160bd44830ae648`: removed unused anonymous coupon validation/data disclosure. The retired route returns a constant 410 without reading submitted data or querying persistence; the replacement quote endpoint retains parent authentication and service eligibility. [Exact failures, tests and publication status](LEGACY_COUPON_RETIREMENT_REPORT.md). This does not sign off all APIs or hosted trainer permissions; overall **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking and checkout timing checks retain the existing ownership and role guards, with synthetic local role/SQL regression coverage. No new hosted trainer or administrator session is claimed. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

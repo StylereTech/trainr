@@ -8,6 +8,7 @@ import { startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 import { changeNotifications, readNotifications } from '@/lib/notifications'
+import { reconcileBookingPayment } from '@/lib/payment-reconciliation'
 
 const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
@@ -80,6 +81,7 @@ beforeEach(async () => {
 })
 afterAll(async () => {
   if (verified) {
+    await prisma.adminAction.deleteMany({ where: { adminUserId: { in: users } } })
     await prisma.booking.deleteMany({ where: { id: { in: bookings } } })
     await prisma.user.deleteMany({ where: { id: { in: users } } })
     await prisma.sport.deleteMany({ where: { id: { in: sports } } })
@@ -89,6 +91,119 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  async function admin() {
+    const actor = await prisma.user.create({ data: { email: `reconcile-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } })
+    users.push(actor.id)
+    return actor.id
+  }
+  it('recovers a missed paid event after the parent checkout window closed and concurrent webhook retries', async () => {
+    const actor = await admin()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(new Date('2030-11-05T00:00:00Z').getTime())
+    try {
+      await expect(startOrResumeCheckout(f.booking.id, { id: parentId }, 'acct_settlement')).rejects.toThrow('started')
+      expect(provider.session).not.toHaveBeenCalled()
+      await Promise.all([reconcileBookingPayment(f.booking.id, actor), webhook(), reconcileBookingPayment(f.booking.id, actor)])
+      expect(await payment()).toMatchObject({ status: 'SUCCEEDED', stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
+      expect((await booking()).status).toBe('CONFIRMED')
+      expect(await notices()).toHaveLength(2)
+      expect(await independent.adminAction.count({ where: { adminUserId: actor, actionType: 'RECONCILE_PAYMENT' } })).toBe(2)
+    } finally { clock.mockRestore() }
+  })
+  it('can verify a saved intent without a Checkout ID, without making a new session', async () => {
+    const actor = await admin()
+    await prisma.checkoutAttempt.update({ where: { id: f.attempt.id }, data: { stripeCheckoutSessionId: null } })
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripeCheckoutSessionId: null, stripePaymentIntentId: f.intent.id } })
+    await reconcileBookingPayment(f.booking.id, actor)
+    expect(provider.session).not.toHaveBeenCalled()
+    expect((await payment()).status).toBe('SUCCEEDED')
+  })
+  it.each(['PARENT', 'TRAINER', 'deleted', 'missing'])('rejects unauthorized refresh %s before provider reads', async role => {
+    const actor = await admin()
+    if (role === 'deleted') await prisma.user.update({ where: { id: actor }, data: { deletedAt: new Date() } })
+    else if (role !== 'missing') await prisma.user.update({ where: { id: actor }, data: { role: role as 'PARENT' | 'TRAINER' } })
+    await expect(reconcileBookingPayment(f.booking.id, role === 'missing' ? 'missing' : actor)).rejects.toThrow('Administrator')
+    expect(provider.session).not.toHaveBeenCalled()
+    expect((await payment()).status).toBe('PENDING')
+  })
+  it.each(['role', 'deletion'])('rechecks admin %s after the external lookup', async change => {
+    const actor = await admin(), original = await provider.session()
+    provider.session.mockImplementationOnce(async () => {
+      await independent.user.update({ where: { id: actor }, data: change === 'role' ? { role: 'PARENT' } : { deletedAt: new Date() } })
+      return original
+    })
+    await expect(reconcileBookingPayment(f.booking.id, actor)).rejects.toThrow('Administrator')
+    expect((await payment()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+    expect(await independent.adminAction.count({ where: { adminUserId: actor } })).toBe(0)
+  })
+  it.each(['open', 'expired', 'unpaid', 'wrong-id', 'wrong-amount', 'wrong-attempt', 'no-intent'])('does not settle an unverifiable session: %s', async kind => {
+    const actor = await admin(), original = await provider.session()
+    if (kind === 'open' || kind === 'expired') original.status = kind
+    if (kind === 'unpaid') original.payment_status = 'unpaid'
+    if (kind === 'wrong-id') original.id = 'cs_other'
+    if (kind === 'wrong-amount') original.amount_total++
+    if (kind === 'wrong-attempt') original.metadata.checkoutAttemptId = 'other'
+    if (kind === 'no-intent') original.payment_intent = null
+    provider.session.mockResolvedValue(original)
+    await expect(reconcileBookingPayment(f.booking.id, actor)).rejects.toThrow()
+    expect((await payment()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+  })
+  it.each(['missing-identity', 'retired', 'disagreement', 'missing-attempt', 'zero', 'missing-booking'])('refuses unsafe saved evidence: %s', async kind => {
+    const actor = await admin()
+    if (kind === 'missing-identity') {
+      await prisma.checkoutAttempt.update({ where: { id: f.attempt.id }, data: { stripeCheckoutSessionId: null } })
+      await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripeCheckoutSessionId: null } })
+    }
+    if (kind === 'retired') await prisma.checkoutAttempt.update({ where: { id: f.attempt.id }, data: { retiredAt: new Date() } })
+    if (kind === 'disagreement') await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripeCheckoutSessionId: 'cs_other' } })
+    if (kind === 'missing-attempt') await prisma.checkoutAttempt.delete({ where: { id: f.attempt.id } })
+    if (kind === 'zero') await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { amountInCents: 0 } })
+    await expect(reconcileBookingPayment(kind === 'missing-booking' ? 'missing' : f.booking.id, actor)).rejects.toThrow()
+    expect(provider.session).not.toHaveBeenCalled()
+    expect(provider.intent).not.toHaveBeenCalled()
+    expect(await notices()).toHaveLength(0)
+  })
+  it('rejects an attempt that retired while the session was retrieved', async () => {
+    const actor = await admin(), original = await provider.session()
+    provider.session.mockImplementationOnce(async () => {
+      await independent.checkoutAttempt.update({ where: { id: f.attempt.id }, data: { retiredAt: new Date() } })
+      return original
+    })
+    await expect(reconcileBookingPayment(f.booking.id, actor)).rejects.toThrow('different checkout attempt')
+    expect((await payment()).status).toBe('PENDING')
+  })
+  it('does not treat a paid session as a verified trainer transfer', async () => {
+    const actor = await admin()
+    f.transfer.destination = 'acct_wrong'
+    await expect(reconcileBookingPayment(f.booking.id, actor)).rejects.toThrow('transfer does not match')
+    expect((await payment()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+  })
+  it('recovers provider failure on retry and keeps a cancelled paid booking cancelled with review notices', async () => {
+    const actor = await admin()
+    await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
+    provider.transfer.mockRejectedValueOnce(new Error('temporary provider failure'))
+    await expect(reconcileBookingPayment(f.booking.id, actor)).rejects.toThrow('temporary')
+    expect((await payment()).status).toBe('PENDING')
+    await reconcileBookingPayment(f.booking.id, actor)
+    expect((await payment()).status).toBe('SUCCEEDED')
+    expect((await booking()).status).toBe('CANCELLED')
+    expect((await notices()).every(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
+    expect(await independent.notification.count({ where: { userId: actor, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+  })
+  it('refreshes full refund and reversal evidence without restoring settlement or booking', async () => {
+    const actor = await admin()
+    await webhook()
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
+    await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
+    f.charge.refunded = true; f.charge.amount_refunded = 6000; f.transfer.amount_reversed = 6000
+    provider.refunds.mockResolvedValue({ data: [{ id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id, amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }], has_more: false })
+    await reconcileBookingPayment(f.booking.id, actor)
+    expect((await payment()).status).toBe('REFUNDED')
+    expect((await booking()).status).toBe('CANCELLED')
+    expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+  })
   it('delivers a signed financial change to each authorized inbox without read actions changing money or bookings', async () => {
     const admin = await prisma.user.create({ data: { email: `inbox-admin-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role: 'ADMIN' } })
     users.push(admin.id)

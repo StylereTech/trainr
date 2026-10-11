@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11 payment recovery: 365 real local PostgreSQL tests passed, including concurrent admin/webhook settlement, current actor/attempt rechecks, cancelled/refunded history preservation and independent readback. Provider receipts are simulated, database locks/persistence are real; no schema change. [Exact environment, commands and limits](PAYMENT_RECOVERY_REPORT.md). Hosted money-flow persistence remains unverified; **HOLD**.
+
 2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: 340 real PostgreSQL tests passed, including one-millisecond-before/exact-boundary guards, concurrent outcome retries and server-clock evaluation after a real booking-row wait. Independent reads verified status/count/notice/audit effects and unchanged payments. [Exact setup, failures, cleanup and publication status](BOOKING_OUTCOME_TIMING_REPORT.md). No schema or hosted data change; actual Stripe persistence proof remains **HOLD**.
 
 2026-10-11 09:23 UTC, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: 335 real PostgreSQL tests passed. Quotes are read-only; changed accepted totals commit no reservation, coupon, notification or ledger writes; reviewed retries and legacy exact replay persist correctly. No schema migration was added in this pass. [Exact setup, assertions, cleanup and publication status](BOOKING_PRICE_REVIEW_REPORT.md). Final local users/bookings/payments/coupons/sports counts were zero; hosted money flow remains **HOLD**.

@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-11 recovery update: admin Refresh payment retrieves only existing identities and reuses full destination-settlement verification, including after the parent checkout window closes. Local provider responses are simulated; no real money movement or bank payout is proven. [Exact baseline, tests, publication and limits](PAYMENT_RECOVERY_REPORT.md). Money-flow signoff remains **HOLD**.
+
 2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: premature completion/no-show is blocked without modifying payment records. Outcome actions do not issue refunds, transfers or bank payouts; synthetic paid fixture rows are not Stripe receipts. [Exact tests and publication status](BOOKING_OUTCOME_TIMING_REPORT.md). Actual hosted money movement and other launch gates remain **HOLD**.
 
 2026-10-11 price-review pass, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: accepted totals are compared with a server recalculation before reservation/coupon writes. Zero-due confirmation creates no Stripe charge or trainer payout. [Exact price-review verification and remaining gates](BOOKING_PRICE_REVIEW_REPORT.md). Actual sandbox Checkout/Connect/destination-transfer/payout remain unverified; **HOLD**.
