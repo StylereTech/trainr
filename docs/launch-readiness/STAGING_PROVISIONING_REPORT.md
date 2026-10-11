@@ -1,5 +1,7 @@
 # Isolated Preview Provisioning
 
+2026-10-11 02:49 UTC follow-up: the approved domain exception is now validated by actual Stripe platform webhook deliveries, not just settings. [Provider event IDs, HTTP responses and independent negative-write proof](STRIPE_WEBHOOK_INGRESS_REPORT.md). Application money-flow and separate Connect delivery are still unverified.
+
 - Recorded: 2026-10-09 04:38 UTC; subsequent evidence is appended below.
 - Baseline commit: `8e2a945523aa4031644e1de605c202bab87b096d`.
 - Verified/pushed source: `076e9f532056618ce604b00323aca6d390753045`, audit branch `codex/payment-readiness-20261006`.
