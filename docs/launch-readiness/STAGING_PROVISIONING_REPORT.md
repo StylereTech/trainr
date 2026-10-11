@@ -53,10 +53,25 @@ The Transfer group selected an additional legacy `transfer.canceled` event; the 
 ## Remaining Gates
 
 1. Owner completes and saves the prepared independent `NEXTAUTH_SECRET` form without sending its value in chat.
-2. Owner answers the precise exception request for this single preview domain. No global protection weakening is authorized or performed.
+2. DONE 2026-10-11 02:42 UTC: owner-approved exception saved for the single audit Preview domain. Global protection remains enabled. Actual ingress is still unverified; see the retest below.
 3. DONE at 04:48 UTC: full quality gate, source push, Ready Vercel Preview, actual migration ledger and empty application-record counts verified. See final evidence below.
 4. Exercise controlled parent/trainer accounts through TRAINR, sandbox Connect onboarding, full test Checkout, signed webhook, persisted booking/payment state after refresh, destination transfer, and payout readiness/status. None is passed by this setup report.
 5. Preserve existing product and production gates, including incomplete package purchase/credit workflows and production schema/backup review.
+
+## Approved Domain Exception Retest
+
+- Timestamp: 2026-10-11 02:42 UTC.
+- Source baseline: `39d827d14bf838e4817c06d69f9a67c56d158ec0`; documentation-only follow-up, no application code change.
+- Environment/account: authenticated Vercel `styleres-projects`, project `trainr`, isolated audit Preview. No parent/trainer account used.
+- Settings route: `/styleres-projects/trainr/settings/deployment-protection`.
+- Approved domain: `trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app` only.
+- Exact steps: after the owner's action-time approval, clicked Add Domain, entered the exact alias, continued, entered the matching confirmation domain and required verification phrase, then clicked Remove Protection.
+- Expected: one domain exception, with global Require Log In / Standard Protection unchanged.
+- Actual/retest proof: completed UI shows that exact alias in the Unprotected Domains table; Require Log In remains checked and Standard Protection remains selected. **PASS configuration**. Production and other domains were not changed. The exception persists until manually removed from this list.
+- Reachability step: opened the alias plus `/api/health` in a fresh in-app browser tab after the saved exception.
+- Expected: readable application health response; actual: `net::ERR_BLOCKED_BY_CLIENT`. **BLOCKED browser validation**, not evidence of application failure or successful public ingress. No browser warning or client protection was bypassed.
+- Fix status: domain-exception approval/configuration gate resolved. Independent `NEXTAUTH_SECRET` entry and submission remain with the owner in the prepared branch-only form. No credential value was entered or read in this pass.
+- Remaining tests: provider-backed webhook delivery, authenticated parent/trainer flows, Checkout, Connect and payout evidence are **NOT TESTED in this pass**. Prior 981-test/build evidence is unchanged, not rerun for this documentation/settings-only update. No production promotion or financial records were created.
 
 ## Publication And Quality Retest
 
