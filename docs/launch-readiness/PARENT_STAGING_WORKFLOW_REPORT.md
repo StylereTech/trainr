@@ -54,4 +54,20 @@ After parent sign-out, `/auth/signup?role=trainer` was prepared with Audit Train
 
 Started that production build on `127.0.0.1:3107` and ran `e2e/browse-local-regression.spec.ts` with Chrome, one worker. **8/8 passed**, 53.7 seconds: HTTP failure/retry, malformed top-level response/retry, Explore/filter clearing/accessibility, and superseded-request cancellation, each at 1440x900 and 390x900. Desktop/mobile screenshots were inspected; tested pages had no horizontal overflow. The local test server was stopped afterward.
 
-These browser tests are localhost-only and mock catalog/session responses; they are not real Stripe or database proof. Real parent/Neon evidence is separately listed above. No production deployment, production database write, real charge, or paid Resend subscription occurred. Publication and deployed smoke remain pending at this recording time.
+These browser tests are localhost-only and mock catalog/session responses; they are not real Stripe or database proof. Real parent/Neon evidence is separately listed above. No production deployment, production database write, real charge, or paid Resend subscription occurred.
+
+## Publication And Hosted Retest
+
+2026-10-11 04:49 UTC: source `38eca264f8dbd80ceb12d32bc53e912bca77ec33` was committed and pushed to `codex/payment-readiness-20261006`. Vercel Preview deployment `HZkJQNS23KGpNUTWXV2cUMiucjaJ` is **Ready**, build duration 54 seconds, with that exact source and the stable audit alias assigned. Immutable deployment: `https://trainr-37r1zrg59-styleres-projects.vercel.app`.
+
+Signed-out hosted `/browse` retest, without catalog/session mocks:
+
+| Exact steps | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| Open stable alias `/browse`, expand Filters | Named filter controls, real catalog response | State, Sport, Session Type, Min Rating and Sort By names present; 0 trainers found | PASS controls/empty catalog only |
+| Click Remove state filter | Texas removed | State reads All States | PASS |
+| Click Explore and wait for completion | Search loading followed by response | Searching for trainers, then No trainers found | PASS search action |
+| Select Texas again, then Reset search | Reset removes selected state | All States; zero Remove state filter buttons | PASS |
+| Inspect settled layout | No horizontal overflow or overlapping empty-state content | Document width 1265 <= viewport 1280; screenshot inspected | PASS this viewport/region |
+
+No trainer profile was available to select, so this is not booking/payment proof. Email, owner trainer signup, favorites, complete program purchase, Connect and payout gates remain open. The later evidence-only commit does not change the tested application source.
