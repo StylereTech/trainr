@@ -42,7 +42,7 @@ The inline athlete-save test previously used an empty-service trainer. Its fixtu
 | Final complete desktop/mobile suite | 270 passed, 31.1 minutes, exit 0; no failures/skips | `.postgres-test/booking-layout-release-browser.log` |
 | Final PostgreSQL integration rerun | 404 passed / 12 files, 168.22s, exit 0 | `.postgres-test/booking-layout-release-sql.log` |
 | Independent fixture cleanup and owned-server shutdown | Passed at 19:22 UTC; zero rows in all 12 checked fixture tables; Next and PostgreSQL stopped | `.postgres-test/booking-layout-release-cleanup.log` |
-| Commit/push, Ready Preview and hosted smoke | Pending | No pass claimed |
+| Source commit/push, Ready Preview and hosted smoke | Passed for the scoped publication/read/access checks below; not paid-booking proof | `756d85a99b1cd26feebe0ec0a7b33c0e04c126c1`, `.postgres-test/booking-layout-source-hosted-smoke.log` |
 
 ## Retest Details
 
@@ -83,4 +83,14 @@ This is a booking UI repair, not actual hosted Stripe Checkout, trainer onboardi
 
 At 19:22 UTC, an independent `psql` read verified database `trainr_audit_timezone_20261011`, role `trainr_test`, the disposable integration guard and zero rows in users, bookings, payments, packages, package items, service offerings, sports, Connect attempts, checkout attempts, refunds, wallet entries and withdrawals. The app server was stopped after the browser run. The first PostgreSQL stop request was denied by the process sandbox; the authorized exact-data-directory retry exited 0 and reported `server stopped`. No required local test process remains running.
 
-Source publication and hosted retest follow after the scoped audit-branch push. No main or Production deployment is authorized by these local results.
+Source committed and pushed as `756d85a99b1cd26feebe0ec0a7b33c0e04c126c1`, `fix: simplify booking review and responsive layout`, to `codex/payment-readiness-20261006`. The post-push working tree was clean and the tracked remote branch matched. No main or Production deployment is authorized by these local results.
+
+## Published Source And Hosted Retest
+
+- Vercel project `trainr`, deployment [J3kEptnnfz6xt45Jos9dnat5NARd](https://vercel.com/styleres-projects/trainr/J3kEptnnfz6xt45Jos9dnat5NARd), was visibly **Ready** at 2026-10-11 19:24:45 UTC, duration 48s, environment **Preview**, source `756d85a`. Unique domain: `trainr-qfanjzsi8-styleres-projects.vercel.app`; the stable audit branch alias was listed on that deployment. No manual duplicate deploy was needed.
+- [GitHub Actions run 38167843398](https://github.com/StylereTech/trainr/actions/runs/38167843398) failed before either `check` or `migrations` executed. Fresh UI annotation on both: `The job was not started because your account is locked due to a billing issue.` This is an external hosted-CI blocker, not a green CI result or a reproduced code failure. No billing/security change was made.
+- Anonymous stable-Preview checks at 19:24:55-56 UTC: `GET /api/bookings`, `GET /api/trainer/packages`, `GET /api/trainer/wallet`, and empty `POST /api/admin/refunds` each returned expected 401; unsigned empty `POST /api/payments/webhook` returned expected 400. All five passed, exit 0. No authenticated financial mutation or valid payment event was submitted.
+- Existing hosted **PARENT** account: refreshed `/parent/dashboard`, waited for `My Athletes`, and observed the same saved synthetic athlete and zero bookings. Browser error log was empty. Navigating to `/trainer/packages` returned to `/parent/dashboard`, retaining the athlete link. Expected parent-role denial passed.
+- Followed `Find Trainers`, reset the preset state filter, and observed `0 trainers found` / `No trainers found` with no filter chip. Empty catalog/search controls were reachable. A real hosted trainer booking form and paid Checkout cannot be signed off from this state; the responsive booking screenshots and positive reservation cases are local fixture evidence only.
+
+This documentation follow-up records source publication. Overall production and money-flow status remain **HOLD**.
