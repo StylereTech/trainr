@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({ user: vi.fn(), booking: vi.fn(), account: vi.fn
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: { booking: { findUnique: mock.booking }, trainerProfile: { update: mock.updateTrainer } } }))
 vi.mock('@/lib/checkout-attempts', () => ({ CheckoutConflict: class extends Error {}, startOrResumeCheckout: mock.checkout }))
+vi.mock('@/lib/connect-readiness', () => ({ refreshConnectReadiness: mock.account }))
 vi.mock('@/lib/stripe', () => ({
   stripeRuntimeStatus: () => ({ secretConfigured: true }),
   mapStripeError: () => ({ message: 'Checkout temporarily unavailable', detail: 'private provider detail', status: 503 }),
@@ -71,14 +72,20 @@ describe('checkout route boundaries', () => {
   it('blocks restricted accounts and revokes a stale cached flag', async () => {
     mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
     expect((await send()).status).toBe(400)
-    expect(mock.updateTrainer).toHaveBeenCalledWith({ where: { id: 'trainer' }, data: { stripeOnboardingComplete: false } })
+    expect(mock.account).toHaveBeenCalledWith('acct_ready')
     expect(mock.checkout).not.toHaveBeenCalled()
   })
   it('recovers a stale false readiness flag', async () => {
     const booking = await mock.booking()
     mock.booking.mockResolvedValue({ ...booking, trainerProfile: { ...booking.trainerProfile, stripeOnboardingComplete: false } })
     expect((await send()).status).toBe(200)
-    expect(mock.updateTrainer).toHaveBeenCalledWith({ where: { id: 'trainer' }, data: { stripeOnboardingComplete: true } })
+    expect(mock.account).toHaveBeenCalledWith('acct_ready')
+  })
+  it('refuses checkout when the saved account is no longer linked', async () => {
+    mock.account.mockResolvedValue(null)
+    expect((await send()).status).toBe(400)
+    expect(mock.checkout).not.toHaveBeenCalled()
+    expect(mock.updateTrainer).not.toHaveBeenCalled()
   })
   it('fails closed on provider outages without exposing raw details', async () => {
     mock.account.mockRejectedValue(new Error('private provider detail'))

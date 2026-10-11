@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   event: vi.fn(),
   account: vi.fn(),
   session: vi.fn(),
-  trainer: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  trainer: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   transaction: vi.fn(),
   query: vi.fn(),
   booking: { findUnique: vi.fn(), updateMany: vi.fn() },
@@ -40,8 +40,10 @@ vi.mock('@/lib/stripe', () => ({
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.query.mockResolvedValue([])
+  mocks.trainer.findFirst.mockResolvedValue({ id: 'trainer' })
   mocks.transaction.mockImplementation(async (run) => run({
     $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
+    trainerProfile: mocks.trainer,
     checkoutAttempt: { findFirst: async () => null },
   }))
   mocks.booking.updateMany.mockResolvedValue({ count: 1 })
@@ -74,7 +76,7 @@ describe('Stripe account readiness', () => {
     const { GET } = await import('@/app/api/trainer/stripe-connect/route')
     const response = await GET(new Request('http://localhost/api/trainer/stripe-connect') as any)
     expect((await response.json()).onboardingComplete).toBe(false)
-    expect(mocks.trainer.updateMany).toHaveBeenCalledWith({ where: { id: 'trainer', stripeAccountId: 'acct_test' }, data: { stripeOnboardingComplete: false } })
+    expect(mocks.trainer.updateMany).toHaveBeenCalledWith({ where: { stripeAccountId: 'acct_test' }, data: { stripeOnboardingComplete: false } })
   })
 })
 
@@ -102,6 +104,7 @@ describe('Stripe webhook payment guards', () => {
   )
 
   it('revokes cached onboarding when account.updated disables payments', async () => {
+    mocks.account.mockResolvedValue({ id: 'acct_test', details_submitted: true, charges_enabled: false, payouts_enabled: true })
     const response = await send('account.updated', { id: 'acct_test', details_submitted: true, charges_enabled: false, payouts_enabled: true })
     expect(response.status).toBe(200)
     expect(mocks.trainer.updateMany).toHaveBeenCalledWith({ where: { stripeAccountId: 'acct_test' }, data: { stripeOnboardingComplete: false } })

@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ensureConnectAccount } from '@/lib/connect-accounts'
+import { refreshConnectReadiness } from '@/lib/connect-readiness'
 import { closeAccount } from '@/lib/account-closure'
 import { GET, POST } from '@/app/api/payments/connect/route'
 import { POST as legacyPost, GET as legacyGet } from '@/app/api/trainer/stripe-connect/route'
@@ -49,6 +50,77 @@ afterEach(async () => { if (verified && userId) await prisma.user.deleteMany({ w
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('real PostgreSQL Connect identity', () => {
+  it('serializes provider reads across concurrent readiness writers', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing' } })
+    let release!: () => void, entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    provider.retrieve.mockImplementationOnce(async () => {
+      const wait = new Promise<void>(resolve => { release = resolve })
+      entered(); await wait
+      return ready()
+    }).mockResolvedValue({ ...ready(), payouts_enabled: false })
+    const first = refreshConnectReadiness('acct_existing')
+    await started
+    const second = refreshConnectReadiness('acct_existing')
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0 AND query LIKE '%trainer_profiles%'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+      expect(provider.retrieve).toHaveBeenCalledTimes(1)
+    } finally { release(); await Promise.all([first, second]) }
+    expect(provider.retrieve).toHaveBeenCalledTimes(2)
+    expect(provider.retrieve).toHaveBeenCalledWith('acct_existing', {}, { timeout: 4000, maxNetworkRetries: 0 })
+    expect((await read()).stripeOnboardingComplete).toBe(false)
+  })
+  it('does not fetch or alter an account replaced while its profile lock was pending', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing', stripeOnboardingComplete: true } })
+    let release!: () => void, entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const holder = independent.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${trainerId} FOR UPDATE`
+      const wait = new Promise<void>(resolve => { release = resolve })
+      entered(); await wait
+      await tx.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_replacement', stripeOnboardingComplete: false } })
+    })
+    await started
+    const refresh = refreshConnectReadiness('acct_existing')
+    let result: Awaited<typeof refresh>
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0 AND query LIKE '%trainer_profiles%'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+    } finally { release(); await holder; result = await refresh }
+    expect(result).toBeNull()
+    expect(provider.retrieve).not.toHaveBeenCalled()
+    expect(await read()).toMatchObject({ stripeAccountId: 'acct_replacement', stripeOnboardingComplete: false })
+  })
+  it.each(['provider-failure', 'wrong-identity'])('preserves last recorded readiness on %s and permits a verified retry', async kind => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing', stripeOnboardingComplete: true } })
+    if (kind === 'provider-failure') provider.retrieve.mockRejectedValueOnce(new Error('temporary provider failure'))
+    else provider.retrieve.mockResolvedValueOnce(ready('acct_other'))
+    await expect(refreshConnectReadiness('acct_existing')).rejects.toThrow()
+    expect((await read()).stripeOnboardingComplete).toBe(true)
+    provider.retrieve.mockResolvedValue({ ...ready(), payouts_enabled: false })
+    await refreshConnectReadiness('acct_existing')
+    expect((await read()).stripeOnboardingComplete).toBe(false)
+  })
+  it('clears readiness for a deleted provider account without losing the saved identity', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing', stripeOnboardingComplete: true } })
+    provider.retrieve.mockResolvedValue({ id: 'acct_existing', deleted: true })
+    await refreshConnectReadiness('acct_existing')
+    expect(await read()).toMatchObject({ stripeAccountId: 'acct_existing', stripeOnboardingComplete: false })
+    const body = await (await GET(request())).json()
+    expect(body).toMatchObject({ stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null })
+    expect(body.providerError).toContain('could not be verified')
+  })
+  it.each(['acct_unknown', 'wrong', 'acct_'])('does not contact Stripe for unlinked/invalid identity %s', async id => {
+    if (id === 'acct_unknown') expect(await refreshConnectReadiness(id)).toBeNull()
+    else await expect(refreshConnectReadiness(id)).rejects.toThrow('identity')
+    expect(provider.retrieve).not.toHaveBeenCalled()
+    expect((await read()).stripeAccountId).toBeNull()
+  })
   it('concurrent canonical and legacy requests attach one durable account', async () => {
     const responses = await Promise.all([POST(request()), legacyPost(request()), POST(request())])
     expect(responses.map(r => r.status)).toEqual([200, 200, 200])

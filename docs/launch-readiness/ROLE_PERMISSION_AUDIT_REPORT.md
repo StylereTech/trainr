@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-11 Connect ordering pass: shared readiness refresh retains existing current-user/session/account checks and webhook signature/scope validation. Unknown Connect IDs trigger no provider lookup or cached-readiness write. [Exact SQL, route, browser and hosted retest evidence](CONNECT_READINESS_ORDERING_REPORT.md). No role/credential changes; release signoff remains **HOLD**.
+
 2026-10-11 payment recovery: new POST `/api/admin/payments/reconcile` accepts only a booking ID from an administrator. Role/deletion are checked before reads and again under the settlement transaction's user lock after external lookup. Parent/trainer/anonymous, malformed identity selection and revoked-admin cases are covered. [Exact tests, environment and hosted verification status](PAYMENT_RECOVERY_REPORT.md). Full release signoff remains **HOLD**.
 
 2026-10-11 legacy coupon pass, baseline `f19bfc48d349f476896b98f9c160bd44830ae648`: removed unused anonymous coupon validation/data disclosure. The retired route returns a constant 410 without reading submitted data or querying persistence; the replacement quote endpoint retains parent authentication and service eligibility. [Exact failures, tests and publication status](LEGACY_COUPON_RETIREMENT_REPORT.md). This does not sign off all APIs or hosted trainer permissions; overall **HOLD**.

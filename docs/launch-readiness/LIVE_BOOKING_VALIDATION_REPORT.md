@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-11 Connect ordering pass: current-provider readiness refresh now shares database locks across checkout, trainer status and webhook paths. Fresh read-only hosted counts show zero trainers, catalog entries, bookings and payments, so no actual hosted paid booking is claimed. [Exact test and prerequisite evidence](CONNECT_READINESS_ORDERING_REPORT.md). Overall **HOLD**.
+
 2026-10-11 recovery update: a local simulated missed paid event can be recovered by an administrator after the parent checkout window has closed, without issuing another checkout. [Exact receipt-chain, SQL/browser and hosted evidence](PAYMENT_RECOVERY_REPORT.md). This is not a live paid booking or trainer payout receipt; hosted money-flow signoff remains **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: The signed-in hosted parent still has one athlete and zero bookings. Clearing all catalog filters still returns zero eligible trainers. Local simulated checkout tests do not establish a hosted Stripe payment. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

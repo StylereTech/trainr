@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 Connect ordering pass: all 36 affected trainer Connect/payout and parent checkout recovery cases passed on the complete rerun at 1440px/390px. [Exact results, first-run time-budget failures, screenshots and limits](CONNECT_READINESS_ORDERING_REPORT.md). Provider values in these local screens are synthetic, not payout receipts. Site-wide signoff remains **HOLD**.
+
 2026-10-11 payment recovery: admin booking rows expose Refresh payment with persisted-state reload and explicit uncertain-result recovery. The control does not claim funds were sent or a bank payout completed. [Exact desktop/mobile tests, screenshots and publication status](PAYMENT_RECOVERY_REPORT.md). Site-wide visual/production signoff remains **HOLD**.
 
 2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: trainer/admin outcome controls reflect saved timing, update as the local clock advances, and surface authoritative server rejection when that clock is ahead. All 24 affected desktop/mobile outcome/dashboard cases passed after isolating the test's parent session. [Screenshots, exact failures and retest](BOOKING_OUTCOME_TIMING_REPORT.md). This does not sign off every page or actual hosted trainer/Stripe flow; overall **HOLD**.

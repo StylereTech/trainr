@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-11 Connect ordering pass, baseline `50c559bf80b85c5daa5a5b68d50dd7626f38cce4`: webhook, trainer status and checkout now serialize current-provider readiness refreshes. Fresh read-only hosted evidence shows one parent, no trainer, no linked Connect account, no services/packages/bookings/payments; Stripe sandbox also lists zero connected accounts. [Exact finding, local regression evidence, publication status and limits](CONNECT_READINESS_ORDERING_REPORT.md). Actual hosted trainer onboarding and paid booking/transfer/payout remain unverified; overall **HOLD**. Audit Preview only; main/Production/Story unchanged.
+
 2026-10-11 recovery update: operator payment refresh verifies existing destination-transfer and fee evidence, but never creates a transfer/payout and does not verify trainer bank receipt. Unknown identity is a review condition, not permission to charge again. [Exact implementation, tests and limitations](PAYMENT_RECOVERY_REPORT.md). Real sandbox/production payout proof remains **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking instant and Checkout expiry tests do not prove payouts. The defined Stripe-managed payout path still needs actual sandbox trainer/payment/transfer/payout evidence. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

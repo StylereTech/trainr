@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { stripeRuntimeStatus, verifyWebhookSignature } from '@/lib/stripe'
-import { prisma } from '@/lib/prisma'
-import { isStripeAccountReady } from '@/lib/stripe-account'
+import { refreshConnectReadiness } from '@/lib/connect-readiness'
 import { applyPaymentEvidence, PaymentEventConflict } from '@/lib/stripe-payment-events'
 import Stripe from 'stripe'
 import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
@@ -85,10 +84,7 @@ export async function POST(req: NextRequest) {
       }
       case 'account.updated': {
         const account = event.data.object as Stripe.Account
-        await prisma.trainerProfile.updateMany({
-          where: { stripeAccountId: account.id },
-          data: { stripeOnboardingComplete: isStripeAccountReady(account) },
-        })
+        await refreshConnectReadiness(account.id)
         break
       }
       case 'transfer.created':

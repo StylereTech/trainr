@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
+import { mapStripeError, stripeRuntimeStatus } from '@/lib/stripe'
 import { isStripeAccountReady } from '@/lib/stripe-account'
 import { CheckoutConflict, startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { SettlementConflict } from '@/lib/stripe-settlement'
 import { checkoutTimeError } from '@/lib/booking-time'
+import { refreshConnectReadiness } from '@/lib/connect-readiness'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -39,11 +40,8 @@ export async function POST(req: NextRequest) {
     }
     const accountId = booking.trainerProfile.stripeAccountId
     if (!accountId) return NextResponse.json({ error: 'Trainer must finish Stripe setup before checkout' }, { status: 400 })
-    const account = await stripe.accounts.retrieve(accountId)
-    const ready = isStripeAccountReady(account)
-    if (ready !== booking.trainerProfile.stripeOnboardingComplete) {
-      await prisma.trainerProfile.update({ where: { id: booking.trainerProfile.id }, data: { stripeOnboardingComplete: ready } })
-    }
+    const account = await refreshConnectReadiness(accountId)
+    const ready = account && isStripeAccountReady(account)
     if (!ready) return NextResponse.json({ error: 'Trainer must finish Stripe setup before checkout' }, { status: 400 })
     return NextResponse.json(await startOrResumeCheckout(bookingId, user, accountId))
   } catch (error) {

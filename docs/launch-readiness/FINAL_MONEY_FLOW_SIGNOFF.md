@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-11 Connect ordering pass, baseline `50c559bf80b85c5daa5a5b68d50dd7626f38cce4`: webhook, trainer status and checkout now serialize current-provider readiness refreshes. Fresh read-only hosted evidence shows one parent, no trainer, no linked Connect account, no services/packages/bookings/payments; Stripe sandbox also lists zero connected accounts. [Exact finding, local regression evidence, publication status and limits](CONNECT_READINESS_ORDERING_REPORT.md). Actual hosted trainer onboarding and paid booking/transfer/payout remain unverified; overall **HOLD**. Audit Preview only; main/Production/Story unchanged.
+
 2026-10-11 recovery update: admin Refresh payment retrieves only existing identities and reuses full destination-settlement verification, including after the parent checkout window closes. Local provider responses are simulated; no real money movement or bank payout is proven. [Exact baseline, tests, publication and limits](PAYMENT_RECOVERY_REPORT.md). Money-flow signoff remains **HOLD**.
 
 2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: premature completion/no-show is blocked without modifying payment records. Outcome actions do not issue refunds, transfers or bank payouts; synthetic paid fixture rows are not Stripe receipts. [Exact tests and publication status](BOOKING_OUTCOME_TIMING_REPORT.md). Actual hosted money movement and other launch gates remain **HOLD**.

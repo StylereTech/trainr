@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-11 Connect ordering pass, baseline `50c559bf80b85c5daa5a5b68d50dd7626f38cce4`: webhook, trainer status and checkout now serialize current-provider readiness refreshes. Fresh read-only hosted evidence shows one parent, no trainer, no linked Connect account, no services/packages/bookings/payments; Stripe sandbox also lists zero connected accounts. [Exact finding, local regression evidence, publication status and limits](CONNECT_READINESS_ORDERING_REPORT.md). Actual hosted trainer onboarding and paid booking/transfer/payout remain unverified; overall **HOLD**. Audit Preview only; main/Production/Story unchanged.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: The current pass hardens booking/Checkout expiry and recoverable-session handling only. No new actual Connect onboarding success is claimed. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-09 04:38 UTC: active sandbox Connected accounts destination `we_1UOVGbPvdPuIlEw5K131lGyU` now subscribes to `account.updated`; its separate signing secret is saved in the audit branch only. Platform payment destination and test keys are also configured. No event delivery or trainer onboarding has yet passed. [Provisioning and exact remaining gates](STAGING_PROVISIONING_REPORT.md). Overall **HOLD**.

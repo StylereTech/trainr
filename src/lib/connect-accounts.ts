@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { createConnectedAccount, stripe } from '@/lib/stripe'
-import { isStripeAccountReady } from '@/lib/stripe-account'
+import { createConnectedAccount } from '@/lib/stripe'
+import { refreshConnectReadiness } from '@/lib/connect-readiness'
 
 export class ConnectAccountError extends Error {
   constructor(message: string, public status = 409) { super(message) }
@@ -59,10 +59,9 @@ export async function ensureConnectAccount(userId: string) {
 export async function verifiedConnectAccount(userId: string, accountId: string) {
   const before = await currentConnectTrainer(userId)
   if (before.stripeAccountId !== accountId) throw new ConnectAccountError('Stripe account changed. Reload before continuing.')
-  const account = await stripe.accounts.retrieve(accountId)
-  if (account.deleted || account.id !== accountId) throw new ConnectAccountError('Existing Stripe account could not be verified. Contact support; its identity has been preserved.')
+  const account = await refreshConnectReadiness(accountId)
+  if (!account || account.deleted) throw new ConnectAccountError('Existing Stripe account could not be verified. Contact support; its identity has been preserved.')
   const current = await currentConnectTrainer(userId)
   if (current.stripeAccountId !== accountId || current.user.sessionVersion !== before.user.sessionVersion) throw new ConnectAccountError('Account access changed. Reload before continuing.')
-  await prisma.trainerProfile.updateMany({ where: { id: current.id, stripeAccountId: accountId }, data: { stripeOnboardingComplete: isStripeAccountReady(account) } })
   return account
 }
