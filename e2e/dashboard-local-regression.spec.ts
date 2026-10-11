@@ -18,7 +18,9 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       const athlete = await db.athleteProfile.create({ data: { parentProfileId: parentProfile.id, firstName: 'Database', lastName: 'Athlete', dateOfBirth: new Date('2015-01-01') } })
       try {
         for (let index = 0; index < 24; index++) await db.booking.create({ data: { parentProfileId: parentProfile.id, trainerProfileId: trainerProfile.id, athleteProfileId: athlete.id, serviceOfferingId: service.id,
-          date: new Date(Date.UTC(2030, 10, index + 1)), startTime: '09:00', endTime: '10:00', status: index < 12 ? 'PENDING' : index === 23 ? 'RESCHEDULED' : 'COMPLETED',
+          date: new Date(Date.UTC(2020, 10, index + 1)), startTime: '09:00', endTime: '10:00', timeZone: 'UTC',
+          startsAt: new Date(Date.UTC(2020, 10, index + 1, 9)), endsAt: new Date(Date.UTC(2020, 10, index + 1, 10)),
+          status: index < 12 ? 'PENDING' : index === 23 ? 'RESCHEDULED' : 'COMPLETED',
           totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, notes: `Synthetic row ${index}`, payment: { create: { amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, status: 'SUCCEEDED' } } } })
         await localAuth.signIn(role === 'PARENT' ? parent : trainer)
         // Only external Stripe observations are simulated; booking/athlete reads and mutations are real HTTP + SQL.

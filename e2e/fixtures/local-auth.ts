@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type BrowserContext } from '@playwright/test'
 import { PrismaClient, type Role, type User } from '@prisma/client'
 import { hash } from 'bcryptjs'
 import { encode } from 'next-auth/jwt'
 import { verifyDatabaseTarget } from '../../tests/integration/database-target'
 
-type LocalAuth = { database: PrismaClient; password: string; create: (role: Role) => Promise<User>; signIn: (user: User) => Promise<string> }
+type LocalAuth = { database: PrismaClient; password: string; create: (role: Role) => Promise<User>; signIn: (user: User, target?: BrowserContext) => Promise<string> }
 
 export const test = base.extend<{ localAuth: LocalAuth }>({
   localAuth: async ({ context }, use) => {
@@ -30,9 +30,9 @@ export const test = base.extend<{ localAuth: LocalAuth }>({
           ids.push(user.id)
           return user
         },
-        signIn: async user => {
+        signIn: async (user, target = context) => {
           const token = await encode({ secret, token: { sub: user.id, role: user.role, email: user.email, sessionVersion: user.sessionVersion } })
-          await context.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
+          await target.addCookies([{ name: 'next-auth.session-token', value: token, url: origin }])
           return token
         },
       })

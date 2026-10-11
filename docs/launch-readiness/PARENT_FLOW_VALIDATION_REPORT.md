@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: new future sessions cannot be prematurely marked completed to expose review eligibility. A separate synthetic parent browser session saw Leave Review after an elapsed session was completed and persisted. [Exact local HTTP/SQL evidence, initial fixture failure and retest](BOOKING_OUTCOME_TIMING_REPORT.md). Historical outcome repair and actual hosted paid booking remain unverified; overall **HOLD**.
+
 2026-10-11 price-review pass, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: server-calculated coupon totals, explicit zero-due confirmation, stale-response rejection and final accepted-price checks are under validation. Real SQL proves preview does not spend a coupon and changed totals do not commit until reviewed. [Exact steps, failures, browser results and publication status](BOOKING_PRICE_REVIEW_REPORT.md). This is not actual hosted Stripe payment proof; overall **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: This pass covers trainer-zone calendar selection, immutable reservation times, payment timing blocks and original-time display in open/history views. Actual hosted paid booking remains unverified. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

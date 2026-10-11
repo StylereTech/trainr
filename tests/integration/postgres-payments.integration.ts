@@ -88,6 +88,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   if (!verifiedTarget || !createdConfigs.length) return
   await prisma.adminAction.deleteMany({ where: { targetType: 'FEE_CONFIG', targetId: { in: createdConfigs } } })
   await prisma.feeConfig.deleteMany({ where: { id: { in: createdConfigs } } })
@@ -292,6 +293,7 @@ describe('real PostgreSQL money-flow persistence', () => {
 
   it('lets an authorized action commit before a later revocation, then denies its retry', async () => {
     const booking = await reserve()
+    vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime())
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
     await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
@@ -973,8 +975,70 @@ describe('real PostgreSQL money-flow persistence', () => {
     expect(await independent.notification.count({ where: { userId: fixture.parent, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
   })
 
+  for (const role of ['TRAINER', 'ADMIN'] as const) for (const action of ['complete', 'no_show'] as const) {
+    it(`guards real SQL ${role} ${action} until its exact saved boundary, then replays once`, async () => {
+      const booking = await reserve()
+      await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
+      const payment = await pendingPayment(booking.id)
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+      let id = fixture.trainerUser
+      if (role === 'ADMIN') {
+        const admin = await prisma.user.create({ data: { email: `outcome-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role } })
+        id = admin.id; createdAdmins.push(id)
+      }
+      const notices = await independent.notification.count({ where: { userId: { in: [fixture.parent, fixture.trainerUser] } } })
+      const beforePayment = await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })
+      const boundary = (action === 'complete' ? booking.endsAt! : booking.startsAt!).getTime()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(boundary - 1)
+      await expect(applyBookingAction(booking.id, { id, role }, { action })).rejects.toMatchObject({ status: 409 })
+      expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(0)
+      expect(await independent.notification.count({ where: { userId: { in: [fixture.parent, fixture.trainerUser] } } })).toBe(notices)
+      expect(await independent.adminAction.count({ where: { targetId: booking.id } })).toBe(0)
+      clock.mockReturnValue(boundary)
+      await Promise.all([applyBookingAction(booking.id, { id, role }, { action }), applyBookingAction(booking.id, { id, role }, { action })])
+      expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe(action === 'complete' ? 'COMPLETED' : 'NO_SHOW')
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(action === 'complete' ? 1 : 0)
+      expect(await independent.notification.count({ where: { userId: fixture.parent, type: action === 'complete' ? 'SESSION_COMPLETED' : 'NO_SHOW' } })).toBe(1)
+      expect(await independent.adminAction.count({ where: { targetId: booking.id } })).toBe(role === 'ADMIN' ? 1 : 0)
+      expect(await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).toEqual(beforePayment)
+    })
+  }
+
+  it('checks the outcome clock after acquiring the booking lock', async () => {
+    const booking = await reserve()
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
+    const payment = await pendingPayment(booking.id)
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime() - 1)
+    let release!: () => void
+    let ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const hold = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${booking.id} FOR UPDATE`
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid); await untilReleased
+    }, { timeout: 15000 })
+    const holder = await locked
+    const action = applyBookingAction(booking.id, { id: fixture.trainerUser, role: 'TRAINER' }, { action: 'complete' })
+      .then(value => ({ value, error: null }), error => ({ value: null, error }))
+    let outcome: Awaited<typeof action>
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+      clock.mockReturnValue(booking.endsAt!.getTime())
+    } finally { release(); await hold; outcome = await action }
+    expect(outcome.error).toBeNull()
+    expect(outcome.value).toMatchObject({ status: 'COMPLETED' })
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(1)
+  })
+
   it('increments completion statistics once under concurrent retries', async () => {
     const booking = await reserve()
+    vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime())
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
     await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })

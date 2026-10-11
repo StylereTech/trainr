@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { bookingOutcomeTimeError } from '@/lib/booking-outcome-time'
 
 export const bookingActionSchema = z.object({
   action: z.enum(['confirm', 'cancel', 'complete', 'no_show']),
@@ -39,6 +40,10 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (input.action !== 'cancel' && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
         payment.amountInCents !== booking.totalAmountInCents || booking.totalAmountInCents < 0)) {
       throw new BookingActionError('Verified, fully settled payment is required before confirming or completing this session', 409)
+    }
+    if (input.action === 'complete' || input.action === 'no_show') {
+      const timingError = bookingOutcomeTimeError(booking, input.action)
+      if (timingError) throw new BookingActionError(timingError, 409)
     }
     const updated = await tx.booking.update({ where: { id: booking.id }, data: {
       status, ...(input.action === 'cancel' ? { cancellationReason: input.reason || `Cancelled by ${admin ? 'admin' : parent ? 'parent' : 'trainer'}` } : {}),

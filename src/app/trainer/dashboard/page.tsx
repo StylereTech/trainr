@@ -29,6 +29,7 @@ import { dashboardResponseSchema, payoutBalanceSchema } from '@/lib/dashboard-co
 import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { TrainerBalance } from '@/components/shared/TrainerBalance'
+import { BookingOutcomeActions } from '@/components/shared/BookingOutcomeActions'
 import { connectStatusSchema, stripeRedirect } from '@/lib/connect-contract'
 
 export default function TrainerDashboard() {
@@ -294,10 +295,7 @@ export default function TrainerDashboard() {
                               </>
                             )}
                             {b.status === 'CONFIRMED' && (
-                              <>
-                                <Button size="sm" className="gradient-primary border-0 text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'complete')}><CheckCircle2 className="mr-1 h-3 w-3" />Complete</Button>
-                                <Button size="sm" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'no_show')}>No-show</Button>
-                              </>
+                              <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload} allowNoShow onAction={action => void handleAction(b.id, action)} />
                             )}
                           </div>
                         </div>

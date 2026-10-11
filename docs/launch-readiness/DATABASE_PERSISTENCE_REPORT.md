@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: 340 real PostgreSQL tests passed, including one-millisecond-before/exact-boundary guards, concurrent outcome retries and server-clock evaluation after a real booking-row wait. Independent reads verified status/count/notice/audit effects and unchanged payments. [Exact setup, failures, cleanup and publication status](BOOKING_OUTCOME_TIMING_REPORT.md). No schema or hosted data change; actual Stripe persistence proof remains **HOLD**.
+
 2026-10-11 09:23 UTC, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: 335 real PostgreSQL tests passed. Quotes are read-only; changed accepted totals commit no reservation, coupon, notification or ledger writes; reviewed retries and legacy exact replay persist correctly. No schema migration was added in this pass. [Exact setup, assertions, cleanup and publication status](BOOKING_PRICE_REVIEW_REPORT.md). Final local users/bookings/payments/coupons/sports counts were zero; hosted money flow remains **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Fresh/legacy/phone-history migration rehearsals passed all 13 checksums and schema parity, preserving legacy rows with NULL booking instants. The complete local SQL suite passed 330 cases; a later focused retest passed 83. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

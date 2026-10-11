@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: trainer/admin outcome controls reflect saved timing, update as the local clock advances, and surface authoritative server rejection when that clock is ahead. All 24 affected desktop/mobile outcome/dashboard cases passed after isolating the test's parent session. [Screenshots, exact failures and retest](BOOKING_OUTCOME_TIMING_REPORT.md). This does not sign off every page or actual hosted trainer/Stripe flow; overall **HOLD**.
+
 2026-10-11 09:23 UTC, baseline `ccc64dcc84830a77a55f3832b151bc12b9cad311`: coupon totals and zero-due confirmation now use server quotes. Screenshot inspection found and corrected split mobile currency and a stale selected-service price after requoting. Final 58 affected browser cases passed at 1440/390px, including maximum-price geometry. [Before/after evidence and exact scope](BOOKING_PRICE_REVIEW_REPORT.md#browser-findings-and-retest). No site-wide design or actual Stripe signoff; **HOLD**.
 
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking and dashboard screens now distinguish trainer schedule zones from immutable booking zones. Desktop/mobile screenshots and initial assertion failures are recorded in the dedicated report; final browser status is recorded there. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.

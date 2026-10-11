@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-11 outcome-timing pass, baseline `22ac93565c2741e905d4b2899b4ab55c98280e33`: completion now requires the saved session end and no-show requires its start; unknown legacy timing needs reconciliation. Real SQL and desktop/mobile trainer/admin cases cover rejection, exact boundaries, retries, statistics and persisted outcomes. [Exact failures, fixture correction, screenshots and publication status](BOOKING_OUTCOME_TIMING_REPORT.md). Actual hosted trainer onboarding and Stripe payout remain unverified; overall **HOLD**.
+
 2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: This pass preserves existing booking instants when trainer schedule zones change and exposes saved zones on trainer dashboards. Actual hosted trainer onboarding and Connect completion remain unverified. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
 
 2026-10-11 07:59 UTC: time-zone capture source `c810c5983fce44dc160a17e42acaff99ca6c1231` is deployed Ready to isolated Preview, including its guarded additive migration. Hosted PARENT access to trainer profile/onboarding correctly redirects to the parent dashboard. [Publication and exact local/hosted distinction](TRAINER_TIME_ZONE_REPORT.md#publication-and-hosted-retest). Actual hosted TRAINER edits, Connect and payouts are still unverified; full scheduling remains incomplete.

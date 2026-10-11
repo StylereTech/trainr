@@ -11,12 +11,15 @@ import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { formatBookingDate } from '@/lib/booking-date'
 import { Loader2, Calendar, RefreshCw } from 'lucide-react'
 import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
+import { BookingOutcomeActions } from '@/components/shared/BookingOutcomeActions'
 
 interface Booking {
   id: string
   date: string
   startTime: string
   timeZone: string | null
+  startsAt: string | null
+  endsAt: string | null
   endTime: string
   status: string
   totalAmountInCents: number
@@ -175,7 +178,7 @@ export default function AdminBookings() {
                       )}
                       {b.status === 'CONFIRMED' && (
                         <>
-                          <Button size="sm" disabled={actionBusy || needsReload} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'complete')}>Complete</Button>
+                          <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload} onAction={action => void handleAction(b.id, action)} />
                           <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}

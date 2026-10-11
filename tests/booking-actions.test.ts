@@ -15,6 +15,7 @@ beforeEach(() => {
   fail = null
   state = {
     booking: { id: 'booking', status: 'CONFIRMED', trainerProfileId: 'trainer', totalAmountInCents: 6000,
+      timeZone: 'UTC', startsAt: new Date('2020-01-01T09:00:00Z'), endsAt: new Date('2020-01-01T10:00:00Z'),
       trainerProfile: { userId: trainer.id }, parentProfile: { userId: parent.id },
       payment: { id: 'payment', status: 'SUCCEEDED', amountInCents: 6000, refundAmountInCents: 0 } },
     users: [trainer, parent, admin].map(user => ({ ...user, deletedAt: null })),
@@ -55,6 +56,54 @@ beforeEach(() => {
 })
 
 describe('booking state transitions', () => {
+  for (const actor of [trainer, admin]) for (const action of ['complete', 'no_show'] as const) {
+    it(`rejects ${actor.role} ${action} before its saved time without effects`, async () => {
+      state.booking.startsAt = new Date(Date.now() + 3600000)
+      state.booking.endsAt = new Date(Date.now() + 7200000)
+      const before = structuredClone(state)
+      await expect(act(action, actor)).rejects.toMatchObject({ status: 409 })
+      expect(state).toEqual(before)
+    })
+    it.each(['zone', 'start', 'end', 'reversed'])(`rejects ${actor.role} ${action} with unknown/invalid %s`, async field => {
+      if (field === 'zone') state.booking.timeZone = null
+      if (field === 'start') state.booking.startsAt = null
+      if (field === 'end') state.booking.endsAt = new Date('invalid')
+      if (field === 'reversed') state.booking.endsAt = new Date('2019-01-01T10:00:00Z')
+      const before = structuredClone(state)
+      await expect(act(action, actor)).rejects.toMatchObject({ status: 409 })
+      expect(state).toEqual(before)
+    })
+  }
+  it('does not complete a session that has started but has not ended', async () => {
+    state.booking.startsAt = new Date(Date.now() - 1000)
+    state.booking.endsAt = new Date(Date.now() + 3600000)
+    await expect(act('complete')).rejects.toMatchObject({ status: 409 })
+    expect(state.booking.status).toBe('CONFIRMED')
+    expect(state.stats.totalSessions).toBe(2)
+  })
+  it.each(['complete', 'no_show'] as const)('does not let zero-due payment bypass %s timing', async action => {
+    state.booking.totalAmountInCents = state.booking.payment.amountInCents = 0
+    state.booking.startsAt = new Date(Date.now() + 3600000)
+    state.booking.endsAt = new Date(Date.now() + 7200000)
+    const before = structuredClone(state)
+    await expect(act(action)).rejects.toMatchObject({ status: 409 })
+    expect(state).toEqual(before)
+  })
+  it('allows no-show after the start without claiming session completion', async () => {
+    state.booking.startsAt = new Date(Date.now() - 1000)
+    state.booking.endsAt = new Date(Date.now() + 3600000)
+    await act('no_show')
+    expect(state.booking.status).toBe('NO_SHOW')
+    expect(state.stats.totalSessions).toBe(2)
+    expect(state.notifications[0].type).toBe('NO_SHOW')
+  })
+  it('preserves idempotent old completion without inventing missing timestamps', async () => {
+    state.booking.status = 'COMPLETED'
+    state.booking.startsAt = state.booking.endsAt = state.booking.timeZone = null
+    await act('complete')
+    expect(state.stats.totalSessions).toBe(2)
+    expect(state.notifications).toHaveLength(0)
+  })
   it.each([parent, trainer, admin])('rejects a stale role for %j before any mutation', async actor => {
     state.users.find((user: any) => user.id === actor.id).role = actor.role === 'PARENT' ? 'TRAINER' : 'PARENT'
     await expect(act('cancel', actor)).rejects.toMatchObject({ status: 403 })
