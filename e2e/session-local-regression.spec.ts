@@ -7,6 +7,18 @@ test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL |
   'Session mutation tests require an explicitly configured loopback server and disposable database.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 
+for (const authorization of ['Bearer %', 'Bearer %E0%A4%A', 'Bearer %FF', 'Bearer not-a-jwt', 'Bearer']) {
+  test(`malformed authorization fails closed without a server error: ${authorization}`, async ({ request }) => {
+    const headers = { authorization }
+    expect((await request.get('/api/bookings', { headers })).status()).toBe(401)
+    for (const path of ['/parent/dashboard', '/trainer/profile', '/admin']) {
+      const response = await request.get(path, { headers, maxRedirects: 0 })
+      expect(response.status()).toBe(307)
+      expect(new URL(response.headers().location).pathname).toBe('/auth/signin')
+    }
+  })
+}
+
 for (const width of [1440, 390]) {
   test(`real credential login and password-reset revocation at ${width}px`, async ({ page, localAuth }) => {
     await page.setViewportSize({ width, height: 900 })
