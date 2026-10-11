@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: The current pass hardens booking/Checkout expiry and recoverable-session handling only. No new actual Connect onboarding success is claimed. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-09 04:38 UTC: active sandbox Connected accounts destination `we_1UOVGbPvdPuIlEw5K131lGyU` now subscribes to `account.updated`; its separate signing secret is saved in the audit branch only. Platform payment destination and test keys are also configured. No event delivery or trainer onboarding has yet passed. [Provisioning and exact remaining gates](STAGING_PROVISIONING_REPORT.md). Overall **HOLD**.
 
 2026-10-09 03:55 UTC: authenticated Stripe sandbox access is now verified, superseding the signed-out blocker below. Vercel branch-only staging callback URLs are saved; database terms and sandbox credential authorization await owner approval. A separate Connect webhook signing-secret gap was reproduced and repaired locally. [Exact setup, tests and remaining gates](STRIPE_SANDBOX_SETUP_REPORT.md). No provider-backed application payment, Connect onboarding or payout was completed; overall **HOLD**.

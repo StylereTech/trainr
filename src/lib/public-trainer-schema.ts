@@ -9,6 +9,7 @@ export const publicTrainerSchema = z.object({
   headline: z.string().nullable(), bio: z.string().nullable(),
   city: z.string().nullable(), state: z.string().nullable(),
   locationType: z.string(), travelRadius: count, yearsExperience: count,
+  timeZone: z.string().nullable().default(null),
   avgRating: rating, totalReviews: count, totalSessions: count,
   sports: z.array(z.object({ sport: z.object({ name: z.string(), icon: z.string().nullable() }) })),
   specialties: z.array(z.object({ specialty: z.object({ name: z.string(), slug: z.string() }) })),
@@ -41,4 +42,5 @@ export const bookingTrainerSchema = publicTrainerSchema.pick({
   id: true, slug: true, firstName: true, lastName: true, headline: true,
   avgRating: true, totalReviews: true, city: true, state: true, locationType: true,
   sports: true, availabilitySlots: true,
+  timeZone: true,
 }).extend({ serviceOfferings: z.array(publicTrainerSchema.shape.serviceOfferings.element.omit({ maxParticipants: true })) })

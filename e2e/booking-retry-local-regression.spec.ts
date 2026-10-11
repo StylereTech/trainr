@@ -20,7 +20,7 @@ for (const width of [1440, 390]) {
         try {
           const parentProfile = await db.parentProfile.findUniqueOrThrow({ where: { userId: parent.id } })
           await db.athleteProfile.create({ data: { parentProfileId: parentProfile.id, firstName: 'Synthetic', lastName: 'Athlete', dateOfBirth: new Date('2015-01-01'), goals: [], sports: { create: { sportId: sport.id } } } })
-          const profile = await db.trainerProfile.update({ where: { userId: trainer.id }, data: { approvalStatus: 'APPROVED', isActive: true,
+          const profile = await db.trainerProfile.update({ where: { userId: trainer.id }, data: { approvalStatus: 'APPROVED', isActive: true, timeZone: 'UTC',
             sports: { create: { sportId: sport.id } }, serviceOfferings: { create: { title: 'Synthetic session', sportId: sport.id, priceInCents: 6000, durationMinutes: 60 } },
             availabilitySlots: { create: { dayOfWeek: day, startTime: '09:00', endTime: '12:00' } },
           } })

@@ -10,7 +10,7 @@ const profile = {
 
 describe('public trainer response boundary', () => {
   it('accepts an empty, valid profile without inventing services or reviews', () => {
-    expect(publicTrainerSchema.parse(profile)).toEqual(profile)
+    expect(publicTrainerSchema.parse(profile)).toEqual({ ...profile, timeZone: null })
   })
   it.each([
     { error: 'Trainer not found' },

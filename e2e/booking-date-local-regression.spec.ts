@@ -25,11 +25,11 @@ for (const width of [1440, 390]) for (const timezoneId of ['America/Los_Angeles'
           await localAuth.signIn(actor)
           await page.goto(role === 'ADMIN' ? '/admin' : `/${role.toLowerCase()}/dashboard`)
           for (const date of ['1/1/2030', '3/10/2030']) {
-            await expect(page.getByText(role === 'ADMIN' ? `${date} at 09:00` : date, { exact: true })).toBeVisible()
+            await expect(page.getByText(role === 'ADMIN' ? `${date} at 09:00 (Time zone unconfirmed)` : date, { exact: true })).toBeVisible()
           }
           await expect(page.getByText(/12\/31\/2029|3\/9\/2030/)).toHaveCount(0)
           if (role === 'ADMIN') {
-            await expect(page.getByText('11/3/2030 at 09:00', { exact: true })).toBeVisible()
+            await expect(page.getByText('11/3/2030 at 09:00 (Time zone unconfirmed)', { exact: true })).toBeVisible()
             await page.goto('/admin/bookings')
           } else {
             await page.getByRole('tab', { name: role === 'PARENT' ? 'Past (1)' : 'Completed (1)', exact: true }).click()

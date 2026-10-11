@@ -40,6 +40,7 @@ async function snapshot(client: PrismaClient) {
       if (table === 'users') for (const key of ['sessionVersion', 'deletedAt', 'verificationTokenSeed', 'resetPasswordTokenSeed', 'verificationToken', 'verificationExpiry', 'resetPasswordToken', 'resetPasswordExpiry']) delete row[key]
       if (table === 'payments') for (const key of ['refundPendingAmountInCents', 'refundFailedCount', 'refundsVerifiedAt']) delete row[key]
       if (table === 'trainer_profiles') delete row.timeZone
+      if (table === 'bookings') for (const key of ['timeZone', 'startsAt', 'endsAt']) delete row[key]
       return row
     })
   }
@@ -57,8 +58,10 @@ async function verifyHistory(client: PrismaClient) {
   }
   const constraints = await client.$queryRaw<Array<{ conname: string }>>`
     SELECT conname FROM pg_constraint WHERE conname IN ('checkout_attempts_sequence_positive', 'users_sessionVersion_nonnegative',
-      'payments_refund_pending_nonnegative', 'payments_refund_failed_nonnegative', 'rate_limit_buckets_hash_format', 'rate_limit_buckets_bounded_hits')`
-  assert.equal(constraints.length, 6)
+      'payments_refund_pending_nonnegative', 'payments_refund_failed_nonnegative', 'rate_limit_buckets_hash_format', 'rate_limit_buckets_bounded_hits', 'bookings_time_snapshot_complete')`
+  assert.equal(constraints.length, 7)
+  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname = 'bookings_time_snapshot_immutable' AND NOT tgisinternal`
+  assert.equal(triggers.length, 1)
   const indexes = await client.$queryRaw<Array<{ indexdef: string }>>`
     SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'checkout_attempts_one_active_payment'`
   assert.equal(indexes.length, 1)
@@ -106,6 +109,9 @@ async function main() {
       if (before) {
         assert.deepEqual(await snapshot(client), before)
         assert.equal((await client.trainerProfile.findUniqueOrThrow({ where: { id: 'legacy-trainer-profile' } })).timeZone, null)
+        for (const booking of await client.booking.findMany()) {
+          assert.equal(booking.timeZone, null); assert.equal(booking.startsAt, null); assert.equal(booking.endsAt, null)
+        }
         const user = await client.user.findUniqueOrThrow({ where: { id: 'legacy-parent' } })
         assert.equal(user.sessionVersion, 0); assert.equal(user.deletedAt, null)
         for (const value of [user.verificationToken, user.verificationExpiry, user.resetPasswordToken, user.resetPasswordExpiry, user.verificationTokenSeed, user.resetPasswordTokenSeed]) assert.equal(value, null)

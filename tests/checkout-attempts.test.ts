@@ -37,7 +37,7 @@ beforeEach(() => {
   state = {
     buyer: { role: 'PARENT', deletedAt: null },
     booking: { id: 'booking', status: 'PENDING', totalAmountInCents: 10000, platformFeeInCents: 1500, trainerPayoutInCents: 8500,
-      date: new Date('2026-11-01'), startTime: '09:00', parentProfile: { id: 'parent-profile', userId: 'parent' },
+      date: new Date('2030-11-01'), startTime: '09:00', timeZone: 'UTC', startsAt: new Date('2030-11-01T09:00:00Z'), endsAt: new Date('2030-11-01T10:00:00Z'), parentProfile: { id: 'parent-profile', userId: 'parent' },
       trainerProfile: { id: 'trainer', userId: 'trainer-user', stripeAccountId: 'acct_ready', firstName: 'Test', lastName: 'Trainer', isActive: true, approvalStatus: 'APPROVED' },
       athleteProfile: { id: 'athlete' }, serviceOffering: { id: 'service', title: 'Training' } },
     payment: null, attempts: [], notifications: [],
@@ -94,7 +94,7 @@ beforeEach(() => {
     if (!accepted.has(key)) {
       const session = {
         id: `cs_${accepted.size + 1}`, mode: 'payment', currency: 'usd', amount_total: parameters.line_items[0].price_data.unit_amount,
-        payment_status: 'unpaid', status: 'open', payment_intent: null,
+        payment_status: 'unpaid', status: 'open', payment_intent: null, expires_at: parameters.expires_at,
         url: `https://checkout.stripe.com/session-${accepted.size + 1}`, metadata: parameters.metadata,
       }
       accepted.set(key, { parameters: structuredClone(parameters), session })
@@ -120,6 +120,63 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 const checkout = (user = buyer) => startOrResumeCheckout('booking', user, 'acct_ready')
+
+describe('checkout session timing', () => {
+  it('does not replace an expired session that permits recovery', async () => {
+    await checkout()
+    Object.assign(sessions.get('cs_1'), { status: 'expired', url: null, after_expiration: { recovery: { enabled: true } } })
+    await expect(checkout()).rejects.toThrow('expiry requires reconciliation')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+    expect(state.attempts).toHaveLength(1)
+    expect(state.attempts[0].retiredAt).toBeNull()
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+  })
+  it.each(['missing', 'past', 'near'])('rejects a %s session without provider calls or durable writes', async condition => {
+    if (condition === 'missing') state.booking.timeZone = null
+    else state.booking.startsAt = new Date(Date.now() + (condition === 'near' ? 30 * 60000 : -1))
+    await expect(checkout()).rejects.toThrow(/time zone|started|31 minutes/)
+    expect(mock.create).not.toHaveBeenCalled()
+    expect(state.payment).toBeNull()
+    expect(state.attempts).toHaveLength(0)
+  })
+  it('caps expiry at the session start and permits resuming within 31 minutes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-11-01T08:00:00Z'))
+    await checkout()
+    expect(mock.create.mock.calls[0][0].expires_at).toBe(state.booking.startsAt.getTime() / 1000)
+    vi.setSystemTime(new Date('2030-11-01T08:45:00Z'))
+    await expect(checkout()).resolves.toHaveProperty('checkoutUrl')
+    expect(mock.create).toHaveBeenCalledTimes(1)
+  })
+  it.each(['missing', 'late', 'elapsed', 'recovery'])('retains and expires a session with unsafe %s expiry', async condition => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementation(async (...args) => {
+      const result = await create(...args)
+      if (condition === 'missing') delete result.expires_at
+      if (condition === 'late') result.expires_at = state.booking.startsAt.getTime() / 1000 + 1
+      if (condition === 'elapsed') result.expires_at = Math.floor(Date.now() / 1000)
+      if (condition === 'recovery') result.after_expiration = { recovery: { enabled: true } }
+      return result
+    })
+    await expect(checkout()).rejects.toThrow('expiry requires reconciliation')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.payment.status).toBe('PENDING')
+    expect(sessions.get('cs_1').status).toBe('expired')
+  })
+  it('withholds a link if the session begins while the provider responds', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-11-01T08:00:00Z'))
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementation(async (...args) => {
+      const result = await create(...args)
+      vi.setSystemTime(state.booking.startsAt)
+      return result
+    })
+    await expect(checkout()).rejects.toThrow('already started')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(sessions.get('cs_1').status).toBe('expired')
+  })
+})
 
 describe('checkout buyer revocation', () => {
   it.each(['TRAINER', 'ADMIN', 'deleted', 'missing'])('blocks a %s buyer before provider or payment writes', async change => {
@@ -572,7 +629,7 @@ describe('durable checkout attempts', () => {
   it('resumes a known legacy session without creating a new attempt', async () => {
     state.payment = { ...pendingPayment(), stripeCheckoutSessionId: 'cs_legacy' }
     sessions.set('cs_legacy', { id: 'cs_legacy', mode: 'payment', currency: 'usd', amount_total: 10000,
-      status: 'open', payment_status: 'unpaid', metadata: { bookingId: 'booking', paymentId: 'payment' }, url: 'https://checkout.stripe.com/legacy' })
+      status: 'open', payment_status: 'unpaid', expires_at: Math.floor(Date.now() / 1000) + 3600, metadata: { bookingId: 'booking', paymentId: 'payment' }, url: 'https://checkout.stripe.com/legacy' })
     expect((await checkout()).checkoutUrl).toContain('legacy')
     expect(mock.create).not.toHaveBeenCalled()
     expect(state.attempts).toHaveLength(0)

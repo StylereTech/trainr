@@ -394,6 +394,9 @@ model Booking {
   date              DateTime
   startTime         String
   endTime           String
+  timeZone          String?
+  startsAt          DateTime? @db.Timestamptz(3)
+  endsAt            DateTime? @db.Timestamptz(3)
   status            BookingStatus @default(PENDING)
   location          String?
   notes             String?
@@ -420,6 +423,8 @@ model Booking {
   createRequests BookingCreateRequest[]
 
   @@index([trainerProfileId, date, startTime])
+  @@index([trainerProfileId, startsAt, endsAt])
+  @@index([athleteProfileId, startsAt, endsAt])
   @@index([parentProfileId])
   @@index([status])
   @@map("bookings")

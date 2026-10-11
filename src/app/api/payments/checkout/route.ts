@@ -6,6 +6,7 @@ import { mapStripeError, stripe, stripeRuntimeStatus } from '@/lib/stripe'
 import { isStripeAccountReady } from '@/lib/stripe-account'
 import { CheckoutConflict, startOrResumeCheckout } from '@/lib/checkout-attempts'
 import { SettlementConflict } from '@/lib/stripe-settlement'
+import { checkoutTimeError } from '@/lib/booking-time'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest) {
     })
     if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
     if (booking.parentProfile.userId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const timeError = checkoutTimeError(booking)
+    if (timeError) return NextResponse.json({ error: timeError }, { status: 409 })
     if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
       return NextResponse.json({ error: 'Booking cannot be paid in its current state' }, { status: 409 })
     }

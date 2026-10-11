@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mock.user.mockResolvedValue({ id: 'parent', role: 'PARENT', email: 'parent@example.test' })
   mock.booking.mockResolvedValue({
-    id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' },
+    id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' }, timeZone: 'UTC', startsAt: new Date('2030-11-01T09:00:00Z'), endsAt: new Date('2030-11-01T10:00:00Z'),
     trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true, isActive: true, approvalStatus: 'APPROVED' },
   })
   mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true })
@@ -28,6 +28,14 @@ async function send(body = JSON.stringify({ bookingId: 'booking' })) {
 }
 
 describe('checkout route boundaries', () => {
+  it.each(['missing', 'past'])('rejects %s booking time before contacting Stripe', async condition => {
+    const booking = await mock.booking()
+    if (condition === 'missing') booking.timeZone = null
+    else booking.startsAt = new Date(Date.now() - 1)
+    expect((await send()).status).toBe(409)
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
   it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('blocks checkout for a trainer who is %s before contacting Stripe', async status => {
     const booking = await mock.booking()
     booking.trainerProfile = { ...booking.trainerProfile, ...(status === 'INACTIVE' ? { isActive: false } : { approvalStatus: status }) }

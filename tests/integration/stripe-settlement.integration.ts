@@ -64,7 +64,7 @@ beforeEach(async () => {
     include: { trainerProfile: { include: { serviceOfferings: true } } } }); users.push(trainer.id)
   const saved = await prisma.booking.create({ data: { parentProfileId: parent.parentProfile!.id, athleteProfileId: parent.parentProfile!.athletes[0].id,
     trainerProfileId: trainer.trainerProfile!.id, serviceOfferingId: trainer.trainerProfile!.serviceOfferings[0].id, date: new Date('2030-11-04'),
-    startTime: '09:00', endTime: '10:00', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100,
+    startTime: '09:00', endTime: '10:00', timeZone: 'UTC', startsAt: new Date('2030-11-04T09:00:00Z'), endsAt: new Date('2030-11-04T10:00:00Z'), totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100,
     payment: { create: { amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } } }, include: { payment: true } }); bookings.push(saved.id)
   parentId = parent.id; trainerId = trainer.id; trainerProfileId = trainer.trainerProfile!.id
   f = settlementFixture({ bookingId: saved.id, paymentId: saved.payment!.id, attemptId: randomUUID(), intentId: `pi_${id}`, chargeId: `ch_${id}` })

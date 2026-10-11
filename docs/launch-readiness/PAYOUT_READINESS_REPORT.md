@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking instant and Checkout expiry tests do not prove payouts. The defined Stripe-managed payout path still needs actual sandbox trainer/payment/transfer/payout evidence. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-11 06:21 UTC: source `0053b01` is pushed and Ready on isolated audit Preview. Hosted parent session is correctly denied the trainer payout page; direct wallet API browser navigation is client-blocked, not a passing API check. [Publication, local trainer tests and exact hosted limits](TRAINER_PAYOUT_UI_REPORT.md#publication-and-remaining-gates). No actual Stripe payout signoff; **HOLD**.
 
 2026-10-11 06:18 UTC: profile payout UI now validates current Stripe data and has bounded requests, explicit refresh/retry, cleared stale state and guarded setup links. **PASS:** 1,007 unit tests, 317 real local SQL tests, optimized build and 12 desktop/mobile browser regressions. [Exact source, account isolation, failures and retest proof](TRAINER_PAYOUT_UI_REPORT.md). Linked provider responses are simulated; no actual connected trainer payment, transfer or bank payout was proven. Publication/hosted retest pending; overall **HOLD**.

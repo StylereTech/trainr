@@ -34,7 +34,8 @@ import {
   X,
 } from 'lucide-react'
 import { formatCurrency, SPORTS } from '@/lib/utils'
-import { formatDateForInput, generateAvailableTimeSlots, parseDateInputAsLocalDate } from '@/lib/trainer'
+import { generateAvailableTimeSlots, parseDateInputAsLocalDate } from '@/lib/trainer'
+import { bookingDates, PAID_BOOKING_LEAD_MS, resolveBookingTime } from '@/lib/booking-time'
 import { getSportVisual, isLiveTrainrImage, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
 
 interface TrainerData {
@@ -48,6 +49,7 @@ interface TrainerData {
   city: string | null
   state: string | null
   locationType: string
+  timeZone: string | null
   sports: { sport: { name: string; icon: string | null } }[]
   serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string }[]
   availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean; isAvailable: boolean; specificDate: string | null }[]
@@ -93,6 +95,11 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState('')
   const [notes, setNotes] = useState('')
   const [couponCode, setCouponCode] = useState('')
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -137,14 +144,13 @@ export default function BookingPage() {
   const athlete = athletes.find((a) => a.id === selectedAthlete)
 
   const availableTimes = trainer && selectedDate
-    ? generateAvailableTimeSlots(trainer.availabilitySlots, selectedDate, service?.durationMinutes || 60)
+    ? generateAvailableTimeSlots(trainer.availabilitySlots, selectedDate, service?.durationMinutes || 60).filter(time => {
+      try { return resolveBookingTime(selectedDate, time, service?.durationMinutes || 60, trainer.timeZone).startsAt.getTime() > now + PAID_BOOKING_LEAD_MS }
+      catch { return false }
+    })
     : []
 
-  const availableDates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i + 1)
-    return formatDateForInput(d)
-  })
+  const availableDates = bookingDates(trainer?.timeZone, now)
 
   const sportSlug = useMemo(() => {
     const primarySport = trainer?.sports[0]?.sport.name?.toLowerCase()
@@ -168,13 +174,18 @@ export default function BookingPage() {
       toast({ title: 'Missing fields', description: 'Please fill in all required fields', variant: 'destructive' })
       return
     }
+    if (!bookingRequest.current && !availableTimes.includes(selectedTime)) {
+      setSelectedTime('')
+      toast({ title: 'Choose another time', description: 'The selected time is no longer available for checkout.', variant: 'destructive' })
+      return
+    }
 
     bookingInFlight.current = true
     setSubmitting(true)
     setBookingError('')
     try {
       bookingRequest.current ??= JSON.stringify({ requestId: crypto.randomUUID(), serviceOfferingId: selectedService, athleteProfileId: selectedAthlete,
-        date: selectedDate, startTime: selectedTime, notes, couponCode: couponCode || undefined })
+        date: selectedDate, startTime: selectedTime, timeZone: trainer?.timeZone, notes, couponCode: couponCode || undefined })
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -428,6 +439,7 @@ export default function BookingPage() {
             <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
               <CardHeader>
                 <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">3</span> Lock in date and time</h2>
+                <p className="mt-2 text-sm text-slate-700">{trainer.timeZone ? `Session time zone: ${trainer.timeZone.replaceAll('_', ' ')}` : 'Booking unavailable: trainer time zone is not set.'}</p>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div>
@@ -540,6 +552,7 @@ export default function BookingPage() {
 
                 <div className="space-y-3 rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
                   <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-slate-500" /> {selectedDateLabel}</div>
+                  <div className="break-words text-sm">{trainer.timeZone || 'Time zone unavailable'}</div>
                   <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-slate-500" /> {selectedTime || 'Choose a time'}</div>
                   <div className="flex items-center gap-2"><User className="h-4 w-4 text-slate-500" /> {athlete ? `${athlete.firstName} ${athlete.lastName}` : 'Choose an athlete'}</div>
                   <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-slate-500" /> {trainer.city && trainer.state ? `${trainer.city}, ${trainer.state}` : trainer.locationType === 'VIRTUAL' ? 'Virtual coaching' : 'Location shared after confirmation'}</div>

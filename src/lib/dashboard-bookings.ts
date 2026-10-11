@@ -18,7 +18,7 @@ export async function readDashboardBookings(actor: { id: string; role?: string }
     const totalPages = Math.ceil(total / limit)
     const page = Math.min(requestedPage, Math.max(1, totalPages))
     const rows = await tx.booking.findMany({ where: { ...scope, status: { in: viewStates[view] } },
-      select: { id: true, date: true, startTime: true, endTime: true, status: true, totalAmountInCents: true, trainerPayoutInCents: true, notes: true,
+      select: { id: true, date: true, startTime: true, endTime: true, timeZone: true, startsAt: true, endsAt: true, status: true, totalAmountInCents: true, trainerPayoutInCents: true, notes: true,
         serviceOffering: { select: { title: true, durationMinutes: true } },
         trainerProfile: { select: { firstName: true, lastName: true, stripeAccountId: true, stripeOnboardingComplete: true } },
         parentProfile: { select: { user: { select: { email: true } } } }, athleteProfile: { select: { firstName: true, lastName: true } }, review: { select: { id: true } },

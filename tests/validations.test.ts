@@ -103,6 +103,7 @@ describe('Validation Schemas', () => {
         athleteProfileId: 'athlete-1',
         date: '2026-04-15',
         startTime: '09:00',
+        timeZone: 'UTC',
       })
       expect(result.success).toBe(true)
     })
@@ -115,6 +116,7 @@ describe('Validation Schemas', () => {
         date: '2026-04-15',
         startTime: '09:00',
         couponCode: 'SUMMER20',
+        timeZone: 'UTC',
       })
       expect(result.success).toBe(true)
     })

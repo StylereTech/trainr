@@ -16,6 +16,7 @@ import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { formatBookingDate } from '@/lib/booking-date'
 import { requestCheckout } from '@/lib/checkout-client'
+import { checkoutTimeError } from '@/lib/booking-time'
 
 function isTrainerPaymentReady(booking: Booking) {
   return booking.trainerProfile.paymentReady
@@ -26,10 +27,16 @@ function canStartCheckout(booking: Booking) {
     (!booking.payment || ['PENDING', 'FAILED'].includes(booking.payment.status))
 }
 
+function paymentTimeError(booking: Booking, now: number) {
+  return checkoutTimeError({ timeZone: booking.timeZone, startsAt: booking.startsAt ? new Date(booking.startsAt) : null, endsAt: booking.endsAt ? new Date(booking.endsAt) : null }, now)
+}
+
 export default function ParentDashboard() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const [view, setView] = useState('upcoming')
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(timer) }, [])
   const [page, setPage] = useState(1)
   const dashboard = useRemoteData(`/api/dashboard/bookings?view=${view}&page=${page}&limit=10`, dashboardResponseSchema)
   const athleteData = useRemoteData('/api/athletes', athletesResponseSchema)
@@ -165,13 +172,14 @@ export default function ParentDashboard() {
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
                           <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{b.startTime} – {b.endTime}</span>
+                          <span className="break-words">{b.timeZone || 'Time zone unconfirmed'}</span>
                         </div>
                       </div>
                       <div className="md:text-right">
                         <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
                         {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : b.payment?.status === 'PROCESSING' ? 'Payment processing' : 'Awaiting payment'}</div>}
                         {canStartCheckout(b) && (
-                          isTrainerPaymentReady(b) ? (
+                          paymentTimeError(b, now) ? <div className="mt-2 max-w-sm text-xs text-amber-200">{paymentTimeError(b, now)}</div> : isTrainerPaymentReady(b) ? (
                             <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={!!startingCheckoutId}>
                               {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
                             </Button>
@@ -213,6 +221,8 @@ export default function ParentDashboard() {
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span>{formatBookingDate(b.date)}</span>
+                          <span>{b.startTime} – {b.endTime}</span>
+                          <span className="break-words">{b.timeZone || 'Time zone unconfirmed'}</span>
                           <span>{formatCurrency(b.totalAmountInCents)}</span>
                         </div>
                       </div>

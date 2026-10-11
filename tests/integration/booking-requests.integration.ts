@@ -30,7 +30,7 @@ beforeEach(async () => {
     include: { parentProfile: { include: { athletes: true } } } })
   parent = parentUser.id; athlete = parentUser.parentProfile!.athletes[0].id; userIds.push(parent)
   const trainerUser = await prisma.user.create({ data: { email: `reservation-trainer-${id}@example.test`, role: 'TRAINER', passwordHash: 'not-a-login',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, approvalStatus: 'APPROVED', sports: { create: { sportId: sport } },
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, timeZone: 'UTC', approvalStatus: 'APPROVED', sports: { create: { sportId: sport } },
       serviceOfferings: { create: { title: 'Synthetic session', priceInCents: 6000, durationMinutes: 60, sportId: sport } },
       availabilitySlots: { create: { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' } } } } }, include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainer = trainerUser.id; userIds.push(trainer)
@@ -48,7 +48,7 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect(); vi.unstubAllEnvs() })
 
 async function input() {
-  return { requestId: randomUUID(), serviceOfferingId: service, athleteProfileId: athlete, date: '2030-11-04', startTime: '09:00', notes: 'Synthetic note',
+  return { requestId: randomUUID(), serviceOfferingId: service, athleteProfileId: athlete, date: '2030-11-04', startTime: '09:00', timeZone: 'UTC', notes: 'Synthetic note',
     couponCode: (await prisma.coupon.findUniqueOrThrow({ where: { id: coupon } })).code }
 }
 async function post(body: unknown, userId = parent) {

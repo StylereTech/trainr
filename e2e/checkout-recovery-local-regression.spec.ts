@@ -21,13 +21,13 @@ for (const width of [1440, 390]) for (const entry of ['dashboard', 'booking'] as
         const heldRequest = new Promise<void>(resolve => { releaseRequest = resolve })
         try {
           const athlete = await db.athleteProfile.create({ data: { parentProfileId: parentProfile.id, firstName: 'Synthetic', lastName: 'Athlete', dateOfBirth: new Date('2015-01-01'), goals: [], sports: { create: { sportId: sport.id } } } })
-          const profile = await db.trainerProfile.update({ where: { userId: trainer.id }, data: { approvalStatus: 'APPROVED', isActive: true,
+          const profile = await db.trainerProfile.update({ where: { userId: trainer.id }, data: { approvalStatus: 'APPROVED', isActive: true, timeZone: 'UTC',
             stripeAccountId: `acct_synthetic_${id}`, stripeOnboardingComplete: true,
             sports: { create: { sportId: sport.id } }, serviceOfferings: { create: { title: 'Synthetic checkout session', sportId: sport.id, priceInCents: 6000, durationMinutes: 60 } },
             availabilitySlots: { create: { dayOfWeek: day, startTime: '09:00', endTime: '12:00' } },
           }, include: { serviceOfferings: true } })
           if (entry === 'dashboard') await db.booking.create({ data: { parentProfileId: parentProfile.id, trainerProfileId: profile.id,
-            athleteProfileId: athlete.id, serviceOfferingId: profile.serviceOfferings[0].id, date: new Date(date), startTime: '09:00', endTime: '10:00',
+            athleteProfileId: athlete.id, serviceOfferingId: profile.serviceOfferings[0].id, date: new Date(date), startTime: '09:00', endTime: '10:00', timeZone: 'UTC', startsAt: new Date(`${date}T09:00:00Z`), endsAt: new Date(`${date}T10:00:00Z`),
             totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } })
           await localAuth.signIn(parent)
           const pageErrors: string[] = [], checkoutIds: string[] = []

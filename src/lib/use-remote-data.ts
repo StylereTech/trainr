@@ -1,8 +1,8 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ZodType } from 'zod'
+import type { ZodType, ZodTypeDef } from 'zod'
 
-export function useRemoteData<T>(url: string, schema: ZodType<T>) {
+export function useRemoteData<T>(url: string, schema: ZodType<T, ZodTypeDef, unknown>) {
   const [state, setState] = useState<{ key: string; data: T | null; loading: boolean; error: string }>({ key: url, data: null, loading: true, error: '' })
   const generation = useRef(0)
   const controller = useRef<AbortController | null>(null)

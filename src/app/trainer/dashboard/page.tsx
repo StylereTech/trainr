@@ -276,6 +276,7 @@ export default function TrainerDashboard() {
                           <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                             <span>{formatBookingDate(b.date)}</span>
                             <span>{b.startTime} – {b.endTime}</span>
+                            <span className="break-words">{b.timeZone || 'Time zone unconfirmed'}</span>
                           </div>
                           {b.notes && <div className="mt-2 text-xs italic text-slate-400">&ldquo;{b.notes}&rdquo;</div>}
                         </div>

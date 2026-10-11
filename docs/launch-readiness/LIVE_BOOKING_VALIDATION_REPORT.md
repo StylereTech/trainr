@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: The signed-in hosted parent still has one athlete and zero bookings. Clearing all catalog filters still returns zero eligible trainers. Local simulated checkout tests do not establish a hosted Stripe payment. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-11 07:26 UTC: parent checkout recovery passed local verification (1,053 unit tests, build, 40 browser regressions), including real local saved-reservation/readback and simulated provider failure/redirect cases. [Exact evidence and limits](PARENT_CHECKOUT_RECOVERY_REPORT.md). This does not verify a live or sandbox provider payment: the hosted parent still has no booking and trainer onboarding remains pending. Publication/hosted smoke pending; money-flow **HOLD**.
 
 2026-10-08 package audit (baseline `a92204dcc6e52bd738f84549804105e664fd1115`): [Package Flow And Booking Contract Audit](PACKAGE_FLOW_AUDIT_REPORT.md) confirms that package listings do not provide trainer management, purchasing or a credit ledger. Unsupported package/credit fields are now rejected instead of silently creating/replaying a single-session booking. Exact failures/retests and remaining implementation requirements are recorded there. Package flows remain **FAIL / INCOMPLETE**, not waived; production and money-flow signoff remain **HOLD**.

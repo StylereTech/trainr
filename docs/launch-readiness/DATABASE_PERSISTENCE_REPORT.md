@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Fresh/legacy/phone-history migration rehearsals passed all 13 checksums and schema parity, preserving legacy rows with NULL booking instants. The complete local SQL suite passed 330 cases; a later focused retest passed 83. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-11 07:59 UTC: isolated Preview source `c810c5983fce44dc160a17e42acaff99ca6c1231` is Ready; its deployed initializer reports `Audit staging schema upgraded; migration checksums verified.` Parent/athlete hosted readback still passes. [Exact migration/deployment evidence and limits](TRAINER_TIME_ZONE_REPORT.md#publication-and-hosted-retest). This is not independent hosted trainer-field readback or a Production migration; those remain unverified.
 
 2026-10-11 07:56 UTC: nullable trainer time-zone migration passed fresh, legacy and recorded-phone-history rehearsals, schema parity, all 12 checksums and no-op replay. Legacy zones remain NULL and existing booking/payment rows are preserved. The fresh-schema SQL suite passed 318 tests; real local browser saves/readback passed. [Exact guard, failed legacy-local deployment attempt, recovery and cleanup](TRAINER_TIME_ZONE_REPORT.md). Preview migration/hosted retest pending; no Production database change.

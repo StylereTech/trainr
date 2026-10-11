@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking and dashboard screens now distinguish trainer schedule zones from immutable booking zones. Desktop/mobile screenshots and initial assertion failures are recorded in the dedicated report; final browser status is recorded there. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-11 07:59 UTC: schedule time-zone/readability source `c810c5983fce44dc160a17e42acaff99ca6c1231` is Ready on audit Preview. Retained parent routes and browse/reset pass hosted smoke; no hosted trainer editor is accessible with that parent role. [Local screenshots, publication and unverified hosted trainer scope](TRAINER_TIME_ZONE_REPORT.md). Overall UI/production signoff remains open.
 
 2026-10-11 07:56 UTC: trainer schedule screens now provide labeled explicit time-zone selection, responsive onboarding time fields, readable selected-day text and visible native clock controls. Final 12 desktop/mobile browser cases passed after a screenshot-driven contrast correction. [Before/after screenshots, exact steps and proof limits](TRAINER_TIME_ZONE_REPORT.md). This is scoped local UI evidence, not full scheduling, hosted trainer or money-flow signoff; publication pending.

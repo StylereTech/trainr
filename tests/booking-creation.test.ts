@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBooking } from '@/lib/booking-creation'
 
 const mock = vi.hoisted(() => ({ transaction: vi.fn(), query: vi.fn() }))
@@ -6,8 +6,9 @@ vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 
 let state: any
 let fail: string | null
-const input = { serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00' }
+const input = { serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2030-11-04', startTime: '09:00', timeZone: 'UTC' }
 const reserve = (overrides = {}) => createBooking('parent-user', { ...input, requestId: randomUUID(), ...overrides })
+afterEach(() => vi.useRealTimers())
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -16,7 +17,7 @@ beforeEach(() => {
     parent: { id: 'parent', user: { email: 'parent@example.test' } },
     service: { id: 'service', trainerProfileId: 'trainer', sportId: 'sport', title: 'Training', type: 'INDIVIDUAL',
       priceInCents: 6000, durationMinutes: 60, maxParticipants: 1, isActive: true,
-      sport: { isActive: true }, trainerProfile: { id: 'trainer', userId: 'trainer-user', isActive: true, approvalStatus: 'APPROVED', sports: [{ sportId: 'sport' }] } },
+      sport: { isActive: true }, trainerProfile: { id: 'trainer', userId: 'trainer-user', timeZone: 'UTC', isActive: true, approvalStatus: 'APPROVED', sports: [{ sportId: 'sport' }] } },
     athletes: ['athlete', 'athlete2', 'athlete3'].map((id) => ({ id, parentProfileId: 'parent', sports: [{ sportId: 'sport' }] })),
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
@@ -47,8 +48,11 @@ beforeEach(() => {
         booking: {
           findFirst: async ({ where }: any) => state.bookings.find((item: any) => item.id === where.id && item.parentProfileId === where.parentProfileId),
           findMany: async ({ where }: any) => state.bookings.filter((b: any) =>
-            b.date.getTime() === where.date.getTime() && !where.status.notIn.includes(b.status) &&
-            where.OR.some((clause: any) => Object.entries(clause).every(([key, value]) => b[key] === value))),
+            !where.status.notIn.includes(b.status) &&
+            where.OR.some((clause: any) => Object.entries(clause).every(([key, value]) => b[key] === value)) &&
+            where.AND[0].OR.some((clause: any) => clause.startsAt === null
+              ? !b.startsAt && b.date >= clause.date.gte && b.date <= clause.date.lte
+              : b.startsAt && b.startsAt < clause.startsAt.lt && b.endsAt > clause.endsAt.gt)),
           create: async ({ data }: any) => {
             if (fail === 'booking') throw new Error('booking insert failed')
             const booking = { id: `booking-${state.bookings.length}`, ...data }
@@ -73,6 +77,22 @@ beforeEach(() => {
 })
 
 describe('atomic reservation creation', () => {
+  it('rolls back the coupon and all records inside the paid checkout lead window', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-11-04T08:30:00Z'))
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toThrow('31 minutes')
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+    expect(state.requests).toHaveLength(0)
+    expect(state.notifications).toHaveLength(0)
+  })
+  it('allows a genuinely zero-due future session without requiring a Checkout window', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2030-11-04T08:45:00Z'))
+    state.coupon.discountPercent = 100
+    await expect(reserve({ couponCode: 'SAVE10' })).resolves.toMatchObject({ status: 'CONFIRMED', totalAmountInCents: 0 })
+    expect(state.coupon.currentUses).toBe(1)
+  })
   it.each(['unassigned', 'inactive', 'removed'])('rejects a service with %s sport before consuming a coupon or creating records', async (condition) => {
     if (condition === 'unassigned') state.service.sportId = null
     if (condition === 'inactive') state.service.sport.isActive = false
@@ -136,7 +156,7 @@ describe('atomic reservation creation', () => {
   })
 
   it('rejects an athlete already booked with another trainer', async () => {
-    state.bookings.push({ ...input, date: new Date(input.date), trainerProfileId: 'other', endTime: '10:00', status: 'CONFIRMED' })
+    state.bookings.push({ ...input, date: new Date(input.date), startsAt: new Date(`${input.date}T09:00:00Z`), endsAt: new Date(`${input.date}T10:00:00Z`), trainerProfileId: 'other', endTime: '10:00', status: 'CONFIRMED' })
     await expect(reserve()).rejects.toThrow('athlete already')
   })
 

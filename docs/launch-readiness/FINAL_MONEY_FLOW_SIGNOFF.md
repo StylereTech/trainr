@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Checkout timing safeguards and simulated provider tests do not constitute money-flow signoff. Actual sandbox Checkout, destination transfer and payout evidence are still required. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-09 04:38 UTC: free isolated Preview DB, sandbox API keys and two webhook destinations are configured with owner approval. Configuration success does not establish payment or payout success. Application schema deployment, independent auth secret, webhook ingress, actual sandbox Checkout/Connect/persistence/transfer/payout tests remain required. [Exact current evidence](STAGING_PROVISIONING_REPORT.md). Signoff remains **HOLD**; no live funds or production promotion.
 
 2026-10-09 03:55 UTC: authenticated Stripe sandbox access supersedes the earlier signed-out blocker. Isolated Preview setup has begun, and separate Connect signing-secret support is tested locally. [Exact setup, approvals and test boundaries](STRIPE_SANDBOX_SETUP_REPORT.md). No actual Stripe-backed parent Checkout, trainer onboarding, destination transfer or payout was completed in this pass. Signoff remains **HOLD**.

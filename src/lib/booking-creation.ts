@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '@/lib/fees'
-import { isTimeSlotAvailable, minutesToTime, timeToMinutes } from '@/lib/availability'
+import { isTimeSlotAvailable } from '@/lib/availability'
+import { PAID_BOOKING_LEAD_MS, resolveBookingTime } from '@/lib/booking-time'
+import { canonicalTimeZone } from '@/lib/time-zone'
 import { bookingSchema, type BookingInput } from '@/lib/validations'
 import { effectiveFeeValues } from '@/lib/fee-config'
 
@@ -65,23 +67,32 @@ export async function createBooking(userId: string, input: BookingInput) {
     if (!isTimeSlotAvailable(slots, date, data.startTime, service.durationMinutes)) {
       throw new BookingCreationError('Trainer is not available at the requested date/time', 400)
     }
-    const start = timeToMinutes(data.startTime)
-    const end = start + service.durationMinutes
-    const endTime = minutesToTime(end)
+    if (canonicalTimeZone(service.trainerProfile.timeZone) !== data.timeZone) {
+      throw new BookingCreationError('Trainer time zone is missing or changed. Reload before booking.', 409)
+    }
+    let timing: ReturnType<typeof resolveBookingTime>
+    try { timing = resolveBookingTime(data.date, data.startTime, service.durationMinutes, data.timeZone) }
+    catch (error) { throw new BookingCreationError(error instanceof Error ? error.message : 'Invalid session time.', 400) }
+    if (timing.startsAt.getTime() <= Date.now()) throw new BookingCreationError('This session has already started. Choose a future time.', 400)
     const existing = await tx.booking.findMany({
       where: {
-        date, status: { notIn: ['CANCELLED', 'RESCHEDULED'] },
+        status: { notIn: ['CANCELLED', 'RESCHEDULED'] },
         OR: [{ trainerProfileId: service.trainerProfileId }, { athleteProfileId: athlete.id }],
+        AND: [{ OR: [
+          { startsAt: { lt: timing.endsAt }, endsAt: { gt: timing.startsAt } },
+          // Unknown legacy zones are not guessed; require reconciliation near a proposed session.
+          { startsAt: null, date: { gte: new Date(timing.startsAt.getTime() - 2 * 86400000), lte: new Date(timing.endsAt.getTime() + 2 * 86400000) } },
+        ] }],
       },
-      select: { trainerProfileId: true, athleteProfileId: true, serviceOfferingId: true, startTime: true, endTime: true },
+      select: { trainerProfileId: true, athleteProfileId: true, serviceOfferingId: true, startsAt: true, endsAt: true },
     })
-    const overlapping = existing.filter((booking) => start < timeToMinutes(booking.endTime) && end > timeToMinutes(booking.startTime))
-    if (overlapping.some((booking) => booking.athleteProfileId === athlete.id)) {
+    if (existing.some(booking => !booking.startsAt || !booking.endsAt)) throw new BookingCreationError('An existing booking needs its original time zone reconciled before reserving nearby sessions. Contact support.', 409)
+    if (existing.some((booking) => booking.athleteProfileId === athlete.id)) {
       throw new BookingCreationError('This athlete already has a booking at that time', 409)
     }
-    const trainerBookings = overlapping.filter((booking) => booking.trainerProfileId === service.trainerProfileId)
+    const trainerBookings = existing.filter((booking) => booking.trainerProfileId === service.trainerProfileId)
     const matchingGroup = service.type === 'GROUP' && trainerBookings.every((booking) =>
-      booking.serviceOfferingId === service.id && booking.startTime === data.startTime && booking.endTime === endTime)
+      booking.serviceOfferingId === service.id && booking.startsAt!.getTime() === timing.startsAt.getTime() && booking.endsAt!.getTime() === timing.endsAt.getTime())
     if (trainerBookings.length && (!matchingGroup || trainerBookings.length >= service.maxParticipants)) {
       throw new BookingCreationError('This time overlaps an existing session or the group is full', 409)
     }
@@ -112,10 +123,13 @@ export async function createBooking(userId: string, input: BookingInput) {
     }
     const { platformFee, trainerShare } = calculateSplit(total, fees.platformCommissionPercent)
     const free = total === 0
+    if (timing.startsAt.getTime() <= Date.now() + (free ? 0 : PAID_BOOKING_LEAD_MS)) {
+      throw new BookingCreationError(free ? 'This session has already started.' : 'Paid sessions require at least 31 minutes before their start for secure checkout.', 400)
+    }
     const booking = await tx.booking.create({
       data: {
         parentProfileId: parent.id, trainerProfileId: service.trainerProfileId, athleteProfileId: athlete.id,
-        serviceOfferingId: service.id, date, startTime: data.startTime, endTime, notes: data.notes,
+        serviceOfferingId: service.id, date, startTime: data.startTime, ...timing, notes: data.notes,
         totalAmountInCents: total, platformFeeInCents: platformFee, trainerPayoutInCents: trainerShare,
         status: free ? 'CONFIRMED' : 'PENDING',
         ...(free ? { payment: { create: { amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const } } } : {}),
@@ -126,7 +140,7 @@ export async function createBooking(userId: string, input: BookingInput) {
       userId: service.trainerProfile.userId,
       type: free ? 'BOOKING_CONFIRMED' : 'BOOKING_REQUEST',
       title: free ? 'Booking confirmed - no payment due' : 'New booking request',
-      message: `${parent.user.email} requested ${service.title} on ${data.date} at ${data.startTime}.${free ? ' No payment is due and no Stripe charge or trainer payout was created.' : ' Payment is pending.'}`,
+      message: `${parent.user.email} requested ${service.title} on ${data.date} at ${data.startTime} (${timing.timeZone}).${free ? ' No payment is due and no Stripe charge or trainer payout was created.' : ' Payment is pending.'}`,
       data: { bookingId: booking.id },
     } })
     await tx.bookingCreateRequest.create({ data: { parentProfileId: parent.id, requestId, payloadHash, bookingId: booking.id } })

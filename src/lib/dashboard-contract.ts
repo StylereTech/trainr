@@ -11,6 +11,7 @@ const count = z.number().int().nonnegative().safe()
 const person = z.object({ firstName: z.string(), lastName: z.string() })
 export const dashboardBookingSchema = z.object({
   id: z.string().min(1), date: z.string().datetime(), startTime: z.string(), endTime: z.string(),
+  timeZone: z.string().nullable().default(null), startsAt: z.string().datetime().nullable().default(null), endsAt: z.string().datetime().nullable().default(null),
   status: z.enum(bookingStates), totalAmountInCents: count, trainerPayoutInCents: count, notes: z.string().nullable(),
   serviceOffering: z.object({ title: z.string(), durationMinutes: count }),
   trainerProfile: person.extend({ paymentReady: z.boolean() }),

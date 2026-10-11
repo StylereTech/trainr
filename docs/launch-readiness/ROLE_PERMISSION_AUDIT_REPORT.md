@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-11 booking-time pass, baseline `9f03ca6304546f7bdd31941d2f880148b3f0439c`: Booking and checkout timing checks retain the existing ownership and role guards, with synthetic local role/SQL regression coverage. No new hosted trainer or administrator session is claimed. [Exact environment, steps, failures, retests, publication status and remaining gates](BOOKING_INSTANTS_REPORT.md). Audit Preview only; main/Production/Story unchanged. Overall **HOLD**.
+
 2026-10-11: the actual staging parent session was redirected to its own dashboard when opening `/trainer/dashboard` and `/admin`; mobile Sign Out returned to public home with Sign In visible. [Exact parent staging evidence](PARENT_STAGING_WORKFLOW_REPORT.md). Trainer-to-parent/admin boundaries and API permissions were not re-tested in this browser pass.
 
 2026-10-08 late-payment follow-up (baseline `ccbb3bcea834dce469459741bcd358183de903a6`): [Late Payment Operations Alert Audit](LATE_PAYMENT_OPERATIONS_REPORT.md) records the reproduced missing admin alert for settlement after cancellation/rescheduling, transactional repair, exact tests, publication and remaining limits. No automatic refund, historical backfill or real Stripe payout proof is implied. Scheduling policy and staging/live money-flow gates remain open; production signoff remains **HOLD**.

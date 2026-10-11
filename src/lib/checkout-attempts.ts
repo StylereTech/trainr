@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { isSupportedBookingTotal } from '@/lib/fees'
+import { checkoutTimeError, PAID_BOOKING_LEAD_MS } from '@/lib/booking-time'
 
 export class CheckoutConflict extends Error {}
 type Buyer = { id: string; email?: string | null }
@@ -34,6 +35,8 @@ type CheckoutBooking = NonNullable<Awaited<ReturnType<typeof lockedBooking>>>
 function assertPayable(booking: CheckoutBooking | null, buyer: Buyer, accountId: string) {
   if (!booking || booking.parentProfile.userId !== buyer.id) throw new CheckoutConflict('Booking ownership changed. Refresh before retrying.')
   if (!['PENDING', 'CONFIRMED'].includes(booking.status)) throw new CheckoutConflict('Booking cannot be paid in its current state.')
+  const timeError = checkoutTimeError(booking)
+  if (timeError) throw new CheckoutConflict(timeError)
   if (booking.trainerProfile.stripeAccountId !== accountId) throw new CheckoutConflict('Trainer payment account changed. Refresh before retrying.')
   const payment = booking.payment
   if (payment && (!['PENDING', 'FAILED'].includes(payment.status) || payment.stripeChargeId || payment.stripeTransferId || payment.refundAmountInCents > 0)) {
@@ -51,16 +54,19 @@ function assertPayable(booking: CheckoutBooking | null, buyer: Buyer, accountId:
 }
 
 function parameters(booking: CheckoutBooking, paymentId: string, attemptId: string, buyer: Buyer, accountId: string): Stripe.Checkout.SessionCreateParams {
+  const now = Date.now()
+  if (booking.startsAt!.getTime() <= now + PAID_BOOKING_LEAD_MS) throw new CheckoutConflict('A new checkout needs at least 31 minutes before the session starts. Contact support about this booking.')
   const metadata = { bookingId: booking.id, paymentId, checkoutAttemptId: attemptId }
   return {
     payment_method_types: ['card'], mode: 'payment',
+    expires_at: Math.floor(Math.min(booking.startsAt!.getTime(), now + 23 * 60 * 60 * 1000) / 1000),
     ...(buyer.email ? { customer_email: buyer.email } : {}),
     line_items: [{
       price_data: {
         currency: 'usd', unit_amount: booking.totalAmountInCents,
         product_data: {
           name: `${booking.serviceOffering.title} with ${booking.trainerProfile.firstName} ${booking.trainerProfile.lastName}`,
-          description: `${booking.date.toISOString().slice(0, 10)} at ${booking.startTime}`,
+          description: `${booking.date.toISOString().slice(0, 10)} at ${booking.startTime} (${booking.timeZone})`,
         },
       }, quantity: 1,
     }],
@@ -169,7 +175,10 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
   // Save the provider identity even when cancellation wins the external-call race.
   if (recorded.status === 'CANCELLED') await closeCancelledCheckout(bookingId)
   const trainerAllowed = recorded.trainerProfile.isActive && recorded.trainerProfile.approvalStatus === 'APPROVED'
-  if (!buyerAllowed || !trainerAllowed) {
+  const timeError = checkoutTimeError(recorded)
+  const boundedSession = !session.after_expiration?.recovery?.enabled && (session.status !== 'open' || (Number.isSafeInteger(session.expires_at) && session.expires_at * 1000 > Date.now() &&
+    !!recorded.startsAt && session.expires_at * 1000 <= recorded.startsAt.getTime()))
+  if (!buyerAllowed || !trainerAllowed || timeError || !boundedSession) {
     // Retain the returned identity before best-effort expiry. No refund or closure is implied.
     if (session.status === 'open' && session.payment_status === 'unpaid') {
       try {
@@ -180,9 +189,9 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
         }
       } catch { console.error('Withheld checkout expiry could not be verified; reconciliation required') }
     }
-    throw new CheckoutConflict(!buyerAllowed
+    throw new CheckoutConflict(timeError || (!boundedSession ? 'Checkout expiry requires reconciliation. No payment link was released; contact support.' : !buyerAllowed
       ? 'Parent account access changed. Checkout was withheld; contact support to reconcile any payment.'
-      : 'Trainer is no longer available for checkout. Checkout was withheld; contact support to reconcile any payment.')
+      : 'Trainer is no longer available for checkout. Checkout was withheld; contact support to reconcile any payment.'))
   }
   assertPayable(recorded, buyer, accountId)
 }

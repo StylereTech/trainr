@@ -6,7 +6,7 @@ const mock = vi.hoisted(() => ({ user: vi.fn(), create: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 vi.mock('@/lib/booking-creation', async (original) => ({ ...await original<object>(), createBooking: mock.create }))
-const input = { requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e', serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00' }
+const input = { requestId: 'f9a4038f-506e-4c48-b77b-f50633128d7e', serviceOfferingId: 'service', athleteProfileId: 'athlete', date: '2026-11-02', startTime: '09:00', timeZone: 'UTC' }
 const post = (body: unknown = input) => POST(new Request('http://localhost/api/bookings', { method: 'POST', body: JSON.stringify(body) }) as any)
 
 beforeEach(() => {
@@ -34,7 +34,7 @@ it.each([{ requestId: undefined }, { requestId: 'invalid' }, { date: '2026-02-30
   expect(mock.create).not.toHaveBeenCalled()
 })
 it.each([{ packageId: 'package' }, { packagePurchaseId: 'purchase' }, { sessionCreditId: 'credit' },
-  { timeZone: 'America/Chicago' }, { totalAmountInCents: 1 }])('rejects unsupported booking semantics instead of silently stripping %j', async change => {
+  { totalAmountInCents: 1 }])('rejects unsupported booking semantics instead of silently stripping %j', async change => {
   const response = await post({ ...input, ...change })
   expect(response.status).toBe(400)
   expect(await response.json()).toEqual({ error: 'Unsupported booking fields' })

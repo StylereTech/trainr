@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { timeZoneSchema } from '@/lib/time-zone'
 
 export const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -78,6 +79,7 @@ export const packageSchema = z.object({
 })
 
 export const bookingSchema = z.object({
+  timeZone: timeZoneSchema,
   requestId: z.string().uuid('Reload the booking form before reserving'),
   serviceOfferingId: z.string().trim().min(1).max(128),
   athleteProfileId: z.string().trim().min(1).max(128),

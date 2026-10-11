@@ -62,7 +62,7 @@ beforeEach(async () => {
     include: { parentProfile: { include: { athletes: true } } } })
   createdParents.push(parent.id)
   const trainer = await prisma.user.create({ data: { email: `${id}-trainer@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, timeZone: 'UTC', approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic',
       sports: { create: { sportId: sport.id } },
       serviceOfferings: { create: { title: 'Synthetic session', priceInCents: 6000, durationMinutes: 60, sportId: sport.id } },
       availabilitySlots: { create: { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' } } } } },
@@ -74,7 +74,7 @@ beforeEach(async () => {
   const sessions = new Map<string, any>()
   provider.create.mockImplementation(async (parameters, options) => {
     const key = options.idempotencyKey
-    if (!sessions.has(key)) sessions.set(key, { id: `cs_${randomUUID()}`, status: 'open', payment_status: 'unpaid', payment_intent: null,
+    if (!sessions.has(key)) sessions.set(key, { id: `cs_${randomUUID()}`, status: 'open', payment_status: 'unpaid', payment_intent: null, expires_at: parameters.expires_at,
       mode: 'payment', currency: 'usd', amount_total: parameters.line_items[0].price_data.unit_amount, metadata: parameters.metadata, url: 'https://checkout.stripe.com/synthetic-only' })
     return sessions.get(key)
   })
@@ -111,13 +111,52 @@ afterAll(async () => {
 
 const reserve = (athlete = 0, startTime = '09:00', couponCode?: string) => createBooking(fixture.parent, {
   requestId: randomUUID(),
-  serviceOfferingId: fixture.service, athleteProfileId: fixture.athletes[athlete], date: fixture.date, startTime, couponCode,
+  serviceOfferingId: fixture.service, athleteProfileId: fixture.athletes[athlete], date: fixture.date, startTime, timeZone: 'UTC', couponCode,
 })
 async function pendingPayment(bookingId: string) {
   return prisma.payment.create({ data: { bookingId, amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } })
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  it('persists immutable instants and rejects overlapping sessions across civil dates', async () => {
+    const saved = await reserve()
+    expect(await independent.booking.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ timeZone: 'UTC', startsAt: new Date('2030-11-04T09:00:00Z'), endsAt: new Date('2030-11-04T10:00:00Z') })
+    await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { timeZone: 'Pacific/Honolulu' } })
+    await prisma.availabilitySlot.updateMany({ where: { trainerProfileId: fixture.trainer }, data: { dayOfWeek: 0, startTime: '23:00', endTime: '24:00' } })
+    await expect(createBooking(fixture.parent, { requestId: randomUUID(), serviceOfferingId: fixture.service, athleteProfileId: fixture.athletes[1], date: '2030-11-03', startTime: '23:00', timeZone: 'Pacific/Honolulu' })).rejects.toThrow('overlaps')
+    expect(await independent.booking.count({ where: { trainerProfileId: fixture.trainer } })).toBe(1)
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: saved.id } })).timeZone).toBe('UTC')
+  })
+  it.each([
+    { timeZone: 'America/New_York' }, { startsAt: new Date('2030-11-04T08:00:00Z') },
+    { endsAt: new Date('2030-11-04T11:00:00Z') }, { date: new Date('2030-11-05') },
+    { startTime: '08:00' }, { endTime: '11:00' }, { timeZone: null, startsAt: null, endsAt: null },
+  ])('SQL rejects modification of a recorded booking time %j', async data => {
+    const saved = await reserve()
+    await expect(independent.booking.update({ where: { id: saved.id }, data })).rejects.toThrow('immutable')
+    expect(await independent.booking.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ timeZone: 'UTC', startsAt: saved.startsAt, endsAt: saved.endsAt })
+    await expect(independent.booking.update({ where: { id: saved.id }, data: { status: 'CANCELLED' } })).resolves.toMatchObject({ status: 'CANCELLED' })
+  })
+  it('keeps legacy times unknown and blocks nearby reservations and checkout', async () => {
+    const parent = await prisma.parentProfile.findUniqueOrThrow({ where: { userId: fixture.parent } })
+    const legacy = await prisma.booking.create({ data: { parentProfileId: parent.id, trainerProfileId: fixture.trainer, athleteProfileId: fixture.athletes[0], serviceOfferingId: fixture.service, date: new Date(fixture.date), startTime: '09:00', endTime: '10:00', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } })
+    await expect(reserve(1)).rejects.toThrow('original time zone reconciled')
+    await expect(startOrResumeCheckout(legacy.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('original time zone confirmed')
+    await expect(independent.booking.update({ where: { id: legacy.id }, data: { timeZone: 'UTC' } })).rejects.toThrow()
+    expect(await independent.payment.count({ where: { bookingId: legacy.id } })).toBe(0)
+    expect(provider.create).not.toHaveBeenCalled()
+  })
+  it.each([null, 'America/New_York'])('rejects missing or stale trainer zones %s without reservation writes', async timeZone => {
+    await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { timeZone } })
+    await expect(reserve()).rejects.toMatchObject({ status: 409 })
+    expect(await independent.booking.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+  })
+  it('rejects past dates without consuming a coupon or creating notifications', async () => {
+    fixture.date = '2000-01-03'
+    await expect(reserve()).rejects.toThrow('already started')
+    expect(await independent.booking.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
+    expect(await independent.notification.count({ where: { userId: fixture.trainerUser } })).toBe(0)
+  })
   it.each(['role', 'deactivation'] as const)('blocks queued checkout before any provider write when buyer %s wins', async change => {
     const booking = await reserve()
     let release!: () => void
@@ -618,7 +657,7 @@ describe('real PostgreSQL money-flow persistence', () => {
       sports.push(sport)
     }
     const trainer = await prisma.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })
-    return { sports, input: { revision: trainer.updatedAt.toISOString(), firstName: 'Synthetic', lastName: 'Trainer', yearsExperience: 1, locationType: 'BOTH', timeZone: 'America/Chicago',
+    return { sports, input: { revision: trainer.updatedAt.toISOString(), firstName: 'Synthetic', lastName: 'Trainer', yearsExperience: 1, locationType: 'BOTH', timeZone: 'UTC',
       sports: sports.map((sport) => sport.slug), specialties: sports.map((sport) => sport.specialties[0].id),
       services: [{ id: fixture.service, sportId: sports[0].id, title: 'Synthetic session', priceInCents: 6000, durationMinutes: 60, type: 'INDIVIDUAL', maxParticipants: 1 }],
       availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '17:00' }] } }
@@ -628,6 +667,7 @@ describe('real PostgreSQL money-flow persistence', () => {
   it('persists an explicit zone without rewriting bookings and rejects stale or invalid changes', async () => {
     const booking = await reserve()
     const before = await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })
+    await prisma.trainerProfile.update({ where: { id: fixture.trainer }, data: { timeZone: null } })
     const { input } = await profileInput()
     expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).timeZone).toBeNull()
     for (const timeZone of [undefined, '', 'CST', '+01:00', 'Invalid/Zone']) {
@@ -712,7 +752,7 @@ describe('real PostgreSQL money-flow persistence', () => {
       expect(await independent.trainerSpecialty.count({ where: { trainerProfileId: fixture.trainer } })).toBe(0)
       expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).updatedAt.toISOString()).toBe(input.revision)
       expect((await independent.serviceOffering.findUniqueOrThrow({ where: { id: fixture.service } })).sportId).toBe(fixture.sport)
-      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).timeZone).toBeNull()
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).timeZone).toBe('UTC')
       expect(await independent.availabilitySlot.count({ where: { trainerProfileId: fixture.trainer } })).toBe(1)
     } finally {
       await independent.$executeRawUnsafe('ALTER TABLE availability_slots DROP CONSTRAINT trainr_integration_availability_failure')

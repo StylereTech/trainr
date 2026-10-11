@@ -364,6 +364,7 @@ export default function TrainerProfilePage() {
             <Card className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-5 md:p-6">
                 <h3 className="text-xl font-semibold">Weekly Availability</h3>
+                <p className="text-sm text-slate-300">{trainer.timeZone ? `Session time zone: ${trainer.timeZone}` : 'Schedule time zone not set'}</p>
                 {Object.keys(availabilityByDay).length > 0 ? (
                   <div className="mt-5 grid gap-3">
                     {DAY_NAMES.filter(day => availabilityByDay[day]).map(day => (

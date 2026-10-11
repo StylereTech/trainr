@@ -16,6 +16,7 @@ interface Booking {
   id: string
   date: string
   startTime: string
+  timeZone: string | null
   endTime: string
   status: string
   totalAmountInCents: number
@@ -150,7 +151,7 @@ export default function AdminBookings() {
                     <div className="mt-2 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
                       <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
-                      <span>{b.startTime} – {b.endTime}</span>
+                      <span>{b.startTime} – {b.endTime} ({b.timeZone || 'Time zone unconfirmed'})</span>
                       <span>Booked {new Date(b.createdAt).toLocaleDateString()}</span>
                     </div>
                     {b.notes && <div className="mt-2 text-xs italic text-slate-400">&ldquo;{b.notes}&rdquo;</div>}

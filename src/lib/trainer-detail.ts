@@ -17,6 +17,7 @@ export async function getPublicTrainerBySlug(slug: string) {
       city: true,
       state: true,
       locationType: true,
+      timeZone: true,
       travelRadius: true,
       yearsExperience: true,
       avgRating: true,

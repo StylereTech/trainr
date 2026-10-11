@@ -22,6 +22,7 @@ interface RecentBooking {
   id: string
   date: string
   startTime: string
+  timeZone: string | null
   status: string
   totalAmountInCents: number
   trainerProfile: { firstName: string; lastName: string }
@@ -121,7 +122,7 @@ export default function AdminOverview() {
                       <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                     </div>
                     <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
-                    <div className="mt-2 text-xs text-slate-400">{formatBookingDate(b.date)} at {b.startTime}</div>
+                    <div className="mt-2 text-xs text-slate-400">{formatBookingDate(b.date)} at {b.startTime} ({b.timeZone || 'Time zone unconfirmed'})</div>
                   </div>
                   <div className="text-left md:text-right">
                     <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
