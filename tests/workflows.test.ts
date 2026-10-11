@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockPrisma = {
   $transaction: vi.fn(),
@@ -27,6 +27,13 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 describe('Parent athlete onboarding workflow', () => {
+  let POST: typeof import('@/app/api/athletes/route').POST
+
+  beforeAll(async () => {
+    // Cold Next.js module transformation belongs to setup, not the request timeout.
+    POST = (await import('@/app/api/athletes/route')).POST
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockPrisma.$transaction.mockImplementation(run => run(mockPrisma))
@@ -47,7 +54,6 @@ describe('Parent athlete onboarding workflow', () => {
       sports: [],
     })
 
-    const { POST } = await import('@/app/api/athletes/route')
     const response = await POST(
       new Request('http://localhost:3000/api/athletes', {
         method: 'POST',
@@ -91,7 +97,6 @@ describe('Parent athlete onboarding workflow', () => {
     mockPrisma.parentProfile.findUnique.mockResolvedValue({ id: 'parent-profile-1' })
     mockPrisma.sport.findMany.mockResolvedValue([])
 
-    const { POST } = await import('@/app/api/athletes/route')
     const response = await POST(
       new Request('http://localhost:3000/api/athletes', {
         method: 'POST',
