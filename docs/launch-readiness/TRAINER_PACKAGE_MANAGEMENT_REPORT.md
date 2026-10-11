@@ -45,7 +45,12 @@ Independent psql cleanup verification matched `trainr_audit_timezone_20261011`, 
 
 ## Publication And Hosted Retest
 
-Pending this pass's scoped commit/push, exact-source Ready deployment, alias check and hosted smoke. No new live success is claimed here yet. Existing owner PARENT session remains preserved; fresh observation during this pass shows one Sandbox Athlete and zero bookings. No password was collected or trainer created implicitly.
+- Source committed and pushed as `13d6355900eee26cdd8ed0aa12f37d43c1096970`, `feat: add trainer package catalog management with safe revisions`. Local HEAD and fetched audit remote matched; clean worktree after source push. Only `codex/payment-readiness-20261006` was pushed.
+- Vercel [deployment 9CK9nQjyCowJdDPqkJMnfKVvZAYz](https://vercel.com/styleres-projects/trainr/9CK9nQjyCowJdDPqkJMnfKVvZAYz) observed **Ready** before hosted probes at 11:44 UTC, duration 1m14s, source exactly `13d6355`. Unique URL `trainr-8ehhh1sv7-styleres-projects.vercel.app` and stable audit branch alias were visibly mapped on its details page. No promotion or production-domain change occurred.
+- Actual anonymous probes at 11:44:26-27 UTC: GET and PUT `/api/trainer/packages` both returned 401 with `{"error":"Unauthorized"}` and `Cache-Control: private, no-store`; POST `/api/payments/checkout` returned 401. PUT/POST used empty JSON, no credential or booking ID. PASS for access boundaries; these are not successful purchase tests.
+- Owner-authenticated PARENT browser: refreshed dashboard retained one Sandbox Athlete and zero bookings; navigating to `/trainer/packages` redirected to `/parent/dashboard`, which loaded the same persisted state. PASS for role-page denial and parent refresh. No password was collected, session switched, trainer created, agreement accepted, or hosted data deleted.
+- Authenticated hosted trainer package CRUD, Connect onboarding and successful paid booking/transfer/payout remain NOT VERIFIED. Local synthetic trainer tests above are not relabeled hosted tests. Storage-tab observation during this pass returned stale-page capture errors; no refreshed hosted database counts are claimed from that attempt.
+- This documentation follow-up records the source deployment and smoke evidence; the application source remains unchanged. Full production readiness remains HOLD.
 
 ## Remaining Gates
 
