@@ -69,4 +69,13 @@ Asked the owner whether a separate trainer test login already exists. Actual hos
 
 After the final repeat, independent psql readback reconfirmed the database/role/guard and zero users, bookings, payments, packages, package items, services, sports, Connect attempts, checkout attempts, refunds, wallet entries and withdrawal requests. No hosted records were deleted. Raw logs, traces and screenshots remain local and ignored. The owned app server was stopped with Ctrl-C; PostgreSQL stopped cleanly.
 
-Pending scoped audit-branch commit/push, Ready deployment and hosted retest. Publication of this narrowly tested security improvement does not establish a full browser-suite pass or production release. Main, Production and Story remain untouched.
+Publication of this narrowly tested security improvement does not establish a full browser-suite pass or production release. Main, Production and Story remain untouched.
+
+### Published Source And Hosted Retest
+
+- Source `85585fe35a40cd396e45da445a5ca8350ec1824c`, `security: patch Prisma configuration merge dependency`, committed and pushed only to `codex/payment-readiness-20261006`. Worktree was clean after push.
+- Vercel [deployment 8eubAM947f8a84pmuaCzsAqn7tPC](https://vercel.com/styleres-projects/trainr/8eubAM947f8a84pmuaCzsAqn7tPC) verified Ready on exact source, duration 43s, at approximately 16:53:26 UTC. UI mapped both unique `trainr-2nemn9v5v-styleres-projects.vercel.app` and the stable audit branch alias. No production domain assignment or promotion was performed.
+- At 16:53:35-16:53:36 UTC, anonymous GET `/api/bookings`, `/api/trainer/onboarding`, `/api/trainer/packages` and `/api/payments/connect` each returned 401 Unauthorized. Unsigned POST `/api/payments/webhook` with `{}` returned 400 Missing stripe-signature header. All five expected boundary checks passed; no credentials or payment details were submitted.
+- Existing owner PARENT refreshed `/messages`, then navigated through the menu to `/parent/dashboard`. Empty inbox, one saved Sandbox Athlete and zero bookings persisted. Direct navigation to `/trainer/packages` redirected to `/parent/dashboard`, and no captured browser errors were returned. These are parent read/persistence/role-boundary checks, not trainer management or paid-booking proof.
+- [GitHub Actions run 38157278755](https://github.com/StylereTech/trainr/actions/runs/38157278755), exact source `85585fe`, failed before either job started. Fresh authenticated UI annotations for both check and migrations state that the account is locked due to a billing issue. No billing settings were changed; Vercel Ready is not a GitHub CI pass.
+- This documentation follow-up changes no application source. The full-run connection reset, remaining dependency findings, actual hosted trainer/Stripe workflow, package purchase/credits and other launch gates remain open. Overall **HOLD**.
