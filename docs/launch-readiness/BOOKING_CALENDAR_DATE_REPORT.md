@@ -42,4 +42,13 @@ No database migration, date backfill, booking-time reinterpretation, fee change 
 
 ## Publication And Remaining Gates
 
-Commit/push, Preview deployment and hosted smoke pending. The signed-in Preview account remains a parent with no bookings, so it cannot supply hosted trainer/admin or populated booking-date proof. The owner has been asked whether to use an existing trainer account or open trainer signup; no credentials, role changes or verification bypasses were introduced. Full sandbox booking/Connect/transfer/payout and package flows remain incomplete or unverified. Resend remains owner-deferred. Story and Production are unchanged.
+2026-10-11 06:50 UTC: source `d7460ab19ab3db1c06c8c49fd8ace6671c9f5ca6` is committed and pushed to `codex/payment-readiness-20261006`; local HEAD and origin tracking branch match and the working tree is clean. Vercel audit project `trainr` deployment `eVeXwqNKSBRYrmwL8Mtyqebmu1PQ` is **Ready**, Preview, build duration 1m 6s, created 06:48:20 UTC. Its source SHA and stable branch-domain mapping were read from Deployment Details. Unique deployment: `https://trainr-1jhzm4zt6-styleres-projects.vercel.app`.
+
+Hosted retest used the existing owner-signed-in PARENT account on `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`, without mocked responses or injected sessions:
+
+1. Reload `/parent/dashboard`: expected persisted session/athlete and empty booking state; **PASS**, one saved athlete, zero open bookings, no upcoming sessions.
+2. Select Past (0): expected empty history with disabled pagination; **PASS**, no past sessions and page 1 of 1 (0 bookings).
+3. Open the saved synthetic athlete: expected original saved fields; **PASS**, Sandbox Athlete, 2014-01-15, Intermediate, Basketball/Soccer and synthetic-only goals/notes persist.
+4. Navigate directly to `/trainer/dashboard`, then `/admin`: expected parent role denied each protected page; **PASS**, both resolve to `/parent/dashboard` with Parent dashboard rendered.
+
+The signed-in Preview account remains a parent with no bookings, so it cannot supply hosted trainer/admin or populated booking-date proof. Correct populated date rendering is proven by the local SQL/browser matrix above, not by this hosted empty-state smoke. The owner has been asked whether to use an existing trainer account or open trainer signup; no credentials, role changes or verification bypasses were introduced. Full sandbox booking/Connect/transfer/payout and package flows remain incomplete or unverified. Resend remains owner-deferred. Story, main and Production are unchanged. This publication evidence is recorded in the subsequent documentation-only commit.
