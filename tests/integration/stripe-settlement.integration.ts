@@ -9,6 +9,7 @@ import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 import { changeNotifications, readNotifications } from '@/lib/notifications'
 import { reconcileBookingPayment } from '@/lib/payment-reconciliation'
+import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
 
 const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
@@ -96,6 +97,80 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     users.push(actor.id)
     return actor.id
   }
+  it.each(['PENDING', 'FAILED'] as const)('refund refresh cannot promote %s without the agreed destination receipt', async status => {
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status, stripePaymentIntentId: f.intent.id } })
+    f.transfer.destination = 'acct_wrong'
+    await expect(reconcilePaymentRefunds(f.booking.id)).rejects.toThrow('transfer does not match')
+    expect(await payment()).toMatchObject({ status, stripeChargeId: null, stripeTransferId: null, refundsVerifiedAt: null })
+    expect((await booking()).status).toBe('PENDING')
+    expect(await independent.paymentRefund.count({ where: { paymentId: f.booking.payment.id } })).toBe(0)
+    expect(await notices()).toHaveLength(0)
+  })
+  it('refund refresh rejects missing immutable checkout history before changing financial records', async () => {
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    await prisma.checkoutAttempt.delete({ where: { id: f.attempt.id } })
+    await expect(reconcilePaymentRefunds(f.booking.id)).rejects.toThrow('Immutable checkout destination')
+    expect((await payment()).status).toBe('PENDING')
+    expect(provider.refunds).not.toHaveBeenCalled()
+    expect(await notices()).toHaveLength(0)
+  })
+  it('refund refresh keeps a provider-read failure retryable without marking the payment successful', async () => {
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    provider.transfer.mockRejectedValueOnce(new Error('synthetic transfer read unavailable'))
+    await expect(reconcilePaymentRefunds(f.booking.id)).rejects.toThrow('transfer read unavailable')
+    expect(await payment()).toMatchObject({ status: 'PENDING', stripeChargeId: null, stripeTransferId: null, refundsVerifiedAt: null })
+    await reconcilePaymentRefunds(f.booking.id)
+    expect(await payment()).toMatchObject({ status: 'SUCCEEDED', stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
+    expect((await booking()).status).toBe('PENDING')
+  })
+  it('refund refresh waits for refund history when the charge already reports returned money', async () => {
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    f.charge.refunded = true
+    f.charge.amount_refunded = 6000
+    await expect(reconcilePaymentRefunds(f.booking.id)).rejects.toThrow('Refund history is not available')
+    expect(await payment()).toMatchObject({ status: 'PENDING', stripeChargeId: null, stripeTransferId: null, refundsVerifiedAt: null })
+    expect((await booking()).status).toBe('PENDING')
+    expect(await notices()).toHaveLength(0)
+    provider.refunds.mockResolvedValue({ data: [{ id: `re_${randomUUID()}`, charge: f.charge.id, payment_intent: f.intent.id,
+      status: 'succeeded', amount: 6000, currency: 'usd', created: 1791440000 }], has_more: false })
+    await reconcilePaymentRefunds(f.booking.id)
+    expect(await payment()).toMatchObject({ status: 'REFUNDED', stripeTransferId: f.transfer.id, refundAmountInCents: 6000 })
+    expect((await booking()).status).toBe('CANCELLED')
+  })
+  it('refund refresh audits a newly verified transfer once without inventing a customer refund', async () => {
+    const actor = await admin()
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: {
+      status: 'SUCCEEDED', stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id,
+    } })
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: actor })
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: actor })
+    expect(await payment()).toMatchObject({ status: 'SUCCEEDED', stripeTransferId: f.transfer.id, refundAmountInCents: 0 })
+    expect(await independent.adminAction.count({ where: { adminUserId: actor, actionType: 'RECONCILE_REFUNDS' } })).toBe(1)
+    expect((await independent.adminAction.findFirstOrThrow({ where: { adminUserId: actor, actionType: 'RECONCILE_REFUNDS' } })).metadata)
+      .toMatchObject({ chargeId: f.charge.id, transferId: f.transfer.id })
+    expect(await notices()).toHaveLength(0)
+  })
+  it.each([false, true])('early signed refund verifies the destination before recording money returned (wrong destination: %s)', async wrongDestination => {
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    f.charge.refunded = true
+    f.charge.amount_refunded = 6000
+    if (wrongDestination) f.transfer.destination = 'acct_wrong'
+    const refund = { id: `re_${randomUUID()}`, charge: f.charge.id, payment_intent: f.intent.id,
+      status: 'succeeded', amount: 6000, currency: 'usd', created: 1791440000 }
+    provider.refunds.mockResolvedValue({ data: [refund], has_more: false })
+    const response = await webhook('refund.updated', undefined, refund)
+    expect(response.status).toBe(wrongDestination ? 409 : 200)
+    expect(await payment()).toMatchObject(wrongDestination
+      ? { status: 'PENDING', stripeChargeId: null, stripeTransferId: null, refundAmountInCents: 0, refundsVerifiedAt: null }
+      : { status: 'REFUNDED', stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id, refundAmountInCents: 6000 })
+    expect((await booking()).status).toBe(wrongDestination ? 'PENDING' : 'CANCELLED')
+    expect(await independent.paymentRefund.count({ where: { paymentId: f.booking.payment.id } })).toBe(wrongDestination ? 0 : 1)
+    if (wrongDestination) expect(await notices()).toHaveLength(0)
+    else {
+      await webhook('refund.updated', undefined, refund)
+      expect(await notices()).toHaveLength(2)
+    }
+  })
   it('recovers a missed paid event after the parent checkout window closed and concurrent webhook retries', async () => {
     const actor = await admin()
     const clock = vi.spyOn(Date, 'now').mockReturnValue(new Date('2030-11-05T00:00:00Z').getTime())

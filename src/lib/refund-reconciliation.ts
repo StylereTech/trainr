@@ -2,6 +2,7 @@ import type Stripe from 'stripe'
 import type { RefundStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
+import { SettlementConflict, verifyDestinationSettlement } from '@/lib/stripe-settlement'
 
 export class RefundReconciliationError extends Error {
   constructor(message: string, public readonly status = 409) { super(message) }
@@ -58,7 +59,17 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
         (charge.metadata?.bookingId && charge.metadata.bookingId !== booking.id) || (charge.metadata?.paymentId && charge.metadata.paymentId !== payment.id)) {
       throw new RefundReconciliationError('Stripe charge does not match the recorded booking payment')
     }
+    // Refund reads can promote payment state too; require the same destination receipt as paid events.
+    const attempt = await tx.checkoutAttempt.findFirst({ where: { paymentId: payment.id }, orderBy: { sequence: 'desc' } })
+    let settlement
+    try {
+      settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, payment.stripePaymentIntentId, chargeId)
+    } catch (error) {
+      if (error instanceof SettlementConflict) throw new RefundReconciliationError(error.message)
+      throw error
+    }
     const providerRefunds = await loadRefunds(chargeId)
+    if (settlement.hasRefunds && !providerRefunds.length) throw new RefundReconciliationError('Refund history is not available; retry reconciliation')
     if (options.refundId && !providerRefunds.some(refund => refund.id === options.refundId)) throw new RefundReconciliationError('The triggering refund is missing from current Stripe history')
     const previous = await tx.paymentRefund.findMany({ where: { paymentId: payment.id } })
     if (previous.some(refund => !providerRefunds.some(current => current.id === refund.id))) throw new RefundReconciliationError('Previously recorded refund is missing from Stripe history')
@@ -88,13 +99,14 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
     })
     if (!Number.isSafeInteger(succeeded + pending) || succeeded + pending > payment.amountInCents) throw new RefundReconciliationError('Refund totals exceed the recorded payment')
     const status = succeeded === payment.amountInCents ? 'REFUNDED' : succeeded > 0 ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED'
-    const changed = payment.status !== status || payment.refundAmountInCents !== succeeded || payment.refundPendingAmountInCents !== pending || payment.refundFailedCount !== failed ||
+    const changed = payment.stripeChargeId !== settlement.chargeId || payment.stripeTransferId !== settlement.transferId ||
+      payment.status !== status || payment.refundAmountInCents !== succeeded || payment.refundPendingAmountInCents !== pending || payment.refundFailedCount !== failed ||
       rows.some(row => { const old = previous.find(item => item.id === row.id); return !old || old.status !== row.status || old.transferReversalId !== row.transferReversalId || old.failureBalanceTransactionId !== row.failureBalanceTransactionId })
     for (const row of rows) {
       const saved = await tx.paymentRefund.upsert({ where: { id: row.id }, create: row, update: { ...row, paymentId: undefined } })
       if (saved.paymentId !== payment.id) throw new RefundReconciliationError('Refund is already linked to a different payment')
     }
-    await tx.payment.update({ where: { id: payment.id }, data: { stripeChargeId: chargeId, status,
+    await tx.payment.update({ where: { id: payment.id }, data: { stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId, status,
       refundAmountInCents: succeeded, refundPendingAmountInCents: pending, refundFailedCount: failed, refundsVerifiedAt: observedAt } })
     if (status === 'REFUNDED') await tx.booking.updateMany({ where: { id: booking.id, status: { in: ['PENDING', 'CONFIRMED'] } }, data: { status: 'CANCELLED' } })
     if (changed && (rows.length || payment.refundAmountInCents > 0)) {
@@ -108,9 +120,9 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
       await tx.notification.createMany({ data: notifications })
     }
     if (options.adminUserId && changed) await tx.adminAction.create({ data: { adminUserId: options.adminUserId, actionType: 'RECONCILE_REFUNDS', targetType: 'PAYMENT', targetId: payment.id,
-      description: 'Refreshed refund records from Stripe without issuing money movement', metadata: { bookingId, succeeded, pending, failed, refundIds: rows.map(row => row.id) } } })
+      description: 'Refreshed refund records from Stripe without issuing money movement', metadata: { bookingId, chargeId: settlement.chargeId, transferId: settlement.transferId, succeeded, pending, failed, refundIds: rows.map(row => row.id) } } })
     return { bookingId, paymentId: payment.id, status, refundedAmountInCents: succeeded, pendingAmountInCents: pending, failedCount: failed, verifiedAt: observedAt, refunds: rows }
-  }, { maxWait: 5000, timeout: 25000 })
+  }, { maxWait: 5000, timeout: 45000 })
 }
 
 export async function reconcileRefundEvent(chargeId: string, refundId?: string) {
