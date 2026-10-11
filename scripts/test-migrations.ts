@@ -39,6 +39,7 @@ async function snapshot(client: PrismaClient) {
     result[table] = rows.map(({ row }) => {
       if (table === 'users') for (const key of ['sessionVersion', 'deletedAt', 'verificationTokenSeed', 'resetPasswordTokenSeed', 'verificationToken', 'verificationExpiry', 'resetPasswordToken', 'resetPasswordExpiry']) delete row[key]
       if (table === 'payments') for (const key of ['refundPendingAmountInCents', 'refundFailedCount', 'refundsVerifiedAt']) delete row[key]
+      if (table === 'trainer_profiles') delete row.timeZone
       return row
     })
   }
@@ -104,6 +105,7 @@ async function main() {
       cli(url, `${mode}: replay is a no-op`, ['migrate', 'deploy', '--schema', schema], 0, /No pending migrations to apply/)
       if (before) {
         assert.deepEqual(await snapshot(client), before)
+        assert.equal((await client.trainerProfile.findUniqueOrThrow({ where: { id: 'legacy-trainer-profile' } })).timeZone, null)
         const user = await client.user.findUniqueOrThrow({ where: { id: 'legacy-parent' } })
         assert.equal(user.sessionVersion, 0); assert.equal(user.deletedAt, null)
         for (const value of [user.verificationToken, user.verificationExpiry, user.resetPasswordToken, user.resetPasswordExpiry, user.verificationTokenSeed, user.resetPasswordTokenSeed]) assert.equal(value, null)

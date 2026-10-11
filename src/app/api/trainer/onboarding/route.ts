@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { resolveTrainerSelections, trainerCatalogQuery } from '@/lib/trainer-catalog'
 import { saveTrainerServices, TrainerEditConflict, trainerServiceSchema } from '@/lib/trainer-services'
 import { timeToMinutes } from '@/lib/availability'
+import { timeZoneSchema } from '@/lib/time-zone'
 import { effectiveFeeValues } from '@/lib/fee-config'
 import { certificationForEditor, saveTrainerCertifications, trainerCertificationSchema } from '@/lib/trainer-certifications'
 
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
         phone: trainer.phone || '',
         yearsExperience: trainer.yearsExperience,
         locationType: trainer.locationType,
+        timeZone: trainer.timeZone || '',
         address: trainer.address || '',
         city: trainer.city || '',
         state: trainer.state || '',
@@ -89,6 +91,7 @@ const trainerOnboardingSchema = z.object({
   phone: z.string().optional(),
   yearsExperience: z.number().min(0).max(50),
   locationType: z.enum(['IN_PERSON', 'VIRTUAL', 'BOTH']),
+  timeZone: timeZoneSchema,
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -144,6 +147,7 @@ export async function PUT(req: NextRequest) {
           phone: data.phone,
           yearsExperience: data.yearsExperience,
           locationType: data.locationType,
+          timeZone: data.timeZone,
           address: data.address,
           city: data.city,
           state: data.state,
@@ -177,7 +181,7 @@ export async function PUT(req: NextRequest) {
           },
         })
       }
-      return { services, certifications, specialties: selections.specialtyIds, revision: updated.updatedAt.toISOString() }
+      return { services, certifications, specialties: selections.specialtyIds, timeZone: updated.timeZone, revision: updated.updatedAt.toISOString() }
     })
 
     return NextResponse.json({ success: true, ...result })

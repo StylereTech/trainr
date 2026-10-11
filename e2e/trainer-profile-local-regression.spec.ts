@@ -17,7 +17,7 @@ for (const width of [1440, 390]) {
         ],
         revision: '2026-10-01T00:00:00.000Z',
         profile: { firstName: 'Test', lastName: 'Trainer', headline: '', bio: '', phone: '', yearsExperience: 1,
-          locationType: 'BOTH', address: '', city: 'Austin', state: 'TX', zipCode: '', travelRadius: 25,
+          locationType: 'BOTH', timeZone: 'America/Chicago', address: '', city: 'Austin', state: 'TX', zipCode: '', travelRadius: 25,
           slug: 'local-trainer', email: 'trainer@example.test', approvalStatus: 'APPROVED', stripeOnboardingComplete: false },
         sports: ['basketball'], specialties: ['spec-shooting'], certifications: [{ id: 'verified-cert', name: 'Coaching Certificate', issuingOrg: 'Example Org', credentialId: 'C-123', isVerified: true }],
         services: [{ id: 'old-service', sportId: 'sport-basketball', title: 'Fixture session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }],
@@ -42,7 +42,7 @@ for (const width of [1440, 390]) {
         }
         fixture = { ...fixture, sports: body.sports, specialties: body.specialties, services: [{ ...body.services[0], id: 'saved-version' }], availability: body.availability,
           revision: `2026-10-01T00:00:0${saves}.000Z` }
-        return route.fulfill({ json: { success: true, specialties: fixture.specialties, services: fixture.services, certifications: fixture.certifications, revision: fixture.revision } })
+        return route.fulfill({ json: { success: true, timeZone: fixture.profile.timeZone, specialties: fixture.specialties, services: fixture.services, certifications: fixture.certifications, revision: fixture.revision } })
       })
       await page.goto('/trainer/profile')
       await page.getByRole('button', { name: 'Football', exact: true }).click()

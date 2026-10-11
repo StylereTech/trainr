@@ -70,9 +70,9 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all eleven committed migrations with SHA256 hashes', () => {
+  it('reads all twelve committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(11)
+    expect(migrations).toHaveLength(12)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -85,5 +85,29 @@ describe('isolated audit preview initializer', () => {
   it('does not expose credentials in CLI failures', () => {
     expect(() => deployMigrations(env.DATABASE_URL, env, () => { throw new Error(env.DATABASE_URL) }))
       .toThrow('STAGING_MIGRATION_DEPLOY_FAILED')
+  })
+  const upgrade = { name: '20261011080000_add_trainer_time_zone', checksum: 'reviewed-upgrade' }
+  const upgradedLedger = [...ledger, { ...ledger[0], migration_name: upgrade.name, checksum: upgrade.checksum }]
+  it('applies only an approved trailing migration after verifying existing checksums', async () => {
+    const db = database({ count: 30 })
+    db.query.mockResolvedValueOnce(upgradedLedger)
+    const deploy = vi.fn()
+    await expect(initializeStaging(db, [...manifest, upgrade], deploy)).resolves.toBe('upgraded')
+    expect(deploy).toHaveBeenCalledOnce()
+  })
+  it('verifies the completed ledger after an upgrade', async () => {
+    const db = database({ count: 30 })
+    db.query.mockResolvedValueOnce(ledger)
+    await expect(initializeStaging(db, [...manifest, upgrade], vi.fn())).rejects.toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
+  })
+  it('does not upgrade modified history', async () => {
+    const deploy = vi.fn()
+    await expect(initializeStaging(database({ count: 30, rows: [{ ...ledger[0], checksum: 'changed' }] }), [...manifest, upgrade], deploy)).rejects.toThrow('STAGING_MIGRATION_HISTORY_INVALID')
+    expect(deploy).not.toHaveBeenCalled()
+  })
+  it('refuses migrations not explicitly approved for this audit database', async () => {
+    const deploy = vi.fn()
+    await expect(initializeStaging(database({ count: 30 }), [...manifest, { ...upgrade, name: 'unreviewed' }], deploy)).rejects.toThrow('STAGING_UPGRADE_NOT_APPROVED')
+    expect(deploy).not.toHaveBeenCalled()
   })
 })

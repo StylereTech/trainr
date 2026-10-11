@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
 import { TrainerPayouts } from '@/components/shared/TrainerPayouts'
+import { ScheduleTimeZoneSelect } from '@/components/shared/ScheduleTimeZoneSelect'
+import { canonicalTimeZone } from '@/lib/time-zone'
 import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
@@ -71,7 +73,7 @@ function TrainerProfileContent() {
   // Profile data
   const [profile, setProfile] = useState({
     firstName: '', lastName: '', headline: '', bio: '', phone: '',
-    yearsExperience: 0, locationType: 'BOTH',
+    yearsExperience: 0, locationType: 'BOTH', timeZone: '',
     address: '', city: '', state: '', zipCode: '', travelRadius: 25,
     slug: '', email: '', approvalStatus: '', stripeOnboardingComplete: false,
   })
@@ -95,7 +97,7 @@ function TrainerProfileContent() {
       setCatalog(data.catalog)
       setRevision(data.revision)
       setMinServicePrice(data.minServicePriceInCents ?? 1500)
-      setProfile(data.profile)
+      setProfile({ ...data.profile, timeZone: data.profile.timeZone || '' })
       setSelectedSports(data.sports)
       setSelectedSpecialties(data.specialties)
       setCertifications(data.certifications.length > 0 ? data.certifications : [])
@@ -132,6 +134,11 @@ function TrainerProfileContent() {
       toast({ title: 'Missing sport', description: 'Choose an active sport you coach for every service.', variant: 'destructive' })
       return
     }
+    if (!canonicalTimeZone(profile.timeZone)) {
+      setActiveTab('availability')
+      toast({ title: 'Missing time zone', description: 'Choose a valid schedule time zone.', variant: 'destructive' })
+      return
+    }
     if (!revision) {
       toast({ title: 'Reload required', description: 'Load the saved profile before making changes.', variant: 'destructive' })
       return
@@ -161,6 +168,7 @@ function TrainerProfileContent() {
       setCertifications(saved.certifications)
       setSelectedSpecialties(saved.specialties)
       setRevision(saved.revision)
+      setProfile(current => ({ ...current, timeZone: saved.timeZone }))
       toast({ title: 'Profile saved', description: 'Your changes have been saved successfully.' })
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' })
@@ -467,6 +475,7 @@ function TrainerProfileContent() {
           <Card className="border-white/10 bg-white/[0.04] text-white">
             <CardHeader><h2 className="flex items-center gap-2 text-lg font-semibold"><Clock className="h-5 w-5 text-emerald-300" /> Weekly Availability</h2></CardHeader>
             <CardContent className="space-y-3">
+              <ScheduleTimeZoneSelect value={profile.timeZone} onChange={timeZone => setProfile(current => ({ ...current, timeZone }))} />
               {DAY_NAMES.map((name, day) => {
                 const slots = availability.map((slot, index) => ({ slot, index })).filter(({ slot }) => slot.dayOfWeek === day)
                 return (
@@ -484,9 +493,9 @@ function TrainerProfileContent() {
                       <div className="flex w-full min-w-0 flex-col gap-3">
                         {slots.map(({ slot, index }, window) => (
                           <div key={index} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-                            <Input type="time" aria-label={`${name} window ${window + 1} start time`} value={slot.startTime} onChange={e => updateAvailTime(index, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
+                            <Input type="time" aria-label={`${name} window ${window + 1} start time`} value={slot.startTime} onChange={e => updateAvailTime(index, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32 [color-scheme:dark]" />
                             <span className="text-slate-400">to</span>
-                            <Input type="time" aria-label={`${name} window ${window + 1} end time`} value={slot.endTime} onChange={e => updateAvailTime(index, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32" />
+                            <Input type="time" aria-label={`${name} window ${window + 1} end time`} value={slot.endTime} onChange={e => updateAvailTime(index, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32 [color-scheme:dark]" />
                             <Button size="icon" variant="ghost" aria-label={`Remove ${name} window ${window + 1}`} title={`Remove ${name} window ${window + 1}`} onClick={() => setAvailability(prev => prev.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         ))}

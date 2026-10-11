@@ -10,7 +10,7 @@ const revision = '2026-10-01T00:00:00.000Z'
 const baseService = { title: 'First session', description: '', durationMinutes: 60, priceInCents: 6000, type: 'INDIVIDUAL', maxParticipants: 1 }
 const first = { id: 'first', ...baseService }
 const second = { id: 'second', ...baseService, title: 'Second session' }
-const input = { revision, firstName: 'Test', lastName: 'Trainer', yearsExperience: 1, locationType: 'BOTH',
+const input = { revision, firstName: 'Test', lastName: 'Trainer', yearsExperience: 1, locationType: 'BOTH', timeZone: 'America/Chicago',
   sports: ['basketball'], specialties: ['shooting'], services: [first, second],
   availability: [{ dayOfWeek: 1, startTime: '09:00', endTime: '12:00' }, { dayOfWeek: 1, startTime: '13:00', endTime: '17:00' }] }
 const save = (change = {}) => PUT(new Request('http://localhost/api/trainer/onboarding', { method: 'PUT', body: JSON.stringify({ ...input, ...change }) }) as any)
@@ -84,6 +84,25 @@ beforeEach(() => {
 })
 
 describe('trainer profile edit integrity (transaction model)', () => {
+  it.each([undefined, null, '', 'CST', '-06:00', 'Unknown/Zone', 1])('rejects missing or invalid time zone before writes: %j', async timeZone => {
+    expect((await save({ timeZone })).status).toBe(400)
+    expect(mock.transaction).not.toHaveBeenCalled()
+  })
+  it('keeps an unknown legacy zone empty until explicitly selected, then reads back the canonical zone', async () => {
+    state.profile.timeZone = null
+    const get = () => GET(new Request('http://localhost/api/trainer/onboarding') as any).then(response => response.json())
+    expect((await get()).profile.timeZone).toBe('')
+    expect((await (await save({ timeZone: 'US/Eastern' })).json()).timeZone).toBe('America/New_York')
+    expect((await get()).profile.timeZone).toBe('America/New_York')
+    expect((await save({ timeZone: 'UTC' })).status).toBe(409)
+    expect(state.profile.timeZone).toBe('America/New_York')
+  })
+  it('rolls back the selected time zone if a later availability write fails', async () => {
+    fail = true
+    expect((await save({ timeZone: 'UTC' })).status).toBe(503)
+    expect(state.profile.timeZone).toBe('America/Chicago')
+    expect(state.profile.updatedAt.toISOString()).toBe(revision)
+  })
   it('returns service sport IDs after a legacy save that omits them', async () => {
     const saved = await (await save()).json()
     expect(saved.services[0].sportId).toBe('sport')

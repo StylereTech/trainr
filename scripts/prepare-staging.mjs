@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 export const STAGING_DATABASE = 'trainr-audit-staging-20261009'
 export const STAGING_PROJECT = 'steep-field-81581985'
 export const STAGING_BRANCH = 'codex/payment-readiness-20261006'
+// Only reviewed additive upgrades may run automatically on this owned audit database.
+const STAGING_UPGRADES = new Set(['20261011080000_add_trainer_time_zone'])
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function requireCondition(condition, code) {
@@ -80,9 +82,17 @@ export async function initializeStaging(db, manifest, deploy) {
       && marker[0].project_id === STAGING_PROJECT, 'STAGING_OWNERSHIP_REQUIRED')
     const [state] = await tx.$queryRawUnsafe("SELECT count(*)::int AS table_count FROM information_schema.tables WHERE table_schema = 'public'")
     if (state.table_count === 0) await deploy()
-    const ledger = await tx.$queryRawUnsafe('SELECT migration_name, checksum, finished_at, rolled_back_at FROM public._prisma_migrations')
+    let ledger = await tx.$queryRawUnsafe('SELECT migration_name, checksum, finished_at, rolled_back_at FROM public._prisma_migrations')
+    let upgraded = false
+    if (state.table_count > 0 && ledger.length > 0 && ledger.length < manifest.length) {
+      verifyMigrationLedger(ledger, manifest.slice(0, ledger.length))
+      requireCondition(manifest.slice(ledger.length).every(migration => STAGING_UPGRADES.has(migration.name)), 'STAGING_UPGRADE_NOT_APPROVED')
+      await deploy()
+      ledger = await tx.$queryRawUnsafe('SELECT migration_name, checksum, finished_at, rolled_back_at FROM public._prisma_migrations')
+      upgraded = true
+    }
     verifyMigrationLedger(ledger, manifest)
-    return state.table_count === 0 ? 'initialized' : 'verified'
+    return state.table_count === 0 ? 'initialized' : upgraded ? 'upgraded' : 'verified'
   }, { maxWait: 10000, timeout: 150000 })
 }
 

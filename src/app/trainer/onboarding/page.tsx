@@ -14,6 +14,8 @@ import { useToast } from '@/components/ui/use-toast'
 import { TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
+import { ScheduleTimeZoneSelect } from '@/components/shared/ScheduleTimeZoneSelect'
+import { canonicalTimeZone } from '@/lib/time-zone'
 import { Loader2, ChevronLeft, ChevronRight, Check, Plus, Trash2 } from 'lucide-react'
 
 const STEPS = ['Sports', 'Profile', 'Services', 'Availability', 'Review']
@@ -51,7 +53,7 @@ export default function TrainerOnboardingPage() {
 
   const [profile, setProfile] = useState({
     firstName: '', lastName: '', headline: '', bio: '', phone: '',
-    yearsExperience: 0, locationType: 'BOTH',
+    yearsExperience: 0, locationType: 'BOTH', timeZone: '',
     address: '', city: 'Dallas', state: TRAINR_LAUNCH_STATE, zipCode: '', travelRadius: 25,
   })
 
@@ -96,6 +98,11 @@ export default function TrainerOnboardingPage() {
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
   const handleSubmit = async () => {
+    if (!canonicalTimeZone(profile.timeZone)) {
+      setStep(3)
+      toast({ title: 'Missing time zone', description: 'Choose a valid schedule time zone.', variant: 'destructive' })
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/trainer/onboarding', {
@@ -134,7 +141,7 @@ export default function TrainerOnboardingPage() {
       case 0: return selectedSports.length > 0 && selectedSpecialties.length > 0
       case 1: return profile.firstName && profile.lastName && profile.bio
       case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= minServicePrice && catalog.some(sport => sport.id === s.sportId && sport.isActive && selectedSports.includes(sport.slug)))
-      case 3: return availability.length > 0
+      case 3: return availability.length > 0 && !!canonicalTimeZone(profile.timeZone)
       default: return true
     }
   }
@@ -307,20 +314,20 @@ export default function TrainerOnboardingPage() {
         {step === 3 && (
           <Card>
             <CardContent className="p-6 space-y-3">
-              <p className="text-sm text-muted-foreground">Select the days you&apos;re available and set your hours.</p>
+              <ScheduleTimeZoneSelect value={profile.timeZone} onChange={timeZone => setProfile(current => ({ ...current, timeZone }))} />
               {DAY_NAMES.map((day, i) => {
                 const slot = availability.find(a => a.dayOfWeek === i)
                 const isActive = !!slot
                 return (
-                  <div key={i} className={`flex items-center gap-4 p-3 rounded-lg border ${isActive ? 'border-primary bg-green-50' : 'border-gray-200'}`}>
-                    <button type="button" onClick={() => toggleDayAvailability(i)} className={`w-20 text-left font-medium text-sm ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <div key={i} className={`flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center ${isActive ? 'border-primary bg-green-50' : 'border-gray-200'}`}>
+                    <button type="button" aria-pressed={isActive} onClick={() => toggleDayAvailability(i)} className={`w-20 shrink-0 text-left font-medium text-sm ${isActive ? 'text-green-950' : 'text-muted-foreground'}`}>
                       {day}
                     </button>
                     {isActive && (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Input type="time" value={slot.startTime} onChange={e => updateAvailTime(i, 'startTime', e.target.value)} className="w-32" />
-                        <span className="text-sm text-muted-foreground">to</span>
-                        <Input type="time" value={slot.endTime} onChange={e => updateAvailTime(i, 'endTime', e.target.value)} className="w-32" />
+                      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                        <Input aria-label={`${day} start time`} type="time" value={slot.startTime} onChange={e => updateAvailTime(i, 'startTime', e.target.value)} className="min-w-0 w-full [color-scheme:dark]" />
+                        <span className="text-sm text-green-950">to</span>
+                        <Input aria-label={`${day} end time`} type="time" value={slot.endTime} onChange={e => updateAvailTime(i, 'endTime', e.target.value)} className="min-w-0 w-full [color-scheme:dark]" />
                       </div>
                     )}
                     {!isActive && <span className="text-sm text-muted-foreground flex-1">Not available</span>}
@@ -348,6 +355,7 @@ export default function TrainerOnboardingPage() {
                 <div><span className="text-muted-foreground">Location:</span> {profile.city && profile.state ? `${profile.city}, ${profile.state}` : 'Not set'} ({profile.locationType})</div>
                 <div><span className="text-muted-foreground">Services:</span> {services.length} service(s) starting at {formatCurrency(Math.min(...services.map(s => s.priceInCents)))}</div>
                 <div><span className="text-muted-foreground">Availability:</span> {availability.length} day(s)</div>
+                <div className="break-words"><span className="text-muted-foreground">Schedule time zone:</span> {profile.timeZone.replaceAll('_', ' ')}</div>
               </div>
 
               <div className="bg-yellow-50 p-4 rounded-lg text-sm">

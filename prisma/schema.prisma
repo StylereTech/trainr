@@ -110,6 +110,7 @@ model TrainerProfile {
   totalSessions         Int      @default(0)
   totalBookings         Int      @default(0)
   locationType          LocationType @default(IN_PERSON)
+  timeZone              String?
   address               String?
   city                  String?
   state                 String?

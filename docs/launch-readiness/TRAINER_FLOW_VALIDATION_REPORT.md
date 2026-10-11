@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-11 07:56 UTC: onboarding/profile now require and persist an explicit schedule time zone, without guessing one for legacy trainers. Real local HTTP/SQL browser flows passed at 1440px and 390px; both save/readback and subsequent UTC edits preserve weekly clock strings. [Scope, screenshots, migration and retest proof](TRAINER_TIME_ZONE_REPORT.md). Hosted trainer/Connect and complete scheduling semantics remain unverified/incomplete, not passed by this foundation. Publication pending; overall **HOLD**.
+
 2026-10-11 06:45 UTC: trainer dashboard now preserves the booking's saved calendar date, matching parent and admin views across Los Angeles/Tokyo and desktop/mobile. All 28 date/booking/dashboard browser regressions, 1,016 unit tests and build passed. [Exact source baseline, local-account evidence and limits](BOOKING_CALENDAR_DATE_REPORT.md). Hosted trainer onboarding, connected-account money movement and payouts remain unverified; publication pending. No Production signoff.
 
 2026-10-10 23:52 UTC: the missing staging sports/specialties prerequisite is resolved using a guarded reference-only SQL script. Real Neon verification confirms 5 sports, 32 specialties and replay-safe contents. No trainer account or approval was fabricated; authenticated profile editing, provider Connect onboarding and payout status are not passed by this setup work. [Exact evidence and pending owner actions](STAGING_CATALOG_VALIDATION_REPORT.md). Production **HOLD**.
