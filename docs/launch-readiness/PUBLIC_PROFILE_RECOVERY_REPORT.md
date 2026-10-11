@@ -49,4 +49,18 @@ npm.cmd run test:e2e -- e2e/public-profile-local-regression.spec.ts e2e/browse-l
 
 Screenshots: `test-results/public-profile-local-regre-2a8a0-ries-and-tabs-remain-usable-chromium/profile-tabs.png` (desktop), `test-results/public-profile-local-regre-54fd6-ries-and-tabs-remain-usable-chromium/profile-tabs.png` (mobile). These are local test artifacts, not real public trainer records.
 
-Publication and hosted post-fix retest pending. Full email verification, trainer setup, program purchase, Checkout, Connect and payout gates remain open; email setup is deliberately deferred, not passed.
+## Publication And Hosted Retest
+
+2026-10-11 05:42 UTC: source `c5a3a06f0b16bf7ff59be97e13f46c6acc4cbeb3` is pushed to the audit branch. Vercel deployment `EexYgTwCbfxH4s5srCZaqSFAkskS` is **Ready** (1m 7s), with the stable audit alias assigned. Immutable deployment: `https://trainr-jwj1yz383-styleres-projects.vercel.app`.
+
+Actual hosted browser retest, same parent session, no mocks:
+
+| Steps / route | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| Reopen `/trainers/audit-missing-trainer` | No application crash | Trainer Not Found, explanatory copy and Browse Trainers link | PASS |
+| Reopen `/book/audit-missing-trainer` | No application crash or booking action | Trainer Not Found and Browse Trainers link | PASS |
+| Click booking recovery Browse Trainers | Return to searchable catalog | `/browse`, filters, 0 trainers and empty state render | PASS |
+| Open `/trainer/audit-missing-trainer` | Shared safe legacy response | Trainer Not Found and recovery link | PASS |
+| Inspect account navigation after deployment | Preserve signed-in parent | Parent Dashboard, Messages, Account and Sign Out present | PASS session continuity |
+
+The following evidence-only commit does not change the tested application code. Full email verification, trainer setup, program purchase, Checkout, Connect and payout gates remain open; email setup is deliberately deferred, not passed. The owner parent session is preserved. No Production deployment, Story modification, new credentials, real payment or email-provider purchase occurred.
