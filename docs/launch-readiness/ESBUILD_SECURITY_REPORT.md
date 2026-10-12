@@ -40,12 +40,22 @@ Unchanged focused retest at **09:07:33 UTC**: **five passed**, 2.34s, exit 0; `.
 
 ## Publication Blocker
 
+Historical state captured at 09:29 UTC; the automatic deployment resolved the deployment delay below. The blocked manual action was never retried.
+
 - Source **`0ded85ee0502e7c439144a90f83282d43e5833f4`** committed and pushed to the audit branch on 2026-10-12, approximately **09:28 UTC**. No main or Production push.
 - [Current GitHub CI run 38230075242](https://github.com/StylereTech/trainr/actions/runs/38230075242): check and migrations did not start. Both current annotations state that the account is locked due to a billing issue. This is not a hosted test pass and no billing settings were changed.
 - At **09:29:37 UTC**, the source commit's combined status returned no Vercel status. The Vercel deployment list still showed documentation commit `8cc966c` / Preview `7bXiYaUK6cVGCYopE3vRik7GTwys` as newest. Deployment of the new dependency lockfile is **unverified**, not Ready.
 - Opening Vercel **Create Deployment** was stopped before execution by the approval service's HTTP 429 retry-limit failure. No CLI/API/alternate-browser deployment workaround was attempted. Requested owner guidance to retry for the audit Preview only; response pending.
 - New-commit hosted smoke is **not run**, because a matching deployment is not established. Earlier Preview smoke results must not be relabeled as tests of this lockfile. Signed-in hosted access remains separately pending approval.
-- This publication-evidence follow-up is kept in a local documentation commit pending approval; another push is not used to circumvent the blocked deployment action. All tested security source and the initial verification report are already pushed at `0ded85e`.
+- Publication-evidence commit `bfb2e021a3743ca4a4f4a475596a1d5cfff663ca` was initially kept local, rather than using another push to circumvent the blocked deployment action. All tested security source and the initial verification report were already pushed at `0ded85e`.
+
+## Automatic Deployment And Hosted Retest
+
+- On the next read-only revalidation, GitHub reported Vercel success for **`0ded85ee0502e7c439144a90f83282d43e5833f4`**. Vercel independently shows audit Preview **`3da9rwGBkBXoASsqCh5pcx6vqWdT`**, matching source `0ded85e`, Ready **2026-10-12 09:31:42 UTC** after 1m 2s. The ordinary Git-triggered deployment completed without a manual deployment retry, alternate credentials or API/CLI workaround.
+- Unique URL: `https://trainr-gpi50s2h8-styleres-projects.vercel.app`; the stable audit-branch alias points to this Preview. Build log confirms `Audit staging schema verified; migration checksums verified.` No Production migration or domain change occurred.
+- Anonymous hosted smoke **09:33:08-09:33:12 UTC**: **12/12 PASS**, exit 0; `.postgres-test/esbuild-security-source-hosted-smoke.json`. GET `/api/health`: 200 and `dbConnected: true`. GET bookings, trainer/packages, trainer/wallet, package-purchases and admin/checkout-closures: 401. POST admin/refunds, package-purchases/refresh and admin/checkout-closures: 401. PATCH bookings/audit-nonexistent and admin/bookings: 401. Unsigned POST payments/webhook: 400. No cookies, valid webhook signatures or successful financial mutations were used.
+- The manual deployment approval question is no longer needed for this source deployment. Signed-in Preview access is separately pending approval, and actual customer checkout/Connect/transfer/payout remains unverified. GitHub CI's billing blocker remains unresolved.
+- Current source review reconfirms package-purchases has a GET history handler, no public purchase POST, and booking creation has no credit-redemption path. The history UI explicitly labels session credits unavailable. This is incomplete product behavior, not an external-only release blocker or a passed package flow.
 
 ## Remaining Gates
 
