@@ -36,7 +36,16 @@ Unchanged focused retest at **09:07:33 UTC**: **five passed**, 2.34s, exit 0; `.
 - Visually inspected desktop booking controls and mobile Connect status/error rendering. Local screenshots retained as `.postgres-test/esbuild-security-booking-desktop.png` and `.postgres-test/esbuild-security-connect-mobile.png`; all records/readiness are synthetic. No UI source or styling changed. Local app stopped after the browser run.
 - Four migration rehearsals: **PASS**, exit 0; `.postgres-test/esbuild-security-migrations.log`. Fresh, legacy, phone-history and closed-account-history modes verified all 20 migration checksums, schema parity, no-op replay, SQL safeguards and preservation of 12 historical tables. Historical checkout targets remained PENDING without fabricated provider closure. All four owned rehearsal databases were removed.
 - Independent post-browser SQL cleanup check confirmed the owned database/user/guard and zero users, bookings, payments, purchases, credit grants and checkout-closure tasks. Owned local app and PostgreSQL are stopped; required test processes finished.
-- Preview publication pending. Unexecuted checks are not passes. Raw local logs are under `.postgres-test` and are intentionally not published as credential-bearing browser traces.
+- Publication status below. Unexecuted checks are not passes. Raw local logs are under `.postgres-test` and are intentionally not published as credential-bearing browser traces.
+
+## Publication Blocker
+
+- Source **`0ded85ee0502e7c439144a90f83282d43e5833f4`** committed and pushed to the audit branch on 2026-10-12, approximately **09:28 UTC**. No main or Production push.
+- [Current GitHub CI run 38230075242](https://github.com/StylereTech/trainr/actions/runs/38230075242): check and migrations did not start. Both current annotations state that the account is locked due to a billing issue. This is not a hosted test pass and no billing settings were changed.
+- At **09:29:37 UTC**, the source commit's combined status returned no Vercel status. The Vercel deployment list still showed documentation commit `8cc966c` / Preview `7bXiYaUK6cVGCYopE3vRik7GTwys` as newest. Deployment of the new dependency lockfile is **unverified**, not Ready.
+- Opening Vercel **Create Deployment** was stopped before execution by the approval service's HTTP 429 retry-limit failure. No CLI/API/alternate-browser deployment workaround was attempted. Requested owner guidance to retry for the audit Preview only; response pending.
+- New-commit hosted smoke is **not run**, because a matching deployment is not established. Earlier Preview smoke results must not be relabeled as tests of this lockfile. Signed-in hosted access remains separately pending approval.
+- This publication-evidence follow-up is kept in a local documentation commit pending approval; another push is not used to circumvent the blocked deployment action. All tested security source and the initial verification report are already pushed at `0ded85e`.
 
 ## Remaining Gates
 
