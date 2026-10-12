@@ -17,7 +17,7 @@ test.afterEach(async ({ localAuth }, testInfo) => {
 
 for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as const) test.describe(`${role} outcome ${width}px`, () => {
   test.use({ viewport: { width, height: 1000 }, timezoneId: 'America/Los_Angeles' })
-  for (const scenario of ['future', 'ongoing', 'elapsed', 'unknown'] as const) test(scenario, async ({ page, browser, localAuth }, testInfo) => {
+  for (const scenario of ['future', 'ongoing', 'elapsed', 'unknown', 'revoked-parent'] as const) test(scenario, async ({ page, browser, localAuth }, testInfo) => {
     const db = localAuth.database
     const parent = await localAuth.create('PARENT'), trainer = await localAuth.create('TRAINER')
     const actor = role === 'ADMIN' ? await localAuth.create('ADMIN') : trainer
@@ -28,7 +28,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
     const service = await db.serviceOffering.create({ data: { trainerProfileId: trainerProfile.id, sportId: sport.id, title: 'Synthetic outcome session', priceInCents: 6000, durationMinutes: 60 } })
     owned.set(testInfo.testId, { trainer: trainerProfile.id, service: service.id, sport: sport.id })
     const athlete = await db.athleteProfile.create({ data: { parentProfileId: parentProfile.id, firstName: 'Synthetic', lastName: 'Athlete', dateOfBirth: new Date('2015-01-01') } })
-    const start = new Date(now + (scenario === 'elapsed' ? -7200000 : scenario === 'ongoing' ? -1800000 : 7200000))
+    const start = new Date(now + (scenario === 'elapsed' || scenario === 'revoked-parent' ? -7200000 : scenario === 'ongoing' ? -1800000 : 7200000))
     const end = new Date(start.getTime() + 3600000)
     try {
       const booking = await db.booking.create({ data: {
@@ -47,18 +47,27 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
       if (role === 'TRAINER') await page.getByRole('tab', { name: 'Confirmed (1)', exact: true }).click()
       const complete = page.getByRole('button', { name: 'Complete', exact: true })
       await expect(complete).toBeVisible()
-      if (scenario === 'elapsed') await expect(complete).toBeEnabled()
+      if (scenario === 'elapsed' || scenario === 'revoked-parent') await expect(complete).toBeEnabled()
       else await expect(complete).toBeDisabled()
       if (role === 'TRAINER') {
         const noShow = page.getByRole('button', { name: 'No-show', exact: true })
-        if (scenario === 'elapsed' || scenario === 'ongoing') await expect(noShow).toBeEnabled()
+        if (scenario === 'elapsed' || scenario === 'ongoing' || scenario === 'revoked-parent') await expect(noShow).toBeEnabled()
         else await expect(noShow).toBeDisabled()
       }
       if (scenario === 'unknown') await expect(page.getByText('The original session time needs confirmation by support before recording an outcome.', { exact: true })).toBeVisible()
       await complete.scrollIntoViewIfNeeded()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       await page.screenshot({ path: testInfo.outputPath('outcome-controls.png') })
-      if (scenario === 'future') {
+      if (scenario === 'revoked-parent') {
+        await db.user.update({ where: { id: parent.id }, data: { role: 'TRAINER' } })
+        await complete.click()
+        await expect(page.getByRole('alert').filter({ hasText: 'A parent or trainer account is unavailable.' })).toBeVisible()
+        expect((await db.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
+        expect((await db.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfile.id } })).totalSessions).toBe(0)
+        expect(await db.notification.count({ where: { userId: parent.id } })).toBe(0)
+        expect(await db.adminAction.count({ where: { targetId: booking.id } })).toBe(0)
+        await page.screenshot({ path: testInfo.outputPath('revoked-parent-error.png') })
+      } else if (scenario === 'future') {
         await page.clock.setFixedTime(new Date(now + 14400000))
         await expect(complete).toBeEnabled()
         await complete.click()

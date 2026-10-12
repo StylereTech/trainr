@@ -29,7 +29,9 @@ function pendingPayment() {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mock.query.mockResolvedValue([])
+  mock.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? [
+    { id: 'parent', ...structuredClone(state.buyer) }, { id: 'trainer-user', role: 'TRAINER', deletedAt: null },
+  ] : [])
   failSave = false
   failAfterAccept = false
   sessions = new Map()

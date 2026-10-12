@@ -39,7 +39,9 @@ vi.mock('@/lib/stripe', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mocks.query.mockResolvedValue([])
+  mocks.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? [
+    { id: 'parent-user', role: 'PARENT', deletedAt: null }, { id: 'trainer-user', role: 'TRAINER', deletedAt: null },
+  ] : [])
   mocks.trainer.findFirst.mockResolvedValue({ id: 'trainer' })
   mocks.transaction.mockImplementation(async (run) => run({
     $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
@@ -96,7 +98,8 @@ describe('Stripe webhook payment guards', () => {
 
   it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded'])(
     'rejects a mismatched amount for %s', async (type) => {
-      mocks.booking.findUnique.mockResolvedValue({ totalAmountInCents: 7500, payment: { id: 'payment', amountInCents: 7500 } })
+      mocks.booking.findUnique.mockResolvedValue({ totalAmountInCents: 7500, payment: { id: 'payment', amountInCents: 7500 },
+        parentProfile: { userId: 'parent-user' }, trainerProfile: { userId: 'trainer-user' } })
       const response = await send(type, { payment_status: 'paid', amount_total: 1, currency: 'usd', metadata: { bookingId: 'booking' } })
       expect(response.status).toBe(409)
       expect(mocks.payment.update).not.toHaveBeenCalled()

@@ -21,7 +21,9 @@ let state: any
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mock.query.mockResolvedValue([])
+  mock.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? [
+    { id: 'parent', role: 'PARENT', deletedAt: null }, { id: 'trainer', role: 'TRAINER', deletedAt: null },
+  ] : [])
   state = {
     id: 'booking', status: 'PENDING', totalAmountInCents: 7500, date: new Date('2026-11-01'),
     payment: {
@@ -66,12 +68,13 @@ beforeEach(() => {
 })
 
 describe('transactional Stripe payment evidence', () => {
-  it('locks booking then payment before reading state and commits payment, confirmation and notifications', async () => {
+  it('locks accounts before booking then payment and commits payment, confirmation and notifications', async () => {
     await applyPaymentEvidence(paid)
-    expect(mock.query.mock.calls.map(([sql, id]) => [sql.join('?'), id])).toEqual([
+    expect(mock.query.mock.calls.slice(1, 3).map(([sql, id]) => [sql.join('?'), id])).toEqual([
       ['SELECT id FROM bookings WHERE id = ? FOR UPDATE', 'booking'],
       ['SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE', 'booking'],
     ])
+    expect(mock.query.mock.calls[0][0].join('?')).toContain('ORDER BY id FOR SHARE')
     expect(state.payment.status).toBe('SUCCEEDED')
     expect(state.status).toBe('CONFIRMED')
     expect(state.notifications).toHaveLength(2)

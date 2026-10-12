@@ -22,6 +22,7 @@ beforeEach(() => {
     stats: { totalSessions: 2, totalBookings: 2 }, notifications: [], audits: [],
   }
   let tail = Promise.resolve()
+  mock.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? structuredClone(state.users) : [])
   // This serial model verifies transitions/rollback, not real PostgreSQL locks.
   mock.transaction.mockImplementation(async (run) => {
     const previous = tail
@@ -118,7 +119,7 @@ describe('booking state transitions', () => {
     await expect(act('cancel', actor)).rejects.toMatchObject({ status: 403 })
     expect(state.notifications).toHaveLength(0)
   })
-  it('rejects a missing actor before reading the booking', async () => {
+  it('rejects a missing actor before changing the booking', async () => {
     state.users = []
     await expect(act('complete')).rejects.toMatchObject({ status: 403 })
     expect(state.booking.status).toBe('CONFIRMED')
@@ -134,8 +135,8 @@ describe('booking state transitions', () => {
     expect(await act('complete')).toMatchObject({ status: 'COMPLETED' })
     expect(state.stats).toEqual({ totalSessions: 3, totalBookings: 3 })
     expect(state.notifications).toHaveLength(1)
-    expect(mock.query.mock.calls.map((call) => call[0].join('?'))).toEqual([
-      'SELECT id FROM users WHERE id = ? FOR SHARE',
+    expect(mock.query.mock.calls[0][0].join('?')).toContain('ORDER BY id FOR SHARE')
+    expect(mock.query.mock.calls.slice(1).map((call) => call[0].join('?'))).toEqual([
       'SELECT id FROM bookings WHERE id = ? FOR UPDATE',
       'SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE',
     ])
@@ -180,6 +181,24 @@ describe('booking state transitions', () => {
     state.booking.status = 'PENDING'
     await act('confirm')
     expect(state.booking.status).toBe('CONFIRMED')
+  })
+  for (const participant of [parent, trainer]) for (const change of ['role', 'deleted']) {
+    it.each(['confirm', 'complete', 'no_show'] as const)(`blocks %s with ${change} ${participant.role} even for an admin`, async action => {
+      state.booking.status = action === 'confirm' ? 'PENDING' : 'CONFIRMED'
+      const account = state.users.find((user: any) => user.id === participant.id)
+      if (change === 'role') account.role = 'ADMIN'
+      else account.deletedAt = new Date()
+      const before = structuredClone(state)
+      await expect(act(action, admin)).rejects.toMatchObject({ status: 409 })
+      expect(state).toEqual(before)
+    })
+  }
+  it('allows support cancellation without sending new notices to closed participants', async () => {
+    state.users.filter((user: any) => user.role !== 'ADMIN').forEach((user: any) => { user.deletedAt = new Date() })
+    await act('cancel', admin)
+    expect(state.booking.status).toBe('CANCELLED')
+    expect(state.notifications).toHaveLength(1)
+    expect(state.notifications[0]).toMatchObject({ userId: admin.id, type: 'PAYMENT_REVIEW_REQUIRED' })
   })
   it('confirms zero-due reservations without claiming money was paid', async () => {
     state.booking.status = 'PENDING'

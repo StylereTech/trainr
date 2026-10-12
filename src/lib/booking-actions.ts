@@ -13,9 +13,16 @@ export class BookingActionError extends Error {
 
 export async function applyBookingAction(bookingId: string, actor: { id: string; role?: string }, input: z.infer<typeof bookingActionSchema>) {
   return prisma.$transaction(async (tx) => {
-    // Revocation writers lock users first; retain current authority through commit.
-    await tx.$queryRaw`SELECT id FROM users WHERE id = ${actor.id} FOR SHARE`
-    const currentActor = await tx.user.findUnique({ where: { id: actor.id }, select: { role: true, deletedAt: true } })
+    const owners = await tx.booking.findUnique({ where: { id: bookingId }, select: {
+      parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
+    } })
+    // Lock all authorities/recipients in the same order as account writers and settlement.
+    const accounts = await tx.$queryRaw<Array<{ id: string; role: string; deletedAt: Date | null }>>`
+      SELECT id, role, "deletedAt" FROM users
+      WHERE id IN (${actor.id}, ${owners?.parentProfile.userId || ''}, ${owners?.trainerProfile.userId || ''})
+        OR (role = 'ADMIN' AND "deletedAt" IS NULL)
+      ORDER BY id FOR SHARE`
+    const currentActor = accounts.find(account => account.id === actor.id)
     if (!currentActor || currentActor.deletedAt || currentActor.role !== actor.role) {
       throw new BookingActionError('Account access changed. Sign in again before updating a booking.', 403)
     }
@@ -26,6 +33,9 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
       where: { id: bookingId }, include: { trainerProfile: true, parentProfile: true, payment: true },
     })
     if (!booking) throw new BookingActionError('Booking not found', 404)
+    if (booking.parentProfile.userId !== owners?.parentProfile.userId || booking.trainerProfile.userId !== owners?.trainerProfile.userId) {
+      throw new BookingActionError('Booking ownership changed. Reload before updating this session.', 409)
+    }
     const parent = actor.role === 'PARENT' && booking.parentProfile.userId === actor.id
     const trainer = actor.role === 'TRAINER' && booking.trainerProfile.userId === actor.id
     const admin = actor.role === 'ADMIN'
@@ -37,6 +47,11 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (booking.status === status) return tx.booking.findUnique({ where: { id: booking.id } })
     const allowed = input.action === 'cancel' ? ['PENDING', 'CONFIRMED'] : input.action === 'confirm' ? ['PENDING'] : ['CONFIRMED']
     if (!allowed.includes(booking.status)) throw new BookingActionError('Booking cannot make this status transition', 409)
+    const activeParent = accounts.some(account => account.id === booking.parentProfile.userId && account.role === 'PARENT' && !account.deletedAt)
+    const activeTrainer = accounts.some(account => account.id === booking.trainerProfile.userId && account.role === 'TRAINER' && !account.deletedAt)
+    if (input.action !== 'cancel' && (!activeParent || !activeTrainer)) {
+      throw new BookingActionError('A parent or trainer account is unavailable. Contact support to reconcile this session.', 409)
+    }
     if (input.action !== 'cancel' && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
         payment.amountInCents !== booking.totalAmountInCents || booking.totalAmountInCents < 0)) {
       throw new BookingActionError('Verified, fully settled payment is required before confirming or completing this session', 409)
@@ -62,16 +77,19 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
         ? 'This booking is cancelled. Its payment needs reconciliation by support. Cancellation is not a refund receipt; no refund has been issued by this action.'
         : 'This booking is cancelled. This notice does not represent a Stripe refund.' },
     }[input.action]
-    const recipients = input.action === 'cancel' ? [booking.parentProfile.userId, booking.trainerProfile.userId] : [booking.parentProfile.userId]
+    const recipients = [
+      ...(activeParent ? [booking.parentProfile.userId] : []),
+      ...(input.action === 'cancel' && activeTrainer ? [booking.trainerProfile.userId] : []),
+    ]
     const notifications = Array.from(new Set(recipients)).map((userId) => ({ userId, ...content, data: { bookingId } }))
     if (moneyReview) {
-      const operators = await tx.user.findMany({ where: { role: 'ADMIN', deletedAt: null }, select: { id: true } })
+      const operators = accounts.filter(account => account.role === 'ADMIN' && !account.deletedAt)
       notifications.push(...operators.map(({ id }) => ({
         userId: id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Cancelled booking payment requires review',
         message: 'Reconcile the saved checkout and Stripe payment before issuing any refund. No refund or transfer reversal was submitted by this cancellation.', data: { bookingId },
       })))
     }
-    await tx.notification.createMany({ data: notifications })
+    if (notifications.length) await tx.notification.createMany({ data: notifications })
     if (admin) {
       await tx.adminAction.create({ data: {
         adminUserId: actor.id, actionType: `BOOKING_${input.action.toUpperCase()}`, targetType: 'BOOKING', targetId: booking.id,

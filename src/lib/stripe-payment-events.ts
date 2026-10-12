@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { verifyDestinationSettlement, type SettlementSource } from '@/lib/stripe-settlement'
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
+import { createHash } from 'node:crypto'
 
 export class PaymentEventConflict extends Error {}
 export class PaymentEventAuthorizationError extends PaymentEventConflict {}
@@ -22,11 +23,23 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
   if (evidence.outcome === 'refunded') throw new PaymentEventConflict('Refund snapshots require current Stripe refund reconciliation')
   const refundChargeId = await prisma.$transaction(async (tx) => {
     if (options.adminUserId) {
-      await tx.$queryRaw`SELECT id FROM users WHERE id = ${options.adminUserId} FOR SHARE`
       const actor = await tx.user.findUnique({ where: { id: options.adminUserId }, select: { role: true, deletedAt: true } })
       if (actor?.role !== 'ADMIN' || actor.deletedAt) throw new PaymentEventAuthorizationError('Administrator access is required')
     }
-    // Serialize related events, including distinct event IDs for the same payment.
+    const owners = await tx.booking.findUnique({ where: { id: evidence.bookingId }, select: {
+      parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
+    } })
+    if (!owners) throw new PaymentEventConflict('Booking payment requires reconciliation')
+    // Account writers and booking actions lock users first. Hold current roles through
+    // provider verification and commit, then serialize the booking and payment.
+    const accounts = await tx.$queryRaw<Array<{ id: string; role: string; deletedAt: Date | null }>>`
+      SELECT id, role, "deletedAt" FROM users
+      WHERE id IN (${owners.parentProfile.userId}, ${owners.trainerProfile.userId}, ${options.adminUserId || ''})
+        OR (role = 'ADMIN' AND "deletedAt" IS NULL)
+      ORDER BY id FOR SHARE`
+    if (options.adminUserId && !accounts.some(account => account.id === options.adminUserId && account.role === 'ADMIN' && !account.deletedAt)) {
+      throw new PaymentEventAuthorizationError('Administrator access is required')
+    }
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${evidence.bookingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${evidence.bookingId} FOR UPDATE`
     const booking = await tx.booking.findUnique({
@@ -35,6 +48,9 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     })
     const payment = booking?.payment
     if (!booking || !payment) throw new PaymentEventConflict('Booking payment requires reconciliation')
+    if (booking.parentProfile.userId !== owners.parentProfile.userId || booking.trainerProfile.userId !== owners.trainerProfile.userId) {
+      throw new PaymentEventConflict('Booking ownership changed; retry reconciliation')
+    }
     const attempt = await tx.checkoutAttempt.findFirst({ where: { paymentId: payment.id }, orderBy: { sequence: 'desc' } })
     if ((evidence.attemptId && evidence.attemptId !== attempt?.id) || attempt?.retiredAt ||
         (attempt && evidence.attemptId !== attempt.id &&
@@ -78,6 +94,17 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     const fullyRefunded = payment.status === 'REFUNDED'
     if (fullyRefunded && !source) return
     const settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, evidence.intentId, evidence.chargeId, source)
+    const parent = accounts.find(account => account.id === booking.parentProfile.userId)
+    const trainer = accounts.find(account => account.id === booking.trainerProfile.userId)
+    const participantReview = [
+      ...(!parent || parent.deletedAt || parent.role !== 'PARENT' ? ['parent_account_unavailable'] : []),
+      ...(!trainer || trainer.deletedAt || trainer.role !== 'TRAINER' ? ['trainer_account_unavailable'] : []),
+    ]
+    const reviewDetails = participantReview.length ? { ...settlement.review?.details, participantReview } : null
+    const review = reviewDetails ? {
+      key: createHash('sha256').update(JSON.stringify({ bookingId: booking.id, ...reviewDetails })).digest('hex'), details: reviewDetails,
+    } : settlement.review
+    const requiresReview = settlement.requiresReview || participantReview.length > 0
     const partiallyRefunded = payment.status === 'PARTIALLY_REFUNDED'
     const newlyPaid = payment.status !== 'SUCCEEDED' && !partiallyRefunded && !fullyRefunded
     await tx.payment.update({
@@ -86,20 +113,25 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
         status: fullyRefunded ? 'REFUNDED' : partiallyRefunded ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED' },
     })
     const refundActivity = fullyRefunded || partiallyRefunded || payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0
-    const confirmed = refundActivity || settlement.requiresReview ? { count: 0 } : await tx.booking.updateMany({
+    const confirmed = refundActivity || requiresReview ? { count: 0 } : await tx.booking.updateMany({
       where: { id: booking.id, status: 'PENDING' }, data: { status: 'CONFIRMED' },
     })
-    const needsReview = settlement.requiresReview || booking.status === 'CANCELLED' || booking.status === 'RESCHEDULED'
-    const newFinancialReview = settlement.review && !await tx.notification.findFirst({
-      where: { userId: booking.parentProfile.userId, type: 'PAYMENT_REVIEW_REQUIRED', data: { path: ['financialReviewKey'], equals: settlement.review.key } },
+    const needsReview = requiresReview || booking.status === 'CANCELLED' || booking.status === 'RESCHEDULED'
+    const newFinancialReview = review && !await tx.notification.findFirst({
+      where: { type: 'PAYMENT_REVIEW_REQUIRED', AND: [
+        { data: { path: ['bookingId'], equals: booking.id } },
+        { data: { path: ['financialReviewKey'], equals: review.key } },
+      ] },
       select: { id: true },
     })
-    const reviewMessage = settlement.requiresReview
+    const reviewMessage = participantReview.length
+      ? 'Payment was received, but a parent or trainer account is closed or no longer has the required role. Contact support to reconcile the payment and session. This is not a booking confirmation, refund or bank payout receipt.'
+      : settlement.requiresReview
       ? 'Stripe reports a refund, dispute, transfer reversal or fee refund. Contact support to reconcile the payment. This is not a booking confirmation or bank payout receipt.'
       : 'Payment arrived for a cancelled or rescheduled booking. Contact support to reconcile the payment; the booking has not been reopened.'
     const notifications = []
-    const notificationData = { bookingId: booking.id, ...(settlement.review ? {
-      financialReviewKey: settlement.review.key, financialReview: settlement.review.details,
+    const notificationData = { bookingId: booking.id, ...(review ? {
+      financialReviewKey: review.key, financialReview: review.details,
     } : {}) }
     if (newlyPaid || confirmed.count > 0 || newFinancialReview) {
       notifications.push({
@@ -126,17 +158,22 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
       })
     }
     if (newFinancialReview || (newlyPaid && needsReview)) {
-      // Lock recipients only after provider reads; revocation must not win between selection and delivery.
-      const admins = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM users WHERE role = 'ADMIN' AND "deletedAt" IS NULL ORDER BY id FOR SHARE`
+      const admins = accounts.filter(account => account.role === 'ADMIN' && !account.deletedAt)
       for (const admin of admins) {
         if (notifications.some(item => item.userId === admin.id)) continue
         notifications.push({ userId: admin.id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Stripe payment needs review',
-          message: settlement.requiresReview
+          message: participantReview.length
+            ? 'Payment arrived for an unavailable parent or trainer account. Review the account, session and Stripe receipts before issuing money movement. No booking confirmation or refund was issued by this review.'
+            : settlement.requiresReview
             ? 'Review the current dispute, transfer reversal or fee refund in Stripe. Check evidence deadlines and reconcile the customer and trainer balances before issuing money movement.'
             : 'Payment arrived for a cancelled or rescheduled booking. The booking has not been reopened. Review the payment in Stripe and reconcile the customer and trainer balances before issuing money movement.', data: notificationData })
       }
     }
-    if (notifications.length) await tx.notification.createMany({ data: notifications })
+    const recipients = new Set(accounts.filter(account => !account.deletedAt && (
+      account.role === 'ADMIN' || (account.id === parent?.id && account.role === 'PARENT') ||
+      (account.id === trainer?.id && account.role === 'TRAINER'))).map(account => account.id))
+    const deliverable = notifications.filter(notification => recipients.has(notification.userId))
+    if (deliverable.length) await tx.notification.createMany({ data: deliverable })
     if (options.adminUserId) await tx.adminAction.create({ data: {
       adminUserId: options.adminUserId, actionType: 'RECONCILE_PAYMENT', targetType: 'PAYMENT', targetId: payment.id,
       description: 'Verified existing Stripe settlement without issuing money movement',

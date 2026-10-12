@@ -10,6 +10,7 @@ import { settlementFixture, settlementDispute } from '../helpers/stripe-settleme
 import { changeNotifications, readNotifications } from '@/lib/notifications'
 import { reconcileBookingPayment } from '@/lib/payment-reconciliation'
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
+import { applyBookingAction } from '@/lib/booking-actions'
 
 const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
@@ -560,6 +561,100 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     expect((await webhook()).status).toBe(200)
     expect((await readNotifications(admin, { page: 1, limit: 50, view: 'unread' })).unreadCount).toBe(0)
     expect((await booking()).status).toBe(status)
+  })
+  it.each(['parent-deleted', 'trainer-deleted', 'both-deleted', 'parent-role', 'trainer-role'])('withholds late payment confirmation for revoked participants: %s', async mode => {
+    const operator = await admin()
+    const revoked = mode.startsWith('parent') ? [parentId] : mode.startsWith('trainer') ? [trainerId] : [parentId, trainerId]
+    await prisma.user.updateMany({ where: { id: { in: revoked } }, data: mode.endsWith('role') ? { role: 'ADMIN' } : { deletedAt: new Date() } })
+    expect((await webhook()).status).toBe(200)
+    expect(await payment()).toMatchObject({ status: 'SUCCEEDED', stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
+    expect((await booking()).status).toBe('PENDING')
+    const first = await independent.notification.findMany({ where: { userId: { in: [...revoked, operator, parentId, trainerId] } } })
+    await expect(applyBookingAction(f.booking.id, { id: operator, role: 'ADMIN' }, { action: 'confirm' })).rejects.toMatchObject({ status: 409 })
+    expect((await booking()).status).toBe('PENDING')
+    expect(first.some(item => item.type === 'BOOKING_CONFIRMED' || item.type === 'PAYMENT_RECEIVED')).toBe(false)
+    expect(first.filter(item => item.userId === operator)).toHaveLength(1)
+    expect(first.find(item => item.userId === operator)?.message).toContain('account')
+    if (mode.endsWith('deleted')) expect(first.some(item => revoked.includes(item.userId))).toBe(false)
+    expect((await webhook()).status).toBe(200)
+    expect(await independent.notification.count({ where: { userId: { in: [operator, parentId, trainerId] } } })).toBe(first.length)
+    expect(await independent.walletEntry.count({ where: { bookingId: f.booking.id } })).toBe(0)
+  })
+  it.each(['parent', 'trainer', 'admin'])('rechecks %s revocation committed while account locks wait', async participant => {
+    const operator = await admin()
+    const userId = participant === 'parent' ? parentId : participant === 'trainer' ? trainerId : operator
+    let release!: () => void, ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const writer = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.user.update({ where: { id: userId }, data: { deletedAt: new Date() } })
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid)
+      await untilReleased
+    }, { timeout: 15000 })
+    const holder = await locked
+    const delivery = applyPaymentEvidence(evidence(), undefined, { adminUserId: operator }).then(() => null, error => error as Error)
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+      expect(provider.intent).not.toHaveBeenCalled()
+    } finally { release(); await writer }
+    const result = await delivery
+    expect((await booking()).status).toBe('PENDING')
+    if (participant === 'admin') {
+      expect(result?.message).toContain('Administrator access')
+      expect(await payment()).toMatchObject({ status: 'PENDING', stripeChargeId: null, stripeTransferId: null })
+      expect(await notices()).toHaveLength(0)
+    } else {
+      expect(result).toBeNull()
+      expect((await payment()).status).toBe('SUCCEEDED')
+      expect(await independent.notification.count({ where: { userId } })).toBe(0)
+      expect(await independent.notification.count({ where: { userId: operator, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+    }
+  })
+  it.each(['parent', 'trainer', 'admin'])('holds %s authority through provider verification and commit', async participant => {
+    const operator = await admin()
+    const userId = participant === 'parent' ? parentId : participant === 'trainer' ? trainerId : operator
+    let release!: () => void, ready!: () => void
+    const verifying = new Promise<void>(resolve => { ready = resolve })
+    provider.fee.mockImplementationOnce(async () => {
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready()
+      await untilReleased
+      return structuredClone(f.fee)
+    })
+    const delivery = applyPaymentEvidence(evidence(), undefined, { adminUserId: operator })
+    await verifying
+    let writerReady!: (pid: number) => void
+    const started = new Promise<number>(resolve => { writerReady = resolve })
+    const writer = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      writerReady(backend.pid)
+      await tx.user.update({ where: { id: userId }, data: { deletedAt: new Date() } })
+    }, { timeout: 15000 })
+    const writerPid = await started
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE pid = ${writerPid} AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBe(1)
+    } finally { release(); await delivery; await writer }
+    expect((await booking()).status).toBe('CONFIRMED')
+    expect((await payment()).status).toBe('SUCCEEDED')
+    expect(await independent.adminAction.count({ where: { adminUserId: operator, actionType: 'RECONCILE_PAYMENT' } })).toBe(1)
+  })
+  it('flags account revocation on a paid replay once without rewriting an earlier confirmation', async () => {
+    const operator = await admin()
+    expect((await webhook()).status).toBe(200)
+    await independent.user.update({ where: { id: trainerId }, data: { deletedAt: new Date() } })
+    expect((await webhook()).status).toBe(200)
+    expect((await webhook()).status).toBe(200)
+    expect((await booking()).status).toBe('CONFIRMED')
+    expect(await independent.notification.count({ where: { userId: operator, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: parentId, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: trainerId, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(0)
   })
   it.each(['dispute', 'reversal', 'fee-refund'])('withholds confirmation for %s, records financial identities, and requests review', async mode => {
     if (mode === 'dispute') {
