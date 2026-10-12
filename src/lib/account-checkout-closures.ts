@@ -28,10 +28,22 @@ export async function readAccountCheckoutClosures(adminId: string, page: number)
 export async function processAccountCheckoutClosure(id: string, authority: { adminId: string } | { closedUserId: string }) {
   return prisma.$transaction(async tx => {
     if ('adminId' in authority) await administrator(tx, authority.adminId)
+    const reference = await tx.accountCheckoutClosure.findUnique({ where: { id } })
+    if (!reference || ('closedUserId' in authority && reference.userId !== authority.closedUserId)) {
+      throw new CheckoutClosureAccessError('Account checkout not found')
+    }
+    // Same profile -> financial record -> queue order as checkout preparation/revocation.
+    if (reference.kind === 'BOOKING') {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT b."trainerProfileId" FROM bookings b JOIN payments p ON p."bookingId" = b.id WHERE p.id = ${reference.targetId}) FOR SHARE`
+      await tx.$queryRaw`SELECT id FROM payments WHERE id = ${reference.targetId} FOR UPDATE`
+    } else {
+      await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${reference.targetId}) FOR SHARE`
+      await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${reference.targetId} FOR UPDATE`
+    }
     await tx.$queryRaw`SELECT id FROM account_checkout_closures WHERE id = ${id} FOR UPDATE`
-    const task = await tx.accountCheckoutClosure.findUnique({ where: { id }, include: { user: { select: { deletedAt: true } } } })
-    if (!task || !task.user.deletedAt || ('closedUserId' in authority && task.userId !== authority.closedUserId)) {
-      throw new CheckoutClosureAccessError('Closed-account checkout not found')
+    const task = await tx.accountCheckoutClosure.findUnique({ where: { id } })
+    if (!task || task.kind !== reference.kind || task.targetId !== reference.targetId || ('closedUserId' in authority && task.userId !== authority.closedUserId)) {
+      throw new CheckoutClosureAccessError('Account checkout not found')
     }
     if (task.status === 'CLOSED') return { id, status: task.status, outcome: task.outcome }
     let outcome = 'provider_unavailable', sessionId: string | null = null
@@ -39,7 +51,6 @@ export async function processAccountCheckoutClosure(id: string, authority: { adm
       let knownId: string | null, intentId: string | null, financialActivity: boolean
       let validate: (session: Stripe.Checkout.Session) => void
       if (task.kind === 'BOOKING') {
-        await tx.$queryRaw`SELECT id FROM payments WHERE id = ${task.targetId} FOR UPDATE`
         const payment = await tx.payment.findUniqueOrThrow({ where: { id: task.targetId }, include: {
           booking: { include: { parentProfile: true, trainerProfile: true } }, checkoutAttempts: { orderBy: { sequence: 'desc' }, take: 1 },
         } })
@@ -56,7 +67,6 @@ export async function processAccountCheckoutClosure(id: string, authority: { adm
               session.amount_total !== payment.amountInCents) throw new Error('identity')
         }
       } else {
-        await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${task.targetId} FOR UPDATE`
         const purchase = await tx.packagePurchase.findUniqueOrThrow({ where: { id: task.targetId }, include: {
           parentProfile: true, trainerProfile: true, checkoutAttempts: { orderBy: { sequence: 'desc' }, take: 1 },
         } })

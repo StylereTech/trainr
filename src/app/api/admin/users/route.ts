@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
     const parsed = userAdminActionSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: 'Invalid account action. Reload and check the required fields.' }, { status: 400 })
     const result = await applyUserAdminAction(session.user.id, parsed.data)
-    if (parsed.data.action === 'delete') await processInitialAccountCheckouts(parsed.data.userId)
+    await processInitialAccountCheckouts(parsed.data.userId)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof UserAdminActionError) return NextResponse.json({ error: error.message }, { status: error.status })

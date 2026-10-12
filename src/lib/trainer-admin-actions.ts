@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { queueAccountCheckouts } from '@/lib/queue-account-checkouts'
 
 const revision = z.string().datetime()
 const reason = z.string().trim().min(1).max(2000)
@@ -63,6 +64,9 @@ export async function applyTrainerAdminAction(trainerId: string, adminUserId: st
     }
     data.updatedAt = new Date(Math.max(Date.now(), trainer.updatedAt.getTime() + 1))
     const updated = await tx.trainerProfile.update({ where: { id: trainerId }, data })
+    if (input.action === 'suspend' || input.action === 'reject' || (input.action === 'toggle_active' && !input.isActive)) {
+      await queueAccountCheckouts(tx, trainer.userId)
+    }
     await tx.adminAction.create({ data: {
       adminUserId, actionType: input.action, targetType: 'TRAINER', targetId: trainerId,
       description: `${input.action} trainer ${trainer.firstName} ${trainer.lastName}`,

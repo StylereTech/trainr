@@ -94,6 +94,17 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  it.each(['PENDING', 'REVIEW'])('retains captured funds without confirming a reinstated booking while checkout retirement is %s', async status => {
+    await prisma.accountCheckoutClosure.create({ data: { userId: trainerId, kind: 'BOOKING', targetId: f.booking.payment.id, status } })
+    expect((await webhook()).status).toBe(200)
+    expect(await payment()).toMatchObject({ status: 'SUCCEEDED', stripeTransferId: f.transfer.id,
+      financialReview: { details: { participantReview: ['checkout_retirement_pending'] } } })
+    expect((await booking()).status).toBe('PENDING')
+    const reviewNotices = (await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')
+    expect(reviewNotices).toHaveLength(2)
+    expect(reviewNotices.every(item => item.message.includes('awaiting retirement'))).toBe(true)
+    await expect(applyBookingAction(f.booking.id, { id: trainerId, role: 'TRAINER' }, { action: 'confirm' })).rejects.toThrow()
+  })
   async function admin() {
     const actor = await prisma.user.create({ data: { email: `reconcile-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } })
     users.push(actor.id)

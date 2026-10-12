@@ -578,7 +578,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
     const before = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
     await applyTrainerAdminAction(fixture.trainer, review.admin, { action: 'suspend', revision: approved.updatedAt.toISOString(), reason: 'Synthetic hold' })
-    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('not available for checkout')
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('previous checkout')
     const after = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
     expect(after.stripeCheckoutSessionId).toBe(before.stripeCheckoutSessionId)
     expect(provider.create).toHaveBeenCalledTimes(1)
@@ -598,7 +598,7 @@ describe('real PostgreSQL money-flow persistence', () => {
         : { action: 'toggle_active', revision, isActive: false })
       return session
     })
-    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('no longer available')
+    await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('previous checkout')
     const payment = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
     const attempt = await independent.checkoutAttempt.findFirstOrThrow({ where: { paymentId: payment.id } })
     expect(payment.stripeCheckoutSessionId).toBeTruthy()
@@ -608,6 +608,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     await applyPaymentEvidence({ bookingId: booking.id, paymentId: payment.id, attemptId: attempt.id,
       sessionId: payment.stripeCheckoutSessionId!, intentId: 'pi_synthetic_late_payment', amount: 6000, currency: 'usd', outcome: 'paid' })
     expect((await independent.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('SUCCEEDED')
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('PENDING')
     expect(await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).toMatchObject(decision === 'suspend' ? { approvalStatus: 'SUSPENDED' } : { isActive: false })
   })
 

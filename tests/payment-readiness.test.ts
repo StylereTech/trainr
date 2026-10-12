@@ -46,6 +46,7 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(async (run) => run({
     $queryRaw: mocks.query, booking: mocks.booking, payment: mocks.payment, notification: mocks.notification,
     trainerProfile: mocks.trainer,
+    accountCheckoutClosure: { findFirst: async () => null },
     checkoutAttempt: { findFirst: async () => null },
   }))
   mocks.booking.updateMany.mockResolvedValue({ count: 1 })

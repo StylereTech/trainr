@@ -39,7 +39,7 @@ export default function CheckoutClosuresPage() {
         <h2 className="font-semibold">{row.kind === 'BOOKING' ? 'Booking checkout' : 'Package checkout'}</h2>
         <p className="break-all text-xs text-slate-400">{row.id}</p>
         <p className="break-all text-xs text-slate-400">{row.kind === 'BOOKING' ? 'Payment' : 'Purchase'}: {row.targetId}</p>
-        <p className="break-all text-xs text-slate-400">Closed account: {row.userId}</p>
+        <p className="break-all text-xs text-slate-400">Affected account: {row.userId}</p>
         <p>{closureLabel(row.status)}</p><p className="text-sm text-slate-300">{closureOutcome(row.outcome)}</p>
         {row.checkedAt && <p className="text-xs text-slate-400">Checked {new Date(row.checkedAt).toLocaleString()}</p>}
       </div>

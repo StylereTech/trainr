@@ -92,6 +92,14 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it.each(['PENDING', 'REVIEW'])('records paid receipts but grants no credits while reinstated checkout retirement is %s', async status => {
+    const { session } = await paidSession()
+    await prisma.accountCheckoutClosure.create({ data: { userId: trainerId, kind: 'PACKAGE', targetId: purchaseId, status } })
+    expect((await webhook(session)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', stripeTransferId: f.transfer.id,
+      financialReview: { details: { fulfillmentReview: ['checkout_retirement_pending'] } } })
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+  })
   it('issues family-owned service credits exactly once across concurrent receipt replays', async () => {
     const { session, attempt } = await paidSession()
     expect(await independent.packageCreditGrant.count()).toBe(0)

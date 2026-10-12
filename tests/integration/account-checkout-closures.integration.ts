@@ -4,6 +4,10 @@ import { PrismaClient } from '@prisma/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { closeAccount } from '@/lib/account-closure'
+import { applyUserAdminAction } from '@/lib/user-admin-actions'
+import { applyTrainerAdminAction } from '@/lib/trainer-admin-actions'
+import { startOrResumeCheckout } from '@/lib/checkout-attempts'
+import { startOrResumePackageCheckout } from '@/lib/package-checkout'
 import { preparePackagePurchase } from '@/lib/package-purchases'
 import { processAccountCheckoutClosure, processInitialAccountCheckouts, readAccountCheckoutClosures } from '@/lib/account-checkout-closures'
 import { GET, POST } from '@/app/api/admin/checkout-closures/route'
@@ -63,6 +67,76 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('durable account checkout closure with real SQL and simulated provider', () => {
+  it.each(['parent-role', 'trainer-role', 'suspend', 'reject', 'inactive'])('retires existing checkouts after %s revocation without deleting the account', async action => {
+    if (action.endsWith('-role')) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: action === 'parent-role' ? parentId : trainerId } })
+      await applyUserAdminAction(adminId, { action: 'change_role', userId: user.id, revision: user.updatedAt.toISOString(), role: 'ADMIN' })
+    } else {
+      const trainer = await prisma.trainerProfile.findUniqueOrThrow({ where: { userId: trainerId } })
+      const input = action === 'inactive' ? { action: 'toggle_active' as const, isActive: false } : { action: action as 'suspend' | 'reject', reason: 'Synthetic revocation' }
+      await applyTrainerAdminAction(trainer.id, adminId, { ...input, revision: trainer.updatedAt.toISOString() })
+    }
+    expect(await independent.accountCheckoutClosure.count()).toBe(2)
+    expect((await independent.user.findUniqueOrThrow({ where: { id: parentId } })).deletedAt).toBeNull()
+    expect((await independent.user.findUniqueOrThrow({ where: { id: trainerId } })).deletedAt).toBeNull()
+    for (const kind of ['BOOKING', 'PACKAGE']) expect(await processTask(kind)).toMatchObject({ status: 'CLOSED' })
+    expect(provider.expire).toHaveBeenCalledTimes(2)
+    expect(await independent.walletEntry.count()).toBe(0)
+  })
+  it.each(['BOOKING', 'PACKAGE'])('%s reinstatement does not bypass unresolved retirement, and a new revocation requeues verified work', async kind => {
+    const trainer = await prisma.trainerProfile.findUniqueOrThrow({ where: { userId: trainerId } })
+    const suspended = await applyTrainerAdminAction(trainer.id, adminId, { action: 'suspend', reason: 'Synthetic', revision: trainer.updatedAt.toISOString() })
+    const restored = await applyTrainerAdminAction(trainer.id, adminId, { action: 'approve', revision: suspended.updatedAt.toISOString() })
+    const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } })
+    await expect(kind === 'BOOKING' ? startOrResumeCheckout(payment.bookingId, { id: parentId }, 'acct_synthetic') : startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow('previous checkout')
+    expect(provider.retrieve).not.toHaveBeenCalled()
+    expect(await processTask(kind)).toMatchObject({ status: 'CLOSED' })
+    const sessionId = `${sessions[kind].id}_next`
+    sessions[kind] = { ...sessions[kind], id: sessionId, status: 'open' }
+    if (kind === 'BOOKING') {
+      await prisma.checkoutAttempt.updateMany({ where: { paymentId }, data: { retiredAt: new Date() } })
+      const next = await prisma.checkoutAttempt.create({ data: { paymentId, sequence: 2, parameters: {}, stripeCheckoutSessionId: sessionId } })
+      await prisma.payment.update({ where: { id: paymentId }, data: { stripeCheckoutSessionId: sessionId } })
+      sessions[kind].metadata.checkoutAttemptId = next.id
+    } else {
+      await prisma.packageCheckoutAttempt.updateMany({ where: { purchaseId }, data: { retiredAt: new Date() } })
+      const next = await prisma.packageCheckoutAttempt.create({ data: { purchaseId, sequence: 2, parameters: {}, stripeCheckoutSessionId: sessionId } })
+      await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { stripeCheckoutSessionId: sessionId } })
+      sessions[kind].metadata.packageCheckoutAttemptId = next.id
+    }
+    // A later revocation must not reuse the first closure's proof.
+    await applyTrainerAdminAction(trainer.id, adminId, { action: 'toggle_active', isActive: false, revision: restored.updatedAt.toISOString() })
+    expect(await task(kind)).toMatchObject({ status: 'PENDING', outcome: null, sessionId: null, checkedAt: null })
+    expect(await processTask(kind)).toMatchObject({ status: 'CLOSED' })
+    expect(provider.expire).toHaveBeenCalledTimes(2)
+    expect((await task(kind)).sessionId).toBe(sessionId)
+  })
+  it('holds trainer eligibility stable while a queued provider closure is being verified', async () => {
+    await close(parentId)
+    let reached!: () => void, release!: () => void
+    const entered = new Promise<void>(resolve => { reached = resolve })
+    const resume = new Promise<void>(resolve => { release = resolve })
+    const retrieve = provider.retrieve.getMockImplementation()!
+    provider.retrieve.mockImplementationOnce(async (...args) => { reached(); await resume; return retrieve(...args) })
+    const work = processTask()
+    try {
+      await entered
+      await expect(independent.$transaction(async tx => {
+        await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '100ms'")
+        await tx.trainerProfile.update({ where: { userId: trainerId }, data: { isActive: false } })
+      })).rejects.toThrow()
+    } finally { release(); await work }
+    expect((await task()).status).toBe('CLOSED')
+  })
+  it('rolls trainer revocation and queued work back when its audit cannot commit', async () => {
+    const trainer = await prisma.trainerProfile.findUniqueOrThrow({ where: { userId: trainerId } })
+    await independent.$executeRawUnsafe(`ALTER TABLE admin_actions ADD CONSTRAINT revocation_audit_failure CHECK ("targetId" <> '${trainer.id}') NOT VALID`)
+    try {
+      await expect(applyTrainerAdminAction(trainer.id, adminId, { action: 'suspend', reason: 'Synthetic', revision: trainer.updatedAt.toISOString() })).rejects.toThrow()
+      expect(await independent.accountCheckoutClosure.count()).toBe(0)
+      expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainer.id } })).approvalStatus).toBe('APPROVED')
+    } finally { await independent.$executeRawUnsafe('ALTER TABLE admin_actions DROP CONSTRAINT revocation_audit_failure') }
+  })
   it.each(['parent', 'trainer'])('queues both financial surfaces when the %s closes, without erasing history', async role => {
     const before = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } })
     await close(role === 'parent' ? parentId : trainerId)

@@ -3,6 +3,7 @@ import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { applyTrainerAdminAction, TrainerAdminActionError, trainerAdminActionSchema } from '@/lib/trainer-admin-actions'
+import { processInitialAccountCheckouts } from '@/lib/account-checkout-closures'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -55,7 +56,11 @@ export async function PATCH(
     const input = trainerAdminActionSchema.safeParse(await req.json().catch(() => null))
     if (!input.success) return NextResponse.json({ error: 'A valid decision and current profile revision are required' }, { status: 400 })
     const { id } = await params
-    return NextResponse.json(await applyTrainerAdminAction(id, session.user.id, input.data))
+    const result = await applyTrainerAdminAction(id, session.user.id, input.data)
+    if (input.data.action === 'suspend' || input.data.action === 'reject' || (input.data.action === 'toggle_active' && !input.data.isActive)) {
+      await processInitialAccountCheckouts(result.userId)
+    }
+    return NextResponse.json(result)
   } catch (error) {
     if (error instanceof TrainerAdminActionError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Trainer approval transaction failed')

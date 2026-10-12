@@ -55,6 +55,7 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        accountCheckoutClosure: { findFirst: async () => state.closure || null },
         user: { findUnique: async () => structuredClone(state.buyer) },
         booking: {
           findUnique: async () => structuredClone({ ...state.booking, payment: state.payment }),
@@ -421,6 +422,25 @@ describe('cancelled checkout closure', () => {
 })
 
 describe('durable checkout attempts', () => {
+  it.each(['PENDING', 'REVIEW'])('withholds a reinstated account checkout while retirement is %s', async status => {
+    state.payment = pendingPayment()
+    state.closure = { status }
+    await expect(checkout()).rejects.toThrow('previous checkout')
+    expect(mock.create).not.toHaveBeenCalled()
+    expect(mock.retrieve).not.toHaveBeenCalled()
+  })
+  it('retains an in-flight session but withholds its URL when retirement is queued before response attachment', async () => {
+    const create = mock.create.getMockImplementation()!
+    mock.create.mockImplementationOnce(async (...args) => {
+      const session = await create(...args)
+      state.closure = { status: 'PENDING' }
+      return session
+    })
+    await expect(checkout()).rejects.toThrow('previous checkout')
+    expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
+    expect(state.attempts[0].stripeCheckoutSessionId).toBe('cs_1')
+    expect(mock.expire).toHaveBeenCalledTimes(1)
+  })
   it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('does not create payment/attempt records for an ineligible trainer: %s', async status => {
     if (status === 'INACTIVE') state.booking.trainerProfile.isActive = false
     else state.booking.trainerProfile.approvalStatus = status
@@ -484,7 +504,9 @@ describe('durable checkout attempts', () => {
     expect(attempt.parameters.metadata).toEqual({ bookingId: 'booking', paymentId: 'payment', checkoutAttemptId: attempt.id })
     expect(state.payment.stripeCheckoutSessionId).toBe('cs_1')
     expect(mock.query.mock.calls[0][0].join('?')).toBe('SELECT id FROM users WHERE id = ? FOR SHARE')
-    expect(mock.query.mock.calls[1][0].join('?')).toBe('SELECT id FROM bookings WHERE id = ? FOR UPDATE')
+    expect(mock.query.mock.calls[1][0].join('?')).toBe('SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ?) FOR SHARE')
+    expect(mock.query.mock.calls[2][0].join('?')).toBe('SELECT id FROM bookings WHERE id = ? FOR UPDATE')
+    expect(mock.query.mock.calls[3][0].join('?')).toBe('SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE')
   })
 
   it('resumes an existing open session without expiring or creating another session', async () => {

@@ -6,6 +6,8 @@ import { applyTrainerAdminAction, trainerAdminActionSchema } from '@/lib/trainer
 const mock = vi.hoisted(() => ({ transaction: vi.fn(), query: vi.fn(), session: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 vi.mock('@/lib/auth', () => ({ getServerSession: mock.session, authOptions: {} }))
+vi.mock('@/lib/queue-account-checkouts', () => ({ queueAccountCheckouts: vi.fn() }))
+vi.mock('@/lib/account-checkout-closures', () => ({ processInitialAccountCheckouts: vi.fn() }))
 const revision = '2026-10-08T00:00:00.000Z'
 let state: any
 let fail: 'audit' | 'notification' | null

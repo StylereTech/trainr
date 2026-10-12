@@ -28,6 +28,7 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
         throw new PackagePurchaseError('Parent or trainer access is required', 403)
       }
     }
+    await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${purchaseId}) FOR SHARE`
     await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
     if (actor && !await tx.packagePurchase.findFirst({ where: { id: purchaseId,
       ...(actor.role === 'PARENT' ? { parentProfile: { userId: actor.id } } : { trainerProfile: { userId: actor.id } }) }, select: { id: true } })) {
@@ -36,7 +37,6 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     const purchase = await tx.packagePurchase.findUnique({ where: { id: purchaseId } })
     const attempt = await tx.packageCheckoutAttempt.findFirst({ where: { purchaseId }, orderBy: { sequence: 'desc' } })
     if (!purchase || !attempt || attempt.id !== attemptId) throw new PackagePurchaseError('Package checkout attempt does not match the purchase.')
-    await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${purchase.trainerProfileId} FOR SHARE`
     const trainer = await tx.trainerProfile.findUniqueOrThrow({ where: { id: purchase.trainerProfileId }, include: { sports: true } })
     const parent = await tx.parentProfile.findUniqueOrThrow({ where: { id: purchase.parentProfileId } })
     if (parent.userId !== owners.parentProfile.userId || trainer.userId !== owners.trainerProfile.userId) throw new PackagePurchaseError('Package ownership changed. Retry reconciliation.')
@@ -47,7 +47,9 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     await tx.$queryRaw(Prisma.sql`SELECT id FROM sports
       WHERE id IN (${Prisma.join([...new Set(terms.items.map(item => item.sportId))].sort())}) ORDER BY id FOR SHARE`)
     const services = await tx.serviceOffering.findMany({ where: { id: { in: terms.items.map(item => item.serviceOfferingId) } }, include: { sport: true } })
+    const retirement = await tx.accountCheckoutClosure.findFirst({ where: { kind: 'PACKAGE', targetId: purchaseId, status: { not: 'CLOSED' } } })
     const fulfillmentReview = [
+      ...(retirement ? ['checkout_retirement_pending'] : []),
       ...(!accounts.some(account => account.id === parent.userId && account.role === 'PARENT' && !account.deletedAt) ? ['parent_account_unavailable'] : []),
       ...(!accounts.some(account => account.id === trainer.userId && account.role === 'TRAINER' && !account.deletedAt) || !trainer.isActive || trainer.approvalStatus !== 'APPROVED' ? ['trainer_unavailable'] : []),
       ...(terms.items.some(item => { const service = services.find(value => value.id === item.serviceOfferingId)

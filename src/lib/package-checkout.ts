@@ -18,20 +18,22 @@ type Expired = { sessionId: string; intentId: string | null; attemptId: string }
 async function lockedPurchase(tx: Prisma.TransactionClient, purchaseId: string, userId: string) {
   await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR SHARE`
   const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true, deletedAt: true, role: true } })
-  await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
   await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${purchaseId}) FOR SHARE`
+  await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
   const purchase = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, include: {
     parentProfile: true, package: true, trainerProfile: { include: { sports: true, user: { select: { role: true, deletedAt: true } } } },
   } })
   if (!purchase || purchase.parentProfile.userId !== userId) throw new PackagePurchaseError('Package purchase not found', 404)
   const terms = packagePurchaseTermsSchema.parse(purchase.terms)
   const services = await tx.serviceOffering.findMany({ where: { id: { in: terms.items.map(item => item.serviceOfferingId) } }, include: { sport: true } })
-  return { purchase, user, terms, services }
+  const closure = await tx.accountCheckoutClosure.findFirst({ where: { kind: 'PACKAGE', targetId: purchaseId, status: { not: 'CLOSED' } } })
+  return { purchase, user, terms, services, closure }
 }
 type Snapshot = Awaited<ReturnType<typeof lockedPurchase>>
 
-function assertPayable({ purchase, user, terms, services }: Snapshot, accountId?: string) {
+function assertPayable({ purchase, user, terms, services, closure }: Snapshot, accountId?: string) {
   if (user?.role !== 'PARENT' || user.deletedAt) throw new PackagePurchaseError('Parent access is required', 403)
+  if (closure) throw new PackagePurchaseError('A previous checkout requires retirement or review before another payment link can be released.')
   const trainer = purchase.trainerProfile
   if (!trainer.isActive || trainer.approvalStatus !== 'APPROVED' || trainer.user.deletedAt || trainer.user.role !== 'TRAINER') {
     throw new PackagePurchaseError('Trainer is not available for package checkout.')

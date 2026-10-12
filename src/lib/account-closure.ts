@@ -1,20 +1,14 @@
 import type { Prisma } from '@prisma/client'
 import { hash } from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
+import { queueAccountCheckouts } from '@/lib/queue-account-checkouts'
 
 // Caller holds the user row lock. Keep financial and audit relationships intact.
 export async function closeAccount(tx: Prisma.TransactionClient, userId: string) {
   const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, include: { parentProfile: true, trainerProfile: true } })
   if (user.deletedAt) return
   if (user.trainerProfile) await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${user.trainerProfile.id} FOR UPDATE`
-  const participant = { OR: [{ parentProfile: { userId } }, { trainerProfile: { userId } }] }
-  const payments = await tx.payment.findMany({ where: { booking: participant }, select: { id: true } })
-  const purchases = await tx.packagePurchase.findMany({ where: participant, select: { id: true } })
-  // Commit retryable work with revocation, before any provider call or response can be lost.
-  await tx.accountCheckoutClosure.createMany({ data: [
-    ...payments.map(payment => ({ userId, kind: 'BOOKING', targetId: payment.id })),
-    ...purchases.map(purchase => ({ userId, kind: 'PACKAGE', targetId: purchase.id })),
-  ], skipDuplicates: true })
+  await queueAccountCheckouts(tx, userId)
   const now = new Date(Math.max(Date.now(), user.updatedAt.getTime() + 1))
   const randomPasswordHash = await hash(randomBytes(32).toString('hex'), 12)
   await tx.notification.deleteMany({ where: { userId } })

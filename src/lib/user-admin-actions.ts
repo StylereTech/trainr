@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { closeAccount } from '@/lib/account-closure'
 import { slugify } from '@/lib/utils'
+import { queueAccountCheckouts } from '@/lib/queue-account-checkouts'
 
 const userId = z.string().trim().min(1).max(128)
 const revision = z.string().datetime()
@@ -51,6 +52,7 @@ export async function applyUserAdminAction(adminUserId: string, input: z.infer<t
     }
     const updated = await tx.user.update({ where: { id: user.id }, data: { role: input.role, sessionVersion: { increment: 1 },
       updatedAt: new Date(Math.max(Date.now(), user.updatedAt.getTime() + 1)) }, select: adminUserFields })
+    if (user.role === 'PARENT' || user.role === 'TRAINER') await queueAccountCheckouts(tx, user.id)
     await tx.adminAction.create({ data: { adminUserId, actionType: 'CHANGE_ROLE', targetType: 'USER', targetId: user.id,
       description: `Changed role from ${user.role} to ${input.role}`,
       metadata: { previousRole: user.role, newRole: input.role, previousRevision: input.revision, revision: updated.updatedAt.toISOString() } } })

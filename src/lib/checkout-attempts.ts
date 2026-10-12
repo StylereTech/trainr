@@ -21,9 +21,9 @@ async function lockCurrentBuyer(tx: Prisma.TransactionClient, buyerId: string) {
 }
 
 async function lockedBooking(tx: Prisma.TransactionClient, bookingId: string) {
+  await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ${bookingId}) FOR SHARE`
   await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
   await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
-  await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ${bookingId}) FOR SHARE`
   return tx.booking.findUnique({
     where: { id: bookingId },
     include: { parentProfile: true, trainerProfile: true, athleteProfile: true, serviceOffering: true, payment: true },
@@ -89,6 +89,9 @@ async function prepare(bookingId: string, buyer: Buyer, accountId: string, expir
   return prisma.$transaction(async (tx) => {
     if (!await lockCurrentBuyer(tx, buyer.id)) throw new CheckoutConflict('Parent access is required for checkout. Sign in again before retrying.')
     const booking = await lockedBooking(tx, bookingId)
+    if (booking?.payment && await tx.accountCheckoutClosure.findFirst({ where: { kind: 'BOOKING', targetId: booking.payment.id, status: { not: 'CLOSED' } } })) {
+      throw new CheckoutConflict('A previous checkout requires retirement or review before another payment link can be released.')
+    }
     assertPayable(booking, buyer, accountId)
     if (!booking) throw new CheckoutConflict('Booking not found.')
     if (!booking.trainerProfile.isActive || booking.trainerProfile.approvalStatus !== 'APPROVED') {
@@ -154,7 +157,7 @@ function validateSession(session: Stripe.Checkout.Session, bookingId: string, pa
 
 async function rememberSession(bookingId: string, buyer: Buyer, accountId: string, session: Stripe.Checkout.Session, attemptId: string | null) {
   const sessionId = session.id
-  const { recorded, buyerAllowed } = await prisma.$transaction(async (tx) => {
+  const { recorded, buyerAllowed, closurePending } = await prisma.$transaction(async (tx) => {
     const buyerAllowed = await lockCurrentBuyer(tx, buyer.id)
     const booking = await lockedBooking(tx, bookingId)
     if (!booking?.payment) throw new CheckoutConflict('Payment record not found.')
@@ -170,7 +173,8 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
     }
     if (current) await tx.checkoutAttempt.update({ where: { id: current.id }, data: { stripeCheckoutSessionId: sessionId } })
     await tx.payment.update({ where: { id: booking.payment.id }, data: { stripeCheckoutSessionId: sessionId } })
-    return { recorded: booking, buyerAllowed }
+    const closurePending = !!await tx.accountCheckoutClosure.findFirst({ where: { kind: 'BOOKING', targetId: booking.payment.id, status: { not: 'CLOSED' } } })
+    return { recorded: booking, buyerAllowed, closurePending }
   })
   // Save the provider identity even when cancellation wins the external-call race.
   if (recorded.status === 'CANCELLED') await closeCancelledCheckout(bookingId)
@@ -178,7 +182,7 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
   const timeError = checkoutTimeError(recorded)
   const boundedSession = !session.after_expiration?.recovery?.enabled && (session.status !== 'open' || (Number.isSafeInteger(session.expires_at) && session.expires_at * 1000 > Date.now() &&
     !!recorded.startsAt && session.expires_at * 1000 <= recorded.startsAt.getTime()))
-  if (!buyerAllowed || !trainerAllowed || timeError || !boundedSession) {
+  if (!buyerAllowed || !trainerAllowed || closurePending || timeError || !boundedSession) {
     // Retain the returned identity before best-effort expiry. No refund or closure is implied.
     if (session.status === 'open' && session.payment_status === 'unpaid') {
       try {
@@ -189,7 +193,7 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
         }
       } catch { console.error('Withheld checkout expiry could not be verified; reconciliation required') }
     }
-    throw new CheckoutConflict(timeError || (!boundedSession ? 'Checkout expiry requires reconciliation. No payment link was released; contact support.' : !buyerAllowed
+    throw new CheckoutConflict(timeError || (closurePending ? 'A previous checkout requires retirement or review before another payment link can be released.' : !boundedSession ? 'Checkout expiry requires reconciliation. No payment link was released; contact support.' : !buyerAllowed
       ? 'Parent account access changed. Checkout was withheld; contact support to reconcile any payment.'
       : 'Trainer is no longer available for checkout. Checkout was withheld; contact support to reconcile any payment.'))
   }

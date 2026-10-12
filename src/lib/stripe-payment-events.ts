@@ -41,6 +41,7 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     if (options.adminUserId && !accounts.some(account => account.id === options.adminUserId && account.role === 'ADMIN' && !account.deletedAt)) {
       throw new PaymentEventAuthorizationError('Administrator access is required')
     }
+    await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ${evidence.bookingId}) FOR SHARE`
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${evidence.bookingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${evidence.bookingId} FOR UPDATE`
     const booking = await tx.booking.findUnique({
@@ -97,7 +98,9 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     const settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, evidence.intentId, evidence.chargeId, source)
     const parent = accounts.find(account => account.id === booking.parentProfile.userId)
     const trainer = accounts.find(account => account.id === booking.trainerProfile.userId)
+    const retirement = await tx.accountCheckoutClosure.findFirst({ where: { kind: 'BOOKING', targetId: payment.id, status: { not: 'CLOSED' } } })
     const participantReview = [
+      ...(retirement ? ['checkout_retirement_pending'] : []),
       ...(!parent || parent.deletedAt || parent.role !== 'PARENT' ? ['parent_account_unavailable'] : []),
       ...(!trainer || trainer.deletedAt || trainer.role !== 'TRAINER' ? ['trainer_account_unavailable'] : []),
     ]
@@ -126,7 +129,9 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
       ] },
       select: { id: true },
     })
-    const reviewMessage = participantReview.length
+    const reviewMessage = retirement
+      ? 'Payment was received while an earlier checkout was awaiting retirement after an account or trainer access change. Contact support to reconcile the payment. This is not a booking confirmation, refund or bank payout receipt.'
+      : participantReview.length
       ? 'Payment was received, but a parent or trainer account is closed or no longer has the required role. Contact support to reconcile the payment and session. This is not a booking confirmation, refund or bank payout receipt.'
       : settlement.requiresReview
       ? 'Stripe reports a refund, dispute, transfer reversal or fee refund. Contact support to reconcile the payment. This is not a booking confirmation or bank payout receipt.'
@@ -164,7 +169,9 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
       for (const admin of admins) {
         if (notifications.some(item => item.userId === admin.id)) continue
         notifications.push({ userId: admin.id, type: 'PAYMENT_REVIEW_REQUIRED', title: 'Stripe payment needs review',
-          message: participantReview.length
+          message: retirement
+            ? 'Payment arrived while checkout retirement was unresolved. Review the account-access change and Stripe receipts before resolving the booking or moving money.'
+            : participantReview.length
             ? 'Payment arrived for an unavailable parent or trainer account. Review the account, session and Stripe receipts before issuing money movement. No booking confirmation or refund was issued by this review.'
             : settlement.requiresReview
             ? 'Review the current dispute, transfer reversal or fee refund in Stripe. Check evidence deadlines and reconcile the customer and trainer balances before issuing money movement.'

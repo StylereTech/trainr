@@ -41,6 +41,7 @@ beforeEach(() => {
     try {
       return await run({
         $queryRaw: mock.query,
+        accountCheckoutClosure: { findFirst: async () => state.closure || null },
         checkoutAttempt: {
           findFirst: async () => state.attempt || null,
           update: async ({ data }: any) => Object.assign(state.attempt, data),
@@ -55,7 +56,7 @@ beforeEach(() => {
           },
         },
         payment: { update: async ({ data }: any) => Object.assign(state.payment, data) },
-        notification: { createMany: async ({ data }: any) => {
+        notification: { findFirst: async () => null, createMany: async ({ data }: any) => {
           await mock.notify(data)
           state.notifications.push(...data)
         } },
@@ -68,9 +69,17 @@ beforeEach(() => {
 })
 
 describe('transactional Stripe payment evidence', () => {
+  it.each(['PENDING', 'REVIEW'])('records captured funds but does not confirm a reinstated booking with %s checkout retirement', async status => {
+    state.closure = { status }
+    await applyPaymentEvidence(paid)
+    expect(state.payment.status).toBe('SUCCEEDED')
+    expect(state.status).toBe('PENDING')
+    expect(state.payment.financialReview.details.participantReview).toContain('checkout_retirement_pending')
+  })
   it('locks accounts before booking then payment and commits payment, confirmation and notifications', async () => {
     await applyPaymentEvidence(paid)
-    expect(mock.query.mock.calls.slice(1, 3).map(([sql, id]) => [sql.join('?'), id])).toEqual([
+    expect(mock.query.mock.calls.slice(1, 4).map(([sql, id]) => [sql.join('?'), id])).toEqual([
+      ['SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ?) FOR SHARE', 'booking'],
       ['SELECT id FROM bookings WHERE id = ? FOR UPDATE', 'booking'],
       ['SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE', 'booking'],
     ])

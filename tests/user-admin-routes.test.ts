@@ -38,6 +38,8 @@ describe('administrator user HTTP boundaries', () => {
   it('passes the reviewed version and current actor to the transaction', async () => {
     expect((await patch(valid)).status).toBe(200)
     expect(mock.action).toHaveBeenCalledWith('admin', valid)
+    expect(mock.closures).toHaveBeenCalledWith('user')
+    expect(mock.action.mock.invocationCallOrder[0]).toBeLessThan(mock.closures.mock.invocationCallOrder[0])
   })
   it('starts bounded checkout closure only after successful account revocation', async () => {
     const input = { userId: 'user', revision: valid.revision, action: 'delete', reason: 'Synthetic review' }
