@@ -33,4 +33,26 @@ Added API cases requesting an older page, supplying five invalid/unsupported que
 
 ## Publication And Remaining Gates
 
-Not yet committed or published. Real hosted trainer login, Stripe onboarding, actual customer sandbox payment, transfer and payout evidence remain unverified. Signed-in Preview access still awaits approval; package expiry/cancellation decisions and redemption/public buying remain unfinished. This improves payout-history access, not money-flow signoff. Overall production status: **HOLD**.
+Source **`6a5de52c0a2781a649377e579b225089c3ee77f2`** committed and pushed to the audit branch. Vercel [deployment `7mxb1qkhcHELbQqSPWw3FvvckjT5`](https://vercel.com/styleres-projects/trainr/7mxb1qkhcHELbQqSPWw3FvvckjT5) is **Ready**, matching source, completed **10:03:51 UTC**, 47s. Unique URL: `https://trainr-gv5agm0ca-styleres-projects.vercel.app`. Build log confirms `Audit staging schema verified; migration checksums verified.` No manual deployment action, Production promotion or main push occurred.
+
+At **10:04:24-28 UTC**, 13 anonymous checks passed against the stable audit Preview; `.postgres-test/payout-history-source-hosted-smoke.json`, exit 0. Exact expected/actual results:
+
+| Method | Route | Expected = actual |
+| --- | --- | --- |
+| GET | `/api/health` | 200, `dbConnected: true` |
+| GET | `/api/bookings` | 401 |
+| GET | `/api/trainer/packages` | 401 |
+| GET | `/api/trainer/wallet` | 401 |
+| GET | `/api/trainer/wallet?startingAfter=po_unknown` | 401 |
+| POST | `/api/admin/refunds` | 401 |
+| POST | `/api/payments/webhook` | 400 |
+| GET | `/api/package-purchases` | 401 |
+| POST | `/api/package-purchases/refresh` | 401 |
+| PATCH | `/api/bookings/audit-nonexistent` | 401 |
+| PATCH | `/api/admin/bookings` | 401 |
+| GET | `/api/admin/checkout-closures` | 401 |
+| POST | `/api/admin/checkout-closures` | 401 |
+
+Requests used no cookies, no valid webhook signature and only empty JSON for write verbs. They verify health and unauthenticated denial, not successful payment, payout or signed-in pagination. GitHub [run 38233845495](https://github.com/StylereTech/trainr/actions/runs/38233845495) reports both check/migrations jobs **not started because the account is locked due to a billing issue**, with empty step lists. Local passing checks do not make GitHub CI green. Billing was not changed.
+
+Real hosted trainer login, Stripe onboarding, actual customer sandbox payment, transfer and payout evidence remain unverified. Signed-in Preview access still awaits approval; package expiry/cancellation decisions and redemption/public buying remain unfinished. This improves payout-history access, not money-flow signoff. Overall production status: **HOLD**.
