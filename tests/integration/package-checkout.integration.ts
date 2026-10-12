@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import Stripe from 'stripe'
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { preparePackagePurchase } from '@/lib/package-purchases'
 import { startOrResumePackageCheckout } from '@/lib/package-checkout'
 import { reconcilePackageCheckout } from '@/lib/package-settlement'
 import { reconcileRefundEvent } from '@/lib/refund-reconciliation'
+import { readPackageHistory, refreshPackageHistory } from '@/lib/package-history'
+import { packageHistoryResponse } from '@/lib/package-history-schema'
 import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 
@@ -26,6 +28,7 @@ const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_
 let parentId: string, trainerId: string, trainerProfileId: string, sportId: string, purchaseId: string
 let verified = false, sessions = new Map<string, any>(), f: any
 let refunds: any[] = []
+let historyUsers: string[] = []
 function refundReceipt(changes: Record<string, unknown> = {}) {
   return { id: 're_package', charge: f.charge.id, payment_intent: f.intent.id, amount: 1000, currency: 'usd',
     status: 'succeeded', created: 1791749000, transfer_reversal: null, source_transfer_reversal: null,
@@ -58,7 +61,7 @@ beforeAll(async () => {
   verified = true
 })
 beforeEach(async () => {
-  vi.resetAllMocks(); sessions = new Map(); f = settlementFixture(); refunds = []
+  vi.resetAllMocks(); sessions = new Map(); f = settlementFixture(); refunds = []; historyUsers = []
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `package-checkout-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
@@ -83,12 +86,105 @@ beforeEach(async () => {
 afterEach(async () => {
   if (!verified) return
   await prisma.packagePurchase.deleteMany({ where: { trainerProfileId } })
-  await prisma.user.deleteMany({ where: { id: { in: [parentId, trainerId] } } })
+  await prisma.user.deleteMany({ where: { id: { in: [parentId, trainerId, ...historyUsers] } } })
   await prisma.sport.delete({ where: { id: sportId } })
 })
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it.each(['PARENT', 'TRAINER'])('lists immutable scoped purchase history for %s without provider details', async role => {
+    const { session } = await paidSession(); expect((await webhook(session)).status).toBe(200)
+    const original = await readPurchase()
+    await independent.package.update({ where: { id: original.packageId }, data: { title: 'Changed catalog title', priceInCents: 10000 } })
+    const result = packageHistoryResponse.parse(await readPackageHistory({ id: role === 'PARENT' ? parentId : trainerId, role }, { view: 'all', page: 1, limit: 10 }))
+    expect(result.purchases).toHaveLength(1)
+    expect(result.purchases[0]).toMatchObject({ id: purchaseId, title: 'Two sessions', totalSessions: 2, amountInCents: 6000,
+      trainerAllocationInCents: role === 'TRAINER' ? 5100 : null, status: 'SUCCEEDED', paymentVerified: true, canRefresh: true })
+    for (const forbidden of ['stripeChargeId', 'stripePaymentIntentId', 'stripeAccountId', 'parameters', 'payloadHash', 'passwordHash', 'failureBalanceTransactionId']) expect(JSON.stringify(result)).not.toContain(forbidden)
+    expect(await readPurchase()).toEqual(original)
+  })
+  it.each(['PARENT', 'TRAINER'])('hides another account purchase from %s list and refresh', async role => {
+    await paidSession()
+    const key = randomUUID()
+    const user = await prisma.user.create({ data: { email: `history-${key}@example.test`, passwordHash: 'not-a-login', role: role as 'PARENT' | 'TRAINER',
+      ...(role === 'PARENT' ? { parentProfile: { create: {} } } : { trainerProfile: { create: { firstName: 'Other', lastName: 'Trainer', slug: key } } }) } })
+    historyUsers.push(user.id)
+    const actor = { id: user.id, role }
+    expect((await readPackageHistory(actor, { view: 'all', page: 1, limit: 10 })).purchases).toEqual([])
+    provider.retrieve.mockClear()
+    await expect(refreshPackageHistory(actor, purchaseId)).rejects.toMatchObject({ status: 404 })
+    expect(provider.retrieve).not.toHaveBeenCalled()
+  })
+  it.each(['deleted', 'changed-role', 'unknown'])('rejects stale %s actor authority for history and refresh', async mode => {
+    await paidSession()
+    if (mode === 'deleted') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    if (mode === 'changed-role') await prisma.user.update({ where: { id: parentId }, data: { role: 'TRAINER' } })
+    const actor = { id: mode === 'unknown' ? 'missing-user' : parentId, role: 'PARENT' }
+    await expect(readPackageHistory(actor, { view: 'all', page: 1, limit: 10 })).rejects.toMatchObject({ status: 403 })
+    await expect(refreshPackageHistory(actor, purchaseId)).rejects.toMatchObject({ status: 403 })
+  })
+  it('enforces current authority again inside the settlement write transaction', async () => {
+    const { session, attempt } = await paidSession()
+    await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    await expect(reconcilePackageCheckout(purchaseId, attempt.id, session.id, undefined, { id: parentId, role: 'PARENT' })).rejects.toMatchObject({ status: 403 })
+    expect(provider.intent).not.toHaveBeenCalled(); expect((await readPurchase()).status).toBe('PENDING')
+  })
+  it('paginates consistently and clamps an obsolete page without repeating records', async () => {
+    const purchase = await readPurchase()
+    for (let i = 0; i < 3; i++) await preparePackagePurchase(parentId, { requestId: randomUUID(), packageId: purchase.packageId,
+      catalogRevision: purchase.catalogRevision.toISOString(), expectedTotalInCents: 6000 })
+    const actor = { id: parentId, role: 'PARENT' }
+    const first = await readPackageHistory(actor, { view: 'all', page: 1, limit: 2 }), last = await readPackageHistory(actor, { view: 'all', page: 100, limit: 2 })
+    expect(first.pagination).toEqual({ page: 1, limit: 2, total: 4, totalPages: 2 }); expect(last.pagination.page).toBe(2)
+    expect(new Set([...first.purchases, ...last.purchases].map(row => row.id)).size).toBe(4)
+  })
+  it.each(['pending', 'paid', 'refunded', 'review'] as const)('applies %s history filter within ownership', async view => {
+    const data = view === 'paid' ? { status: 'SUCCEEDED' as const } : view === 'refunded' ? { status: 'PARTIALLY_REFUNDED' as const } :
+      view === 'review' ? { refundFailedCount: 1 } : {}
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data })
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view, page: 1, limit: 10 })).purchases.map(row => row.id)).toEqual([purchaseId])
+  })
+  it.each([Prisma.DbNull, Prisma.JsonNull])('does not invent financial review for a null review JSON', async financialReview => {
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'review', page: 1, limit: 10 })).purchases).toEqual([])
+  })
+  it.each(['PARENT', 'TRAINER'])('recovers missed package payment and current refund history for %s without issuing money', async role => {
+    await paidSession(); refunds = [refundReceipt({ status: 'pending' })]
+    provider.create.mockClear(); provider.expire.mockClear()
+    expect(await refreshPackageHistory({ id: role === 'PARENT' ? parentId : trainerId, role }, purchaseId)).toEqual({ refreshed: true, purchaseId })
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', refundPendingAmountInCents: 1000,
+      financialReview: { details: { packageRefunds: { pendingInCents: 1000 } } } })
+    expect(provider.refunds).toHaveBeenCalledOnce(); expect(provider.create).not.toHaveBeenCalled(); expect(provider.expire).not.toHaveBeenCalled()
+    expect(await prisma.booking.count()).toBe(0); expect(await prisma.walletEntry.count()).toBe(0)
+  })
+  it.each(['open', 'expired'])('refreshes verified unpaid %s checkout without fabricating payment', async status => {
+    await startOrResumePackageCheckout(purchaseId, parentId)
+    const attempt = await readAttempt(); sessions.get(attempt.stripeCheckoutSessionId!).status = status
+    const previous = await readPurchase(); provider.create.mockClear(); provider.expire.mockClear()
+    await refreshPackageHistory({ id: parentId, role: 'PARENT' }, purchaseId)
+    expect(await readPurchase()).toEqual(previous); expect(provider.intent).not.toHaveBeenCalled()
+    expect(provider.create).not.toHaveBeenCalled(); expect(provider.expire).not.toHaveBeenCalled()
+  })
+  it.each(['missing-session', 'retired', 'provider-failure', 'wrong-destination', 'missing-refund'])('does not replace accounting on history refresh %s', async mode => {
+    if (mode === 'missing-session') {
+      provider.create.mockRejectedValue(new Error('provider outcome unknown'))
+      await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow()
+    } else await paidSession()
+    const attempt = await readAttempt()
+    if (mode === 'retired') await prisma.packageCheckoutAttempt.update({ where: { id: attempt.id }, data: { retiredAt: new Date() } })
+    if (mode === 'provider-failure') provider.retrieve.mockRejectedValue(new Error('provider unavailable'))
+    if (mode === 'wrong-destination') f.transfer.destination = 'acct_other'
+    if (mode === 'missing-refund') f.charge.amount_refunded = 1000
+    const previous = await readPurchase()
+    await expect(refreshPackageHistory({ id: parentId, role: 'PARENT' }, purchaseId)).rejects.toThrow()
+    expect(await readPurchase()).toEqual(previous); expect(await prisma.packageRefund.count()).toBe(0)
+  })
+  it('serializes repeated and concurrent owned refreshes without duplicating refunds', async () => {
+    await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
+    await Promise.all([refreshPackageHistory({ id: parentId, role: 'PARENT' }, purchaseId), refreshPackageHistory({ id: trainerId, role: 'TRAINER' }, purchaseId)])
+    expect(await prisma.packageRefund.count({ where: { purchaseId } })).toBe(1)
+    expect((await readPurchase()).refundAmountInCents).toBe(1000)
+  })
   it.each(['charge.refunded', 'refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated'])('records current package refund history from signed %s delivery', async type => {
     await paidSession(); refunds = [refundReceipt()]; f.charge.amount_refunded = 1000
     const object = type === 'charge.refunded' ? f.charge : { ...refunds[0], amount: 6000, status: 'pending' }

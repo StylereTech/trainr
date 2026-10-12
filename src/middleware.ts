@@ -30,6 +30,7 @@ const PROTECTED_ROUTES: ProtectedRouteRule[] = [
   { prefix: '/trainer/dashboard', roles: ['TRAINER'] },
   { prefix: '/trainer/profile', roles: ['TRAINER'] },
   { prefix: '/trainer/packages', roles: ['TRAINER'] },
+  { prefix: '/trainer/purchases', roles: ['TRAINER'] },
   { prefix: '/trainer/onboarding', roles: ['TRAINER'] },
   { prefix: '/messages' },
   { prefix: '/notifications' },

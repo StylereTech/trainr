@@ -10,9 +10,21 @@ import { reconcilePackageRefundHistory } from '@/lib/package-refunds'
 
 // A paid redirect/event is only a prompt to read current provider receipts, never proof itself.
 export async function reconcilePackageCheckout(purchaseId: string, attemptId: string, sessionId: string,
-  evidence: { intentId: string; chargeId: string; source: SettlementSource; refunds?: { refundId?: string } } | undefined = undefined) {
+  evidence: { intentId: string; chargeId: string; source: SettlementSource; refunds?: { refundId?: string } } | undefined = undefined,
+  actor?: { id: string; role?: string }) {
   return prisma.$transaction(async tx => {
+    if (actor) {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${actor.id} FOR SHARE`
+      const current = await tx.user.findUnique({ where: { id: actor.id }, select: { role: true, deletedAt: true } })
+      if (!current || current.deletedAt || current.role !== actor.role || !['PARENT', 'TRAINER'].includes(current.role)) {
+        throw new PackagePurchaseError('Parent or trainer access is required', 403)
+      }
+    }
     await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
+    if (actor && !await tx.packagePurchase.findFirst({ where: { id: purchaseId,
+      ...(actor.role === 'PARENT' ? { parentProfile: { userId: actor.id } } : { trainerProfile: { userId: actor.id } }) }, select: { id: true } })) {
+      throw new PackagePurchaseError('Package purchase not found', 404)
+    }
     const purchase = await tx.packagePurchase.findUnique({ where: { id: purchaseId } })
     const attempt = await tx.packageCheckoutAttempt.findFirst({ where: { purchaseId }, orderBy: { sequence: 'desc' } })
     if (!purchase || !attempt || attempt.id !== attemptId) throw new PackagePurchaseError('Package checkout attempt does not match the purchase.')
@@ -21,11 +33,14 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     if (session.id !== sessionId) throw new PackagePurchaseError('Package checkout session identity changed.')
     assertPackageSession(purchase, attempt, session)
     const intentId = stripeObjectId(session.payment_intent)
+    if (actor && ['open', 'expired'].includes(session.status || '') && session.payment_status === 'unpaid' &&
+        ['PENDING', 'FAILED'].includes(purchase.status) && !purchase.settlementVerifiedAt && !purchase.stripeChargeId && !purchase.stripeTransferId &&
+        !purchase.refundAmountInCents && !purchase.refundPendingAmountInCents && !purchase.refundFailedCount && !purchase.financialReview) return purchase
     if (session.status !== 'complete' || session.payment_status !== 'paid' || !intentId) throw new PackagePurchaseError('Package payment is not completed.')
     if (evidence && evidence.intentId !== intentId) throw new PackagePurchaseError('Package financial event intent does not match checkout.')
     const settlement = await verifyDestinationCharge(purchase, attempt, packagePaymentIdentity(purchase.id, attempt.id),
       intentId, evidence?.chargeId, evidence?.source, session.livemode)
-    const refunds = evidence?.refunds ? await reconcilePackageRefundHistory(tx, purchase, intentId, settlement.chargeId, settlement.hasRefunds, evidence.refunds.refundId) : null
+    const refunds = evidence?.refunds || actor ? await reconcilePackageRefundHistory(tx, purchase, intentId, settlement.chargeId, settlement.hasRefunds, evidence?.refunds?.refundId) : null
     const refundState = refunds || purchase
     // A normal paid/transfer replay must not clear unresolved refund evidence.
     const details = { ...settlement.review?.details, packageRefunds: { refundedInCents: refundState.refundAmountInCents,
@@ -39,7 +54,7 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
       settlementVerifiedAt: new Date(), financialReview: review ? JSON.parse(JSON.stringify(review)) : Prisma.DbNull,
       ...(refunds || {}),
     } })
-  }, { maxWait: 5000, timeout: evidence?.refunds ? 45000 : 30000 })
+  }, { maxWait: 5000, timeout: actor ? 90000 : evidence?.refunds ? 45000 : 30000 })
 }
 
 export async function reconcilePackageCharge(charge: Stripe.Charge, source: SettlementSource, hasBookingMatches: boolean, refunds?: { refundId?: string }) {

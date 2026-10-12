@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { z } from 'zod'
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2, Pencil, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2, Pencil, Plus, ReceiptText, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,7 +95,8 @@ export default function TrainerPackagesPage() {
     <Link href="/trainer/dashboard" className="mb-4 inline-flex items-center gap-2 text-sm text-slate-300"><ArrowLeft className="h-4 w-4" />Dashboard</Link>
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
       <div><h1 className="text-2xl font-semibold text-white">Programs &amp; Packages</h1><p className="mt-2 text-sm text-amber-200">Package checkout unavailable</p></div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline"><Link href="/trainer/purchases"><ReceiptText className="mr-2 h-4 w-4" />Purchase history</Link></Button>
         <Button variant="outline" size="icon" title="Refresh packages" aria-label="Refresh packages" disabled={loading || busy} onClick={reload}><RefreshCw className="h-4 w-4" /></Button>
         <Button disabled={disabled || !listing?.services.length} onClick={() => open()}><Plus className="mr-2 h-4 w-4" />New package</Button>
       </div>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, Users, Star, Plus, Clock, Loader2, CreditCard, RefreshCw } from 'lucide-react'
+import { Calendar, Users, Star, Plus, Clock, Loader2, CreditCard, RefreshCw, Package } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import { RefundSummary } from '@/components/shared/RefundSummary'
@@ -88,7 +88,8 @@ export default function ParentDashboard() {
             <div className="max-w-3xl">
               <h1 className="text-2xl font-semibold">Parent dashboard</h1>
             </div>
-            <Button asChild className="gradient-primary w-full border-0 text-white sm:w-auto"><Link href="/browse"><Users className="mr-2 h-4 w-4" />Find Trainers</Link></Button>
+            <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/parent/packages"><Package className="mr-2 h-4 w-4" />My packages</Link></Button>
+              <Button asChild className="gradient-primary w-full border-0 text-white sm:w-auto"><Link href="/browse"><Users className="mr-2 h-4 w-4" />Find Trainers</Link></Button></div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
