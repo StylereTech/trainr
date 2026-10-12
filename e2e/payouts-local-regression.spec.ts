@@ -3,8 +3,61 @@ import { test, expect } from './fixtures/local-auth'
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || 'msedge' })
 const ready = { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
   chargesEnabled: true, payoutsEnabled: true, transfersEnabled: true, providerError: '', dashboardSupported: true, onboardingSupported: false }
-const wallet = { source: 'stripe', connected: true, currency: 'usd', wallet: { availableBalance: 12345, pendingBalance: 6789 },
+const wallet = { source: 'stripe', connected: true, currency: 'usd', wallet: { availableBalance: 12345, pendingBalance: 6789 }, hasMore: false, nextCursor: null,
   schedule: { interval: 'daily' }, payouts: [{ id: 'po_synthetic', amountInCents: 4500, currency: 'usd', status: 'paid', arrivalDate: 1791590400, createdAt: 1791504000 }] }
+
+for (const width of [1440, 390]) for (const scenario of ['history', 'provider-failure', 'malformed'] as const) {
+  test(`payout pages ${scenario} ${width}px`, async ({ page, localAuth }, info) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await localAuth.signIn(await localAuth.create('PARENT'))
+    expect((await page.request.get('/api/trainer/wallet?startingAfter=po_other')).status()).toBe(403)
+    await localAuth.signIn(await localAuth.create('TRAINER'))
+    await page.route('**/api/payments/connect', route => route.fulfill({ json: ready }))
+    let failed = false
+    const cursors: Array<string | null> = []
+    await page.route('**/api/trainer/wallet*', route => {
+      const cursor = new URL(route.request().url()).searchParams.get('startingAfter')
+      cursors.push(cursor)
+      expect([null, 'po_page20', 'po_page21']).toContain(cursor)
+      if (cursor === 'po_page20' && !failed && scenario !== 'history') {
+        failed = true
+        return route.fulfill(scenario === 'provider-failure' ? { status: 503, json: { error: 'synthetic' } } : { json: { ...wallet, hasMore: true, nextCursor: 'po_wrong' } })
+      }
+      const payouts = !cursor ? Array.from({ length: 20 }, (_, i) => ({ ...wallet.payouts[0], id: `po_page${i + 1}`, amountInCents: 1000 + i }))
+        : cursor === 'po_page20' ? [{ ...wallet.payouts[0], id: 'po_page21', amountInCents: 2121 }] : []
+      return route.fulfill({ json: { ...wallet, payouts, hasMore: cursor !== 'po_page21', nextCursor: cursor === 'po_page21' ? null : payouts.at(-1)!.id } })
+    })
+    await page.goto('/trainer/profile?tab=payouts')
+    const panel = page.getByRole('region', { name: 'Stripe earnings and payouts' })
+    await expect(panel.getByText('Page 1', { exact: true })).toBeVisible()
+    await expect(panel.getByRole('listitem')).toHaveCount(20)
+    await expect(panel.getByRole('button', { name: 'Newer payouts' })).toBeDisabled()
+    await panel.getByRole('button', { name: 'Older payouts' }).click()
+    if (scenario !== 'history') {
+      await expect(panel.getByText('Unable to load current Stripe balances and payouts.')).toBeVisible()
+      await expect(panel.getByRole('button', { name: 'Older payouts' })).toBeDisabled()
+      await expect(panel.getByRole('button', { name: 'Newer payouts' })).toBeEnabled()
+      await expect(panel.getByText('No bank payouts reported by Stripe yet.')).toHaveCount(0)
+      await panel.getByRole('button', { name: 'Retry', exact: true }).click()
+    }
+    await expect(panel.getByText('Page 2', { exact: true })).toBeVisible()
+    await expect(panel.getByText('$21.21', { exact: true })).toBeVisible()
+    await expect(panel.getByRole('listitem')).toHaveCount(1)
+    await panel.screenshot({ path: info.outputPath('payout-page-two.png') })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await panel.getByRole('button', { name: 'Older payouts' }).click()
+    await expect(panel.getByText('No older bank payouts reported by Stripe.')).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Older payouts' })).toBeDisabled()
+    await panel.getByRole('button', { name: 'Newer payouts' }).click()
+    await expect(panel.getByText('$21.21', { exact: true })).toBeVisible()
+    await panel.getByRole('button', { name: 'Refresh Stripe balances' }).click()
+    await expect(panel.getByText('Page 1', { exact: true })).toBeVisible()
+    await expect(panel.getByRole('listitem')).toHaveCount(20)
+    expect(cursors.filter(cursor => cursor === 'po_page20').length).toBe(scenario === 'history' ? 2 : 3)
+    await page.reload()
+    await expect(panel.getByText('Page 1', { exact: true })).toBeVisible()
+  })
+}
 
 for (const width of [1440, 390]) {
   test(`payout data failures clear balances and schedule and recover ${width}px`, async ({ page, localAuth }, testInfo) => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, Clock, CreditCard, DollarSign, Loader2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, CreditCard, DollarSign, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
@@ -12,7 +12,9 @@ import { formatCurrency } from '@/lib/utils'
 
 export function TrainerPayouts() {
   const { toast } = useToast()
-  const balance = useRemoteData('/api/trainer/wallet', payoutHistorySchema)
+  const [cursors, setCursors] = useState<Array<string | null>>([null])
+  const cursor = cursors.at(-1)
+  const balance = useRemoteData(`/api/trainer/wallet${cursor ? `?startingAfter=${encodeURIComponent(cursor)}` : ''}`, payoutHistorySchema)
   const status = useRemoteData('/api/payments/connect', connectStatusSchema)
   const [opening, setOpening] = useState(false)
   const unknown = !status.data || !!status.error || !!status.data.providerError || !status.data.providerConfigured
@@ -20,6 +22,12 @@ export function TrainerPayouts() {
   const started = !!status.data?.stripeAccountId
   const canOpen = !status.loading && !unknown && (status.data?.dashboardSupported || status.data?.onboardingSupported)
   const schedule = balance.data?.schedule?.interval
+  const refresh = () => { if (cursors.length > 1) setCursors([null]); else void balance.reload() }
+  const older = () => {
+    const next = balance.data?.nextCursor
+    if (balance.loading || balance.error || !balance.data?.hasMore || !next) return
+    setCursors(current => current.at(-1) === next ? current : [...current, next])
+  }
 
   async function openStripe() {
     if (!canOpen || opening) return
@@ -64,7 +72,7 @@ export function TrainerPayouts() {
 
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-semibold">Stripe balances</h3>
-        <Button variant="outline" size="icon" aria-label="Refresh Stripe balances" title="Refresh Stripe balances" disabled={balance.loading} onClick={() => void balance.reload()}><RefreshCw className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" aria-label="Refresh Stripe balances" title="Refresh Stripe balances" disabled={balance.loading} onClick={refresh}><RefreshCw className="h-4 w-4" /></Button>
       </div>
       {balance.error ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 text-rose-300">
@@ -87,8 +95,8 @@ export function TrainerPayouts() {
             ))}
           </div>
           <div>
-            <h3 className="mb-3 text-base font-semibold">Recent Bank Payouts</h3>
-            {balance.data.payouts.length === 0 ? <p className="text-sm text-slate-300">No bank payouts reported by Stripe yet.</p> : (
+            <h3 className="mb-3 text-base font-semibold">Bank Payout History</h3>
+            {balance.data.payouts.length === 0 ? <p className="text-sm text-slate-300">{cursor ? 'No older bank payouts reported by Stripe.' : 'No bank payouts reported by Stripe yet.'}</p> : (
               <ul className="divide-y divide-white/10">
                 {balance.data.payouts.map(payout => (
                   <li key={payout.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -104,6 +112,11 @@ export function TrainerPayouts() {
           </div>
         </>
       ) : <p className="text-sm text-slate-300">No connected Stripe balance is available yet.</p>}
+      {(balance.data?.connected || cursors.length > 1) && <nav aria-label="Bank payout history pages" className="flex items-center gap-3">
+        <Button variant="outline" size="icon" aria-label="Newer payouts" title="Newer payouts" disabled={balance.loading || cursors.length === 1} onClick={() => setCursors(current => current.length > 1 ? current.slice(0, -1) : current)}><ChevronLeft className="h-4 w-4" /></Button>
+        <span>Page {cursors.length}</span>
+        <Button variant="outline" size="icon" aria-label="Older payouts" title="Older payouts" disabled={balance.loading || !!balance.error || !balance.data?.hasMore} onClick={older}><ChevronRight className="h-4 w-4" /></Button>
+      </nav>}
     </section>
   )
 }
