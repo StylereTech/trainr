@@ -55,4 +55,16 @@ Local logs: `.postgres-test/policy-check.log` (initial type error), `policy-chec
 
 Public package purchase and atomic credit redemption/restoration remain incomplete. The hosted catalog has no selectable trainer; the last refreshed Stripe sandbox had zero connected accounts. User input requested for owner-controlled trainer login/signup. Stripe account agreements and credential entry remain user-controlled. Actual sandbox charge, signed webhook, destination transfer, payout, refund execution and final Production release are unproven. **Overall HOLD.**
 
-New policy source is not yet committed/pushed/deployed as of this entry. Publication and final verification will be appended after checks complete.
+## Publication And Hosted Retest
+
+Source **`4a8c5da890197f6babec7efcc9f46e1881529bab`** was committed and pushed to the audit branch. Remote verification matched that SHA and main remained `2067e743c54ffee669cd484f26dc472b157f1881`; working tree was clean. The previously local failure-note commit `3ab4939` was included in this normal fast-forward push.
+
+The automatic [Preview deployment `9oPEkZhRxjBuGmCH9oS577BmEcnj`](https://vercel.com/styleres-projects/trainr/9oPEkZhRxjBuGmCH9oS577BmEcnj) became **Ready at 2026-10-12 12:59:11 UTC**, duration 50s, matching source `4a8c5da` and the isolated audit branch. Build logs independently state **Audit staging schema upgraded; migration checksums verified.** Unique protected URL: `trainr-qs4smwl7g-styleres-projects.vercel.app`; stable audit alias remains unchanged.
+
+GitHub initially returned no deployment statuses. The Vercel list also initially showed only older deployments; the Create Deployment entry was inspected but **no manual deployment was submitted**. Browser reads then timed out. The existing GitHub status subsequently reported the successful automatic deployment, and direct navigation to that authoritative URL restored inspection. No empty commit, credential workaround or duplicate deployment was used.
+
+After Ready, all eight JSON-only, no-redirect anonymous smoke cases listed above passed on the stable audit alias; database health was connected and eligible trainer count remained zero. Log: `.postgres-test/policy-source-hosted-smoke.json`. The existing signed-in athlete page was fully reloaded after publication: session, stored profile and restored original notes remained present. This verifies the specific read/refresh path, not package purchase or Stripe payment.
+
+[GitHub Actions run 38252164746](https://github.com/StylereTech/trainr/actions/runs/38252164746) reports failed `check` and `migrations` checks. The current `check` job annotation explicitly says it was **not started because the account is locked due to a billing issue**. This is not green GitHub CI and must not be represented as executed CI tests. No billing/account setting was changed. Local executed test evidence remains separate.
+
+All remaining gates above retain **HOLD**. New-source publication is complete on Preview only; Production release, shared-credit redemption and actual Stripe money-flow signoff are not complete.
