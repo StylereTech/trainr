@@ -4,6 +4,7 @@ import { PackagePurchaseError } from '@/lib/package-purchases'
 import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 import { packageHistoryQuery, type PackageHistoryQuery } from '@/lib/package-history-schema'
 import { reconcilePackageCheckout } from '@/lib/package-settlement'
+import { packageValidity } from '@/lib/package-validity'
 
 export type PackageHistoryActor = { id: string; role?: string }
 
@@ -31,13 +32,16 @@ export async function readPackageHistory(actor: PackageHistoryActor, raw: Packag
     const rows = await tx.packagePurchase.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit,
       include: { trainerProfile: { select: { firstName: true, lastName: true } }, parentProfile: { select: { user: { select: { email: true } } } },
         creditGrants: { select: { sessionsCount: true } },
+        paymentReceipt: { select: { paidAt: true } },
         checkoutAttempts: { orderBy: { sequence: 'desc' }, take: 1, select: { stripeCheckoutSessionId: true, retiredAt: true } } } })
     return { purchases: rows.map(row => {
       const terms = packagePurchaseTermsSchema.parse(row.terms)
       const attempt = row.checkoutAttempts[0]
+      const validity = packageValidity(terms, row.paymentReceipt?.paidAt || null)
       return { id: row.id, title: terms.title, counterparty: actor.role === 'PARENT' ? `${row.trainerProfile.firstName} ${row.trainerProfile.lastName}`.trim() : row.parentProfile.user.email,
         creditsGranted: row.creditGrants.reduce((sum, grant) => sum + grant.sessionsCount, 0),
         createdAt: row.createdAt.toISOString(), totalSessions: terms.totalSessions, validForDays: terms.validForDays,
+        paymentSucceededAt: row.paymentReceipt?.paidAt.toISOString() || null, expiresAt: validity?.expiresAt.toISOString() || null,
         items: terms.items.map(({ title, sessionsCount, durationMinutes }) => ({ title, sessionsCount, durationMinutes })),
         amountInCents: row.amountInCents, trainerAllocationInCents: actor.role === 'TRAINER' ? row.trainerPayoutInCents : null, status: row.status,
         paymentVerified: Boolean(row.settlementVerifiedAt && row.stripePaymentIntentId && row.stripeChargeId && row.stripeTransferId),

@@ -15,6 +15,7 @@ export const packageHistoryRecord = z.object({
   status: z.enum(['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']),
   paymentVerified: z.boolean(), reviewRequired: z.boolean(), canRefresh: z.boolean(),
   settlementVerifiedAt: z.string().datetime().nullable(),
+  paymentSucceededAt: z.string().datetime().nullable(), expiresAt: z.string().datetime().nullable(),
   refundAmountInCents: count, refundPendingAmountInCents: count, refundFailedCount: count,
   refundsVerifiedAt: z.string().datetime().nullable(),
 }).strict()

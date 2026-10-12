@@ -9,11 +9,12 @@ import { assertPackageAttempt, assertPackageSession, packagePaymentIdentity, str
 import { reconcilePackageRefundHistory } from '@/lib/package-refunds'
 import { recordPackageCreditGrants } from '@/lib/package-credit-grants'
 import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
+import { recordPackagePaymentReceipt, type PackageSuccessEvidence } from '@/lib/package-payment-receipt'
 
 // A paid redirect/event is only a prompt to read current provider receipts, never proof itself.
 export async function reconcilePackageCheckout(purchaseId: string, attemptId: string, sessionId: string,
   evidence: { intentId: string; chargeId: string; source: SettlementSource; refunds?: { refundId?: string } } | undefined = undefined,
-  actor?: { id: string; role?: string }) {
+  actor?: { id: string; role?: string }, successEvidence?: PackageSuccessEvidence) {
   return prisma.$transaction(async tx => {
     const owners = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, select: {
       parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
@@ -83,9 +84,32 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
       settlementVerifiedAt: new Date(), financialReview: review ? JSON.parse(JSON.stringify(review)) : Prisma.DbNull,
       ...(refunds || {}),
     } })
+    if (successEvidence) await recordPackagePaymentReceipt(tx, updated, successEvidence, session.livemode)
     await recordPackageCreditGrants(tx, updated)
     return updated
   }, { maxWait: 5000, timeout: actor ? 90000 : evidence?.refunds ? 45000 : 30000 })
+}
+
+// The signed PaymentIntent success event is the validity anchor. Checkout redirects,
+// charge creation, delayed refreshes and grant issuance do not establish payment time.
+export async function reconcilePackagePaymentSuccess(event: Stripe.Event) {
+  if (event.account || event.type !== 'payment_intent.succeeded') throw new PackagePurchaseError('Platform payment success event required.')
+  const intent = event.data.object as Stripe.PaymentIntent
+  const metadata = intent.metadata
+  if (metadata?.paymentKind !== 'package' || !metadata.packagePurchaseId || !metadata.packageCheckoutAttemptId ||
+      metadata.bookingId || metadata.paymentId || metadata.checkoutAttemptId || intent.status !== 'succeeded' ||
+      intent.livemode !== event.livemode || intent.amount !== intent.amount_received) {
+    throw new PackagePurchaseError('Package payment success identity is ambiguous.')
+  }
+  const attempt = await prisma.packageCheckoutAttempt.findUnique({ where: { id: metadata.packageCheckoutAttemptId } })
+  if (!attempt || attempt.purchaseId !== metadata.packagePurchaseId || attempt.retiredAt) throw new PackagePurchaseError('Package payment success attempt does not match.')
+  if (!attempt.stripeCheckoutSessionId) throw new Error('Package checkout session is not attached yet; retry required')
+  const chargeId = stripeObjectId(intent.latest_charge)
+  if (!chargeId) throw new PackagePurchaseError('Package payment success charge is missing.')
+  return reconcilePackageCheckout(attempt.purchaseId, attempt.id, attempt.stripeCheckoutSessionId,
+    { intentId: intent.id, chargeId, source: {} }, undefined,
+    { eventId: event.id, created: event.created, livemode: event.livemode, intentId: intent.id, chargeId,
+      amountInCents: intent.amount_received, currency: intent.currency as 'usd' })
 }
 
 export async function reconcilePackageCharge(charge: Stripe.Charge, source: SettlementSource, hasBookingMatches: boolean, refunds?: { refundId?: string }) {

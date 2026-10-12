@@ -7,7 +7,7 @@ import Stripe from 'stripe'
 import { reconcileRefundEvent, RefundReconciliationError } from '@/lib/refund-reconciliation'
 import { SettlementConflict } from '@/lib/stripe-settlement'
 import { reconcileFinancialEvent } from '@/lib/stripe-financial-events'
-import { reconcilePackageCheckout } from '@/lib/package-settlement'
+import { reconcilePackageCheckout, reconcilePackagePaymentSuccess } from '@/lib/package-settlement'
 import { PackagePurchaseError } from '@/lib/package-purchases'
 
 export const runtime = 'nodejs'
@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
       case 'payment_intent.payment_failed': {
         if (event.account) break
         const intent = event.data.object as Stripe.PaymentIntent
+        if (intent.metadata?.paymentKind === 'package' || intent.metadata?.packagePurchaseId || intent.metadata?.packageCheckoutAttemptId) {
+          if (event.type === 'payment_intent.succeeded') await reconcilePackagePaymentSuccess(event)
+          break
+        }
         if (!intent.metadata?.bookingId) break
         await applyPaymentEvidence({
           bookingId: intent.metadata.bookingId, paymentId: intent.metadata.paymentId,

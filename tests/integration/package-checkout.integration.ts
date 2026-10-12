@@ -37,7 +37,7 @@ function refundReceipt(changes: Record<string, unknown> = {}) {
 const readPurchase = () => independent.packagePurchase.findUniqueOrThrow({ where: { id: purchaseId } })
 const readAttempt = () => independent.packageCheckoutAttempt.findFirstOrThrow({ where: { purchaseId }, orderBy: { sequence: 'desc' } })
 function createSession(parameters: any) {
-  const id = `cs_${parameters.metadata.packageCheckoutAttemptId}`
+  const id = `cs_${parameters.metadata.packageCheckoutAttemptId.replaceAll('-', '')}`
   if (!sessions.has(id)) sessions.set(id, { id, mode: 'payment', status: 'open', payment_status: 'unpaid', payment_intent: null,
     currency: 'usd', amount_total: 6000, livemode: false, metadata: structuredClone(parameters.metadata), expires_at: parameters.expires_at,
     url: `https://checkout.stripe.com/c/pay/${id}` })
@@ -52,6 +52,13 @@ async function paidSession() {
 }
 async function webhook(session: any, type = 'checkout.session.completed', account?: string, validSignature = true) {
   const body = JSON.stringify({ id: `evt_${randomUUID()}`, type, ...(account ? { account } : {}), data: { object: session } })
+  provider.signature = validSignature ? Stripe.webhooks.generateTestHeaderString({ payload: body, secret }) : 'invalid'
+  return POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body }) as any)
+}
+async function successWebhook(changes: Record<string, unknown> = {}, intentChanges: Record<string, unknown> = {}, validSignature = true) {
+  const event = { id: `evt_${randomUUID().replaceAll('-', '')}`, created: Math.floor(Date.now() / 1000), livemode: false,
+    type: 'payment_intent.succeeded', data: { object: { ...structuredClone(f.intent), ...intentChanges } }, ...changes }
+  const body = JSON.stringify(event)
   provider.signature = validSignature ? Stripe.webhooks.generateTestHeaderString({ payload: body, secret }) : 'invalid'
   return POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body }) as any)
 }
@@ -92,6 +99,144 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it('anchors payment time only to a signed success event and preserves it across all replays', async () => {
+    const { session, attempt } = await paidSession()
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    const created = Math.floor(Date.now() / 1000)
+    expect((await successWebhook({ id: 'evt_success', created })).status).toBe(200)
+    const receipt = await independent.packagePaymentReceipt.findUniqueOrThrow({ where: { purchaseId } })
+    expect(receipt).toMatchObject({ stripeEventId: 'evt_success', stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id,
+      stripeCheckoutSessionId: session.id, livemode: false, paidAt: new Date(created * 1000) })
+    expect((await successWebhook({ id: 'evt_success', created })).status).toBe(200)
+    expect((await successWebhook({ id: 'evt_duplicate_object', created })).status).toBe(200)
+    expect((await webhook(session, 'checkout.session.async_payment_succeeded')).status).toBe(200)
+    await refreshPackageHistory({ id: parentId, role: 'PARENT' }, purchaseId)
+    expect(await independent.packagePaymentReceipt.findUnique({ where: { purchaseId } })).toEqual(receipt)
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+      const history = packageHistoryResponse.parse(await readPackageHistory(actor, { view: 'all', page: 1, limit: 10 }))
+      expect(history.purchases[0]).toMatchObject({ paymentSucceededAt: new Date(created * 1000).toISOString(),
+        expiresAt: new Date(created * 1000 + 90 * 86400000).toISOString() })
+      expect(JSON.stringify(history)).not.toContain('evt_success')
+      expect(JSON.stringify(history)).not.toContain(f.intent.id)
+    }
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(1)
+    expect(await independent.booking.count()).toBe(0)
+    expect(await independent.payment.count()).toBe(0)
+    expect(await independent.walletEntry.count()).toBe(0)
+  })
+  it('settles a package when the PaymentIntent success event arrives before the Checkout event', async () => {
+    const { session } = await paidSession()
+    expect((await successWebhook()).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', stripeTransferId: f.transfer.id })
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(1)
+    expect((await webhook(session)).status).toBe(200)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(1)
+  })
+  it('serializes concurrent success events without extending validity or issuing more credits', async () => {
+    await paidSession()
+    const event = { id: 'evt_concurrent', created: Math.floor(Date.now() / 1000) }
+    const responses = await Promise.all([1, 2, 3].map(() => successWebhook(event)))
+    expect(responses.map(response => response.status)).toEqual([200, 200, 200])
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(1)
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(1)
+  })
+  it.each(['past', 'future', 'missing', 'fractional', 'out-of-range', 'bad-id', 'mode'])('rejects %s success-event evidence without partial writes', async mode => {
+    await paidSession()
+    const changes = mode === 'past' ? { created: Math.floor(Date.now() / 1000) - 86400 } :
+      mode === 'future' ? { created: Math.floor(Date.now() / 1000) + 3600 } :
+      mode === 'missing' ? { created: undefined } : mode === 'fractional' ? { created: Date.now() / 1000 + 0.12345 } :
+      mode === 'out-of-range' ? { created: Number.MAX_SAFE_INTEGER } : mode === 'bad-id' ? { id: '' } : { livemode: true }
+    expect((await successWebhook(changes)).status).toBe(409)
+    expect((await readPurchase()).status).toBe('PENDING')
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+  })
+  it.each(['intent', 'charge', 'amount', 'currency', 'mode', 'status', 'mixed-metadata'])('rejects mismatched %s in a signed package success event', async mode => {
+    await paidSession()
+    const changes = mode === 'intent' ? { id: 'pi_unrelated' } : mode === 'charge' ? { latest_charge: 'ch_unrelated' } :
+      mode === 'amount' ? { amount: 1, amount_received: 1 } : mode === 'currency' ? { currency: 'eur' } :
+      mode === 'mode' ? { livemode: true } : mode === 'status' ? { status: 'processing' } :
+      { metadata: { ...f.intent.metadata, bookingId: 'unrelated' } }
+    expect((await successWebhook({}, changes)).status).toBe(409)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    expect((await readPurchase()).status).toBe('PENDING')
+  })
+  it('rejects an invalid signature and ignores connected-account or failed events', async () => {
+    await paidSession()
+    expect((await successWebhook({}, {}, false)).status).toBe(400)
+    expect((await successWebhook({ account: 'acct_other' })).status).toBe(200)
+    expect((await successWebhook({ type: 'payment_intent.payment_failed' })).status).toBe(200)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    expect((await readPurchase()).status).toBe('PENDING')
+  })
+  it('retries success events that arrive before local session attachment', async () => {
+    provider.create.mockImplementationOnce(async parameters => { createSession(parameters); throw new Error('Synthetic lost create response') })
+    await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow()
+    const attempt = await readAttempt(), session = [...sessions.values()][0]
+    expect(attempt.stripeCheckoutSessionId).toBeNull()
+    f.intent.metadata = f.charge.metadata = structuredClone(session.metadata)
+    Object.assign(session, { status: 'complete', payment_status: 'paid', payment_intent: f.intent.id, url: null })
+    expect((await successWebhook()).status).toBe(503)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    await prisma.packageCheckoutAttempt.update({ where: { id: attempt.id }, data: { stripeCheckoutSessionId: session.id } })
+    expect((await successWebhook()).status).toBe(200)
+  })
+  it('never rewrites a saved timestamp from a conflicting signed success event', async () => {
+    await paidSession()
+    const created = Math.floor(Date.now() / 1000)
+    expect((await successWebhook({ created })).status).toBe(200)
+    const before = await independent.packagePaymentReceipt.findUniqueOrThrow({ where: { purchaseId } })
+    expect((await successWebhook({ created: created + 1 })).status).toBe(409)
+    expect(await independent.packagePaymentReceipt.findUnique({ where: { purchaseId } })).toEqual(before)
+  })
+  it('keeps paid-time evidence during financial review without granting usable credits', async () => {
+    await paidSession()
+    f.disputes = [settlementDispute(f)]
+    expect((await successWebhook()).status).toBe(200)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(1)
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+    expect((await readPurchase()).financialReview).not.toBeNull()
+  })
+  it('rolls back the timestamp when independent provider verification fails', async () => {
+    await paidSession()
+    provider.transfer.mockRejectedValueOnce(new Error('Synthetic provider unavailable'))
+    expect((await successWebhook()).status).toBe(503)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    expect((await readPurchase()).status).toBe('PENDING')
+    expect((await successWebhook()).status).toBe(200)
+  })
+  it('protects receipt identity, time and retention at the database boundary', async () => {
+    await paidSession()
+    expect((await successWebhook()).status).toBe(200)
+    const before = await independent.packagePaymentReceipt.findUniqueOrThrow({ where: { purchaseId } })
+    for (const data of [{ paidAt: new Date() }, { stripeEventId: 'evt_rewrite' }, { livemode: true }]) {
+      await expect(independent.packagePaymentReceipt.update({ where: { purchaseId }, data })).rejects.toThrow(/immutable/)
+    }
+    await expect(independent.packagePaymentReceipt.delete({ where: { purchaseId } })).rejects.toThrow(/cannot be deleted independently/)
+    expect(await independent.packagePaymentReceipt.findUnique({ where: { purchaseId } })).toEqual(before)
+  })
+  it('rejects direct receipt insertion before independent settlement verification', async () => {
+    await expect(independent.packagePaymentReceipt.create({ data: { purchaseId, stripeEventId: 'evt_unverified',
+      stripePaymentIntentId: 'pi_unverified', stripeChargeId: 'ch_unverified', stripeCheckoutSessionId: 'cs_unverified',
+      livemode: false, paidAt: new Date(Math.floor(Date.now() / 1000) * 1000) } })).rejects.toThrow(/must match the verified/)
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+  })
+  it.each(['intent', 'charge', 'session', 'before-purchase', 'future', 'id'])('rejects mismatched %s direct receipt insertion in SQL', async mode => {
+    const { session, attempt } = await paidSession()
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    const data: Prisma.PackagePaymentReceiptUncheckedCreateInput = { purchaseId, stripeEventId: 'evt_verified', stripePaymentIntentId: f.intent.id,
+      stripeChargeId: f.charge.id, stripeCheckoutSessionId: session.id, livemode: false,
+      paidAt: new Date(Math.floor(Date.now() / 1000) * 1000) }
+    if (mode === 'intent') data.stripePaymentIntentId = 'pi_wrong'
+    if (mode === 'charge') data.stripeChargeId = 'ch_wrong'
+    if (mode === 'session') data.stripeCheckoutSessionId = 'cs_wrong'
+    if (mode === 'before-purchase') data.paidAt = new Date('2001-01-01')
+    if (mode === 'future') data.paidAt = new Date(Date.now() + 3600000)
+    if (mode === 'id') data.stripeEventId = ''
+    await expect(independent.packagePaymentReceipt.create({ data })).rejects.toThrow()
+    expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+  })
   it.each(['PENDING', 'REVIEW'])('records paid receipts but grants no credits while reinstated checkout retirement is %s', async status => {
     const { session } = await paidSession()
     await prisma.accountCheckoutClosure.create({ data: { userId: trainerId, kind: 'PACKAGE', targetId: purchaseId, status } })

@@ -11,7 +11,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
     const db = localAuth.database, parent = await localAuth.create('PARENT'), trainer = await localAuth.create('TRAINER')
     const parentProfile = await db.parentProfile.findUniqueOrThrow({ where: { userId: parent.id } })
     const trainerProfile = await db.trainerProfile.findUniqueOrThrow({ where: { userId: trainer.id } })
-    const key = randomUUID(), title = `Family training ${'long-package-title-'.repeat(6)}`
+    const key = randomUUID().replaceAll('-', ''), title = `Family training ${'long-package-title-'.repeat(6)}`
     const sport = await db.sport.create({ data: { name: `History ${key}`, slug: key } })
     let catalogId: string | undefined
     try {
@@ -37,8 +37,11 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
         calls++; expect(route.request().postDataJSON()).toEqual({ purchaseId: purchase.id })
         if (scenario === 'success' || scenario === 'lost-response') {
           await db.packagePurchase.update({ where: { id: purchase.id }, data: {
-            status: 'SUCCEEDED', stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`, stripeTransferId: `tr_synthetic_${key}`, settlementVerifiedAt: new Date() } })
+            status: 'SUCCEEDED', stripeCheckoutSessionId: `cs_synthetic_${key}`, stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`, stripeTransferId: `tr_synthetic_${key}`, settlementVerifiedAt: new Date() } })
           await db.packageCreditGrant.create({ data: { purchaseId: purchase.id, serviceOfferingId: service.id, sessionsCount: 2 } })
+          if (scenario === 'success') await db.packagePaymentReceipt.create({ data: { purchaseId: purchase.id,
+            stripeEventId: `evt_synthetic_${key}`, stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`,
+            stripeCheckoutSessionId: `cs_synthetic_${key}`, livemode: false, paidAt: new Date(Math.floor(Date.now() / 1000) * 1000) } })
         }
         if (scenario === 'lost-response') return route.abort('failed')
         if (scenario === 'provider-failure') return route.fulfill({ status: 503, json: { error: 'Provider unavailable. Reload purchase history.' } })
@@ -63,6 +66,8 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       await expect(page.getByText('$60.00', { exact: true })).toBeVisible()
       await expect(page.getByText('Session credits unavailable', { exact: true })).toBeVisible()
       await expect(page.getByTestId('package-credits-granted')).toHaveText('0')
+      await expect(page.getByTestId('package-paid-at')).toHaveText('Not verified')
+      await expect(page.getByTestId('package-expires-at')).toHaveText('Not established')
       const refresh = page.getByRole('button', { name: 'Refresh payment', exact: true })
       if (scenario === 'history') {
         await expect(page.getByText('Partially refunded', { exact: true })).toBeVisible()
@@ -95,6 +100,14 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       await page.reload()
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
       await expect(page.getByTestId('package-credits-granted')).toHaveText(['success', 'lost-response'].includes(scenario) ? '2' : '0')
+      if (scenario === 'success') {
+        await expect(page.getByTestId('package-paid-at')).not.toHaveText('Not verified')
+        if (role === 'PARENT') await expect(page.getByTestId('package-expires-at')).not.toHaveText('Not established')
+        else await expect(page.getByTestId('package-expires-at')).toHaveText('Not established')
+      } else {
+        await expect(page.getByTestId('package-paid-at')).toHaveText('Not verified')
+        await expect(page.getByTestId('package-expires-at')).toHaveText('Not established')
+      }
       expect(await db.booking.count()).toBe(0); expect(await db.walletEntry.count()).toBe(0)
       expect(errors).toEqual([])
     } finally {

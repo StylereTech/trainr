@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-12 13:23-13:26 UTC, read-only existing sandbox session (`acct_1RAkm8PvdPuIlEw5`): connected accounts still show All 0 / Enabled 0. Existing TRAINR audit Preview platform destination `we_1UOVC2PvdPuIlEw5lmUAZkMN` is Active and includes `payment_intent.succeeded` among 22 event subscriptions. No settings or accounts changed. [Payment-time implementation, tests and publication evidence](PACKAGE_PAYMENT_TIME_REPORT.md). Subscription presence is not actual Checkout/Connect/transfer/payout proof; trainer setup and full hosted money flow remain **HOLD**.
+
 2026-10-12 11:20-11:26 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: refreshed Style.re sandbox `/test/connect/accounts` still shows All 0 and Enabled 0. No account or provider setting was changed. Actual trainer onboarding and current capability proof remain missing. [Current requirement audit, exact checks and next prerequisites](CURRENT_LAUNCH_GATES.md). Overall **HOLD**.
 
 2026-10-11 approximately 16:19 UTC, source `84f50fd0165c6c189d0d1cac3397b4632bcf769c`: fresh read-only Style.re sandbox `/test/connect/accounts` now loads and shows All 0, Enabled 0 and No connected accounts. Existing TRAINR Preview session is PARENT and the unfiltered catalog has zero trainers. [Steps and scope](PRISMA_DEPENDENCY_SECURITY_REPORT.md#hosted-readback-before-publication). Actual hosted trainer onboarding, booking/checkout, transfer and payout remain unverified; owner trainer-login clarification is pending. No provider state or Production settings changed.

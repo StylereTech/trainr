@@ -73,6 +73,7 @@ it.each([{}, { purchases: [] }, { purchases: [], pagination: { page: 1 } }])('re
 const row = { id: 'purchase', title: 'Two sessions', counterparty: 'Trainer', createdAt: '2026-10-11T00:00:00Z', totalSessions: 2, validForDays: 90,
   items: [{ title: 'Session', sessionsCount: 2, durationMinutes: 60 }], amountInCents: 6000, trainerAllocationInCents: null,
   status: 'SUCCEEDED', paymentVerified: false, reviewRequired: false, canRefresh: true, settlementVerifiedAt: null, creditsGranted: 0,
+  paymentSucceededAt: null, expiresAt: null,
   refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0, refundsVerifiedAt: null }
 it('does not label an unverified saved success as paid', () => { expect(packagePaymentLabel(packageHistoryRecord.parse(row))).toBe('Payment verification needed') })
 it.each(['REFUNDED', 'PARTIALLY_REFUNDED'])('requires refund receipt verification for %s wording', status => {

@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Payment Time Follow-Up
+
+2026-10-12: package success-event timing, immutable SQL receipts and parent/trainer history dates are implemented in the audit branch. [Exact test failures, retests, migration evidence and publication status](PACKAGE_PAYMENT_TIME_REPORT.md). This resolves the validity-anchor prerequisite only. Atomic shared-child redemption, cancellation restoration, public package sales and actual hosted Stripe transfer/payout proof remain unfinished code/testing. The existing sandbox platform destination already subscribes to `payment_intent.succeeded`; connected accounts still show zero. Overall **HOLD**.
+
 ## Approval And Recovery Update
 
 2026-10-12 approval/recovery pass: user approved the outstanding Preview retry, signed-in testing and package policy. [Exact implementation boundary and fresh results](PACKAGE_CREDIT_POLICY_REPORT.md). Preview retry recovered source `6a68db0` in Ready deployment `2fT2FYMEo5Tio32aDDiYfRSqgjYU`; eight corrected anonymous checks passed. Parent dashboard refresh, changed synthetic athlete save/reload/restore, package empty-state navigation and unfiltered empty catalog were observed. These supersede the pending-approval statements below, which describe the earlier audit. New immutable policy snapshots passed the full local check (1,476 units), 706 SQL cases and a clean 24-case browser rerun. Trainer setup, actual Stripe money flow and redemption remain incomplete; publication evidence belongs to the linked report.

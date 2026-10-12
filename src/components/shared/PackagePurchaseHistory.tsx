@@ -80,6 +80,8 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
               <dt className="text-slate-400">Credits recorded</dt><dd data-testid="package-credits-granted">{purchase.creditsGranted}</dd>
               <dt className="text-slate-400">Listed validity</dt><dd>{purchase.validForDays} days</dd>
               <dt className="text-slate-400">Purchase created</dt><dd>{new Date(purchase.createdAt).toLocaleDateString()}</dd>
+              <dt className="text-slate-400">Payment date</dt><dd data-testid="package-paid-at" className="min-w-0 break-words">{purchase.paymentSucceededAt ? new Date(purchase.paymentSucceededAt).toLocaleString() : 'Not verified'}</dd>
+              <dt className="text-slate-400">Valid until</dt><dd data-testid="package-expires-at" className="min-w-0 break-words">{purchase.expiresAt ? new Date(purchase.expiresAt).toLocaleString() : 'Not established'}</dd>
             </dl>
             <ul className="mt-4 space-y-1 text-sm text-slate-300">{purchase.items.map((item, index) => <li key={index} className="break-words">{item.sessionsCount} &times; {item.title} ({item.durationMinutes} min)</li>)}</ul>
             <p className="mt-3 text-sm text-amber-200">Session credits unavailable</p>

@@ -404,6 +404,7 @@ model PackagePurchase {
   checkoutAttempts PackageCheckoutAttempt[]
   refunds PackageRefund[]
   creditGrants PackageCreditGrant[]
+  paymentReceipt PackagePaymentReceipt?
 
   @@unique([parentProfileId, requestId])
   @@index([trainerProfileId, createdAt])
@@ -421,6 +422,21 @@ model PackageCreditGrant {
 
   @@id([purchaseId, serviceOfferingId])
   @@map("package_credit_grants")
+}
+
+// Success-event time, not checkout creation or the most recent reconciliation time.
+model PackagePaymentReceipt {
+  purchaseId String @id
+  stripeEventId String @unique
+  stripePaymentIntentId String @unique
+  stripeChargeId String @unique
+  stripeCheckoutSessionId String @unique
+  livemode Boolean
+  paidAt DateTime @db.Timestamptz(3)
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("package_payment_receipts")
 }
 
 model PackageCheckoutAttempt {
