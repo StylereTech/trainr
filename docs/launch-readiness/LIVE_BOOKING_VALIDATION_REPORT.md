@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-12 11:20:56 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: anonymous isolated Preview health reports a connected database, but `/api/trainers?limit=1&page=1` returns `pagination.total: 0`. No current signed-in hosted booking/payment is claimed. Public package purchase/redemption remains incomplete. [Current requirement audit and exact remaining proof](CURRENT_LAUNCH_GATES.md). Overall **HOLD**; no Production write.
+
 2026-10-11 package-management pass, baseline `c22688a75140890df623851a67eebdecdc857da1`: trainer catalog creation/editing/duplication/activation and immutable booked terms are implemented; retiring a linked service now atomically hides affected listings. Full quality gate passed (1,273 units, 76-page build), and 392 real PostgreSQL tests passed. [Exact steps, failures, retests, browser/publication status and limits](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). Package checkout/credits and actual hosted trainer/Stripe booking/transfer/payout remain **HOLD**. Audit Preview only; main/Production/Story unchanged.
 
 2026-10-11 Connect ordering pass: current-provider readiness refresh now shares database locks across checkout, trainer status and webhook paths. Fresh read-only hosted counts show zero trainers, catalog entries, bookings and payments, so no actual hosted paid booking is claimed. [Exact test and prerequisite evidence](CONNECT_READINESS_ORDERING_REPORT.md). Overall **HOLD**.

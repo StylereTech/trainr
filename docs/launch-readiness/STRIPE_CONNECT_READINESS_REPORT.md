@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-12 11:20-11:26 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: refreshed Style.re sandbox `/test/connect/accounts` still shows All 0 and Enabled 0. No account or provider setting was changed. Actual trainer onboarding and current capability proof remain missing. [Current requirement audit, exact checks and next prerequisites](CURRENT_LAUNCH_GATES.md). Overall **HOLD**.
+
 2026-10-11 approximately 16:19 UTC, source `84f50fd0165c6c189d0d1cac3397b4632bcf769c`: fresh read-only Style.re sandbox `/test/connect/accounts` now loads and shows All 0, Enabled 0 and No connected accounts. Existing TRAINR Preview session is PARENT and the unfiltered catalog has zero trainers. [Steps and scope](PRISMA_DEPENDENCY_SECURITY_REPORT.md#hosted-readback-before-publication). Actual hosted trainer onboarding, booking/checkout, transfer and payout remain unverified; owner trainer-login clarification is pending. No provider state or Production settings changed.
 
 2026-10-11 transfer-capability pass, baseline `c669cb44982a384a39d5ce9ea565fa2d4d3d9a0c`: reproduced false readiness/checkout allowance without active destination-transfer capability. Shared server and trainer UI gates now require explicit modern or supported legacy transfer evidence. [Exact provider contract, failed baseline, verification and publication status](TRANSFER_CAPABILITY_REPORT.md). Actual hosted trainer onboarding/payment/transfer/payout remain **HOLD**; main/Production/Story unchanged.

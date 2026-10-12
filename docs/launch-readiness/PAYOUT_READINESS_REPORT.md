@@ -1,5 +1,7 @@
 # Payout Readiness Report
 
+2026-10-12 11:20-11:26 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: refreshed named Stripe sandbox has zero connected accounts. Current v1 withdrawal route returns `409 STRIPE_MANAGED_PAYOUTS`; receiving booking proceeds and a bank payout still require actual Stripe verification, not TRAINR wallet mutation. [Current requirement audit and next proof](CURRENT_LAUNCH_GATES.md). No payout/transfer or provider state change was attempted; **HOLD**.
+
 2026-10-12 payout-history pass, baseline `e9c0480bf882cc6f3d6831f9cf120e6cee55eebb`: trainer history now supports bounded, account-scoped cursor pages with validated provider evidence, older/newer controls and error recovery. Full quality gate passed (1,433 units) and all 684 local SQL cases passed. [Exact reproduction, browser/publication status and limits](PAYOUT_HISTORY_PAGINATION_REPORT.md). No new payout/withdrawal action or actual provider-backed money-flow proof is implied. Audit Preview only; overall **HOLD**.
 
 2026-10-11 transfer-capability pass, baseline `c669cb44982a384a39d5ce9ea565fa2d4d3d9a0c`: reproduced false readiness/checkout allowance without active destination-transfer capability. Shared server and trainer UI gates now require explicit modern or supported legacy transfer evidence. [Exact provider contract, failed baseline, verification and publication status](TRANSFER_CAPABILITY_REPORT.md). Actual hosted trainer onboarding/payment/transfer/payout remain **HOLD**; main/Production/Story unchanged.
