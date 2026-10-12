@@ -76,3 +76,9 @@ The 100-build/1,000-test limits are loop ceilings, not a substitute for completi
 7. Clear remaining security/operational gates and GitHub billing, verify Production migration/backup/project mapping, then obtain the release decision and run final Production smoke.
 
 **Overall result: NOT PRODUCTION READY. Goal remains active.** This audit did not modify application code, credentials, financial policy, provider state, main, Production or Story. A completion claim or external-only-blocker claim would contradict the evidence above.
+
+## Publication Failure
+
+Checklist/report commit `6a68db061303c5b41f65958b6c30e01705843a0d` was committed and successfully pushed to the audit branch. Its automatic [Preview deployment ADd5Anhi4BtbcQcDUfUB4GADtSPq](https://vercel.com/styleres-projects/trainr/ADd5Anhi4BtbcQcDUfUB4GADtSPq) failed. GitHub reports Vercel failure; the Vercel page independently shows matching source, Preview, Error and **Git information retrieval failed for this deployment.** No application build duration or successful build is present. This is a Git-retrieval deployment failure, not a demonstrated application compile regression.
+
+The browser inspection timed out twice before a longer read of the same tab succeeded; no deployment was restarted during those observations. No Vercel CLI was installed or used. Requested approval for the visible **Redeploy** action on this failed audit Preview only; response is pending. No manual retry, empty commit, credential workaround, production promotion or new-source hosted smoke was attempted. Last verified Ready application deployment remains `7399513ab9274bf45919f7be4f053b57df6aed17` / `F8jmbRy3RbkyrAszEicmcshamQUa`, with the preceding turn's 16 anonymous checks. This failure note is retained locally pending authorized publication/recovery; it must not be interpreted as another deployed commit.
