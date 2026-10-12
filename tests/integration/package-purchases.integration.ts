@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { preparePackagePurchase } from '@/lib/package-purchases'
-import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
+import { approvedPackageCreditPolicy, packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 import { saveTrainerPackage } from '@/lib/trainer-packages'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
@@ -48,7 +48,8 @@ describe('real SQL family-shared pending package purchases', () => {
     const reloaded = await independent.packagePurchase.findUniqueOrThrow({ where: { id: saved.id } })
     expect(reloaded).toMatchObject({ parentProfileId, trainerProfileId, packageId, status: 'PENDING',
       amountInCents: 25000, platformFeeInCents: 3750, trainerPayoutInCents: 21250 })
-    expect(packagePurchaseTermsSchema.parse(reloaded.terms)).toMatchObject({ totalSessions: 5, validForDays: 90,
+    expect(packagePurchaseTermsSchema.parse(reloaded.terms)).toMatchObject({ version: 2, creditPolicy: approvedPackageCreditPolicy,
+      totalSessions: 5, validForDays: 90,
       items: [{ serviceOfferingId: serviceId, sessionsCount: 5, title: 'Training', durationMinutes: 60 }] })
     expect(reloaded).not.toHaveProperty('athleteProfileId')
     expect(await prisma.athleteProfile.count({ where: { parentProfileId } })).toBe(2)
@@ -56,10 +57,45 @@ describe('real SQL family-shared pending package purchases', () => {
     expect(await prisma.booking.count()).toBe(0)
     expect(await prisma.walletEntry.count()).toBe(0)
   })
+  it('rejects policy rewrites and incomplete version-two records at the SQL boundary', async () => {
+    const saved = await preparePackagePurchase(parentId, input())
+    const terms = packagePurchaseTermsSchema.parse(saved.terms)
+    await expect(independent.packagePurchase.update({ where: { id: saved.id }, data: {
+      terms: { ...terms, creditPolicy: { ...approvedPackageCreditPolicy, parentCancellationRestoreHours: 12 } },
+    } })).rejects.toThrow()
+    const { id: _id, financialReview: _review, ...data } = saved
+    await expect(independent.packagePurchase.create({ data: { ...data, requestId: randomUUID(),
+      terms: { ...terms, creditPolicy: { ownership: 'PARENT_CHILDREN' } },
+    } })).rejects.toThrow()
+    expect(await independent.packagePurchase.findUniqueOrThrow({ where: { id: saved.id } })).toEqual(saved)
+  })
   it('serializes simultaneous identical retries into one purchase', async () => {
     const command = input()
     const results = await Promise.all([preparePackagePurchase(parentId, command), preparePackagePurchase(parentId, command)])
     expect(results[0].id).toBe(results[1].id)
+    expect(await independent.packagePurchase.count({ where: { parentProfileId } })).toBe(1)
+  })
+  it('replays legacy snapshots without attaching the new policy retroactively', async () => {
+    const command = input(), saved = await preparePackagePurchase(parentId, command)
+    const parsed = packagePurchaseTermsSchema.parse(saved.terms)
+    expect(parsed.version).toBe(2)
+    if (parsed.version !== 2) throw new Error('Expected current purchase policy')
+    const { creditPolicy: _policy, ...legacyTerms } = parsed
+    const { id: _id, financialReview: _review, ...data } = saved
+    const legacyRequestId = randomUUID()
+    const legacy = await independent.packagePurchase.create({ data: { ...data, requestId: legacyRequestId,
+      terms: { ...legacyTerms, version: 1 },
+    } })
+    expect(await preparePackagePurchase(parentId, { ...command, requestId: legacyRequestId })).toEqual(legacy)
+    expect(packagePurchaseTermsSchema.parse(legacy.terms)).not.toHaveProperty('creditPolicy')
+  })
+  it.each(Object.keys(approvedPackageCreditPolicy))('rejects an unapproved SQL %s policy value', async key => {
+    const saved = await preparePackagePurchase(parentId, input())
+    const terms = packagePurchaseTermsSchema.parse(saved.terms)
+    const { id: _id, financialReview: _review, ...data } = saved
+    await expect(independent.packagePurchase.create({ data: { ...data, requestId: randomUUID(),
+      terms: { ...terms, creditPolicy: { ...approvedPackageCreditPolicy, [key]: 'unapproved' } },
+    } })).rejects.toThrow()
     expect(await independent.packagePurchase.count({ where: { parentProfileId } })).toBe(1)
   })
   it('keeps separate immutable quantities for a mixed-service package', async () => {

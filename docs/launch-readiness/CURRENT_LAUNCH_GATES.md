@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Approval And Recovery Update
+
+2026-10-12 approval/recovery pass: user approved the outstanding Preview retry, signed-in testing and package policy. [Exact implementation boundary and fresh results](PACKAGE_CREDIT_POLICY_REPORT.md). Preview retry recovered source `6a68db0` in Ready deployment `2fT2FYMEo5Tio32aDDiYfRSqgjYU`; eight corrected anonymous checks passed. Parent dashboard refresh, changed synthetic athlete save/reload/restore, package empty-state navigation and unfiltered empty catalog were observed. These supersede the pending-approval statements below, which describe the earlier audit. New immutable policy snapshots passed the full local check (1,476 units), 706 SQL cases and a clean 24-case browser rerun. Trainer setup, actual Stripe money flow and redemption remain incomplete; publication evidence belongs to the linked report.
+
 ## Evidence Boundary
 
 Reviewed **2026-10-12 11:20-11:26 UTC**, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`, clean branch `codex/payment-readiness-20261006`. This is a requirement-level completion audit, not another application implementation pass. It consolidates current blockers without erasing dated historical reports.

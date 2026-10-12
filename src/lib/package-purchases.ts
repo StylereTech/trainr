@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { effectiveFeeValues } from '@/lib/fee-config'
 import { calculateSplit } from '@/lib/fees'
-import { packagePurchaseRequestSchema, packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
+import { approvedPackageCreditPolicy, packagePurchaseRequestSchema, packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 
 export class PackagePurchaseError extends Error {
   constructor(message: string, public readonly status = 409) { super(message) }
@@ -45,7 +45,8 @@ export async function preparePackagePurchase(userId: string, raw: unknown) {
       throw new PackagePurchaseError('A package service is no longer available.')
     }
     const parsed = packagePurchaseTermsSchema.safeParse({
-      version: 1, title: value.title, description: value.description || '', validForDays: value.validForDays, totalSessions: value.totalSessions,
+      version: 2, creditPolicy: approvedPackageCreditPolicy,
+      title: value.title, description: value.description || '', validForDays: value.validForDays, totalSessions: value.totalSessions,
       items: value.items.map(({ serviceOffering: service, sessionsCount }) => ({
         serviceOfferingId: service.id, title: service.title, sportId: service.sportId,
         durationMinutes: service.durationMinutes, type: service.type, sessionsCount,

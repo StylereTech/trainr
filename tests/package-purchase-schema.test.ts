@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { packagePurchaseRequestSchema, packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
+import { approvedPackageCreditPolicy, packagePurchaseRequestSchema, packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 
 const request = { requestId: '81cd58ec-ce77-4153-8a53-ced9c568bb49', packageId: 'package',
   catalogRevision: '2026-10-11T19:00:00.000Z', expectedTotalInCents: 25000 }
@@ -33,5 +33,28 @@ describe('family-shared package purchase contracts', () => {
   it('preserves separate service quantities rather than a fungible total', () => {
     const mixed = { ...terms, totalSessions: 8, items: [item, { ...item, serviceOfferingId: 'second', sessionsCount: 3 }] }
     expect(packagePurchaseTermsSchema.parse(mixed).items.map(value => value.sessionsCount)).toEqual([5, 3])
+  })
+  it('preserves legacy terms without inserting a policy', () => {
+    expect(packagePurchaseTermsSchema.parse(terms)).not.toHaveProperty('creditPolicy')
+    expect(packagePurchaseTermsSchema.safeParse({ ...terms, creditPolicy: approvedPackageCreditPolicy }).success).toBe(false)
+  })
+  it('accepts only explicit version-two policy snapshots', () => {
+    const current = { ...terms, version: 2, creditPolicy: approvedPackageCreditPolicy }
+    expect(packagePurchaseTermsSchema.parse(current)).toEqual(current)
+    expect(packagePurchaseTermsSchema.safeParse({ ...current, version: 3 }).success).toBe(false)
+    expect(packagePurchaseRequestSchema.safeParse({ ...request, creditPolicy: approvedPackageCreditPolicy }).success).toBe(false)
+  })
+  it.each(Object.keys(approvedPackageCreditPolicy))('requires the approved %s policy value', key => {
+    const policy: Record<string, unknown> = { ...approvedPackageCreditPolicy }
+    delete policy[key]
+    expect(packagePurchaseTermsSchema.safeParse({ ...terms, version: 2, creditPolicy: policy }).success).toBe(false)
+    policy[key] = 'unapproved'
+    expect(packagePurchaseTermsSchema.safeParse({ ...terms, version: 2, creditPolicy: policy }).success).toBe(false)
+  })
+  it('rejects policy additions and malformed version-two service quantities', () => {
+    expect(packagePurchaseTermsSchema.safeParse({ ...terms, version: 2,
+      creditPolicy: { ...approvedPackageCreditPolicy, transferToOtherParent: true } }).success).toBe(false)
+    expect(packagePurchaseTermsSchema.safeParse({ ...terms, version: 2, totalSessions: 6,
+      creditPolicy: approvedPackageCreditPolicy }).success).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from './fixtures/local-auth'
+import { approvedPackageCreditPolicy } from '../src/lib/package-purchase-schema'
 
 test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL || '') || !process.env.LOCAL_E2E_SECRET, 'Requires disposable loopback fixtures.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
@@ -19,7 +20,8 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
         items: { create: { serviceOfferingId: service.id, sessionsCount: 2 } } } }); catalogId = catalog.id
       const purchase = await db.packagePurchase.create({ data: { parentProfileId: parentProfile.id, trainerProfileId: trainerProfile.id, packageId: catalog.id,
         requestId: key, payloadHash: 'a'.repeat(64), catalogRevision: catalog.updatedAt,
-        terms: { version: 1, title, description: '', totalSessions: 2, validForDays: 90,
+        terms: { ...(role === 'PARENT' ? { version: 2, creditPolicy: approvedPackageCreditPolicy } : { version: 1 }),
+          title, description: '', totalSessions: 2, validForDays: 90,
           items: [{ serviceOfferingId: service.id, title: 'Synthetic training', sportId: sport.id, durationMinutes: 60, type: 'INDIVIDUAL', sessionsCount: 2 }] },
         amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100,
         ...(scenario === 'history' ? { status: 'PARTIALLY_REFUNDED', stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`,
