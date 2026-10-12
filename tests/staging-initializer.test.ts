@@ -70,9 +70,9 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all sixteen committed migrations with SHA256 hashes', () => {
+  it('reads all seventeen committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(16)
+    expect(migrations).toHaveLength(17)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -132,6 +132,15 @@ describe('isolated audit preview initializer', () => {
     const deploy = vi.fn()
     await expect(initializeStaging(database({ count: 30, rows: [{ ...ledger[0], checksum: 'changed' }] }), [...manifest, upgrade], deploy)).rejects.toThrow('STAGING_MIGRATION_HISTORY_INVALID')
     expect(deploy).not.toHaveBeenCalled()
+  })
+  it('allows booking review columns only in the guarded audit Preview', async () => {
+    const migration = { name: '20261012070000_add_booking_payment_review', checksum: 'reviewed-payment-hold' }
+    const db = database({ count: 32 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    const deploy = vi.fn()
+    await expect(initializeStaging(db, [...manifest, migration], deploy)).resolves.toBe('upgraded')
+    expect(deploy).toHaveBeenCalledOnce()
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
   })
   it('refuses migrations not explicitly approved for this audit database', async () => {
     const deploy = vi.fn()

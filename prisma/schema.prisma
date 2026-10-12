@@ -544,6 +544,8 @@ model Payment {
   platformFeeInCents    Int
   trainerPayoutInCents  Int
   processingFeeInCents  Int           @default(0)
+  settlementVerifiedAt DateTime?     @db.Timestamptz(3)
+  financialReview      Json?
   status                PaymentStatus @default(PENDING)
   refundAmountInCents   Int           @default(0)
   refundPendingAmountInCents Int      @default(0)

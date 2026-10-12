@@ -17,7 +17,7 @@ beforeEach(() => {
     booking: { id: 'booking', status: 'CONFIRMED', trainerProfileId: 'trainer', totalAmountInCents: 6000,
       timeZone: 'UTC', startsAt: new Date('2020-01-01T09:00:00Z'), endsAt: new Date('2020-01-01T10:00:00Z'),
       trainerProfile: { userId: trainer.id }, parentProfile: { userId: parent.id },
-      payment: { id: 'payment', status: 'SUCCEEDED', amountInCents: 6000, refundAmountInCents: 0 } },
+      payment: { id: 'payment', status: 'SUCCEEDED', amountInCents: 6000, refundAmountInCents: 0, settlementVerifiedAt: new Date(), financialReview: null } },
     users: [trainer, parent, admin].map(user => ({ ...user, deletedAt: null })),
     stats: { totalSessions: 2, totalBookings: 2 }, notifications: [], audits: [],
   }
@@ -181,6 +181,22 @@ describe('booking state transitions', () => {
     state.booking.status = 'PENDING'
     await act('confirm')
     expect(state.booking.status).toBe('CONFIRMED')
+  })
+  it.each(['unverified', 'review', 'failed-refund'])('blocks a successful payment with %s evidence', async reason => {
+    if (reason === 'unverified') state.booking.payment.settlementVerifiedAt = null
+    if (reason === 'review') state.booking.payment.financialReview = { key: 'dispute' }
+    if (reason === 'failed-refund') state.booking.payment.refundFailedCount = 1
+    const before = structuredClone(state)
+    await expect(act('complete', admin)).rejects.toMatchObject({ status: 409 })
+    expect(state).toEqual(before)
+  })
+  it('allows cancellation during financial review without clearing or refunding it', async () => {
+    state.booking.payment.financialReview = { key: 'dispute' }
+    const before = structuredClone(state.booking.payment)
+    await act('cancel', admin)
+    expect(state.booking.status).toBe('CANCELLED')
+    expect(state.booking.payment).toEqual(before)
+    expect(state.notifications.some((notice: any) => notice.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
   })
   for (const participant of [parent, trainer]) for (const change of ['role', 'deleted']) {
     it.each(['confirm', 'complete', 'no_show'] as const)(`blocks %s with ${change} ${participant.role} even for an admin`, async action => {

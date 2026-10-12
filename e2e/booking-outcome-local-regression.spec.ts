@@ -36,7 +36,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
         date: new Date(`${start.toISOString().slice(0, 10)}T00:00:00Z`), startTime: start.toISOString().slice(11, 16), endTime: end.toISOString().slice(11, 16),
         timeZone: scenario === 'unknown' ? null : 'UTC', startsAt: scenario === 'unknown' ? null : start, endsAt: scenario === 'unknown' ? null : end,
         status: 'CONFIRMED', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100,
-        payment: { create: { status: 'SUCCEEDED', amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } },
+        payment: { create: { status: 'SUCCEEDED', amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, settlementVerifiedAt: new Date() } },
       } })
       const paymentBefore = await db.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
       await localAuth.signIn(actor)

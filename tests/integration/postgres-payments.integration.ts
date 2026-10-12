@@ -251,7 +251,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     const booking = await reserve()
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
-    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
     let actorId = role === 'PARENT' ? fixture.parent : fixture.trainerUser
     if (role === 'ADMIN') {
       const admin = await prisma.user.create({ data: { email: `booking-admin-${randomUUID()}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } })
@@ -296,7 +296,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime())
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
-    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
     let release!: () => void
     let ready!: (pid: number) => void
     const locked = new Promise<number>(resolve => { ready = resolve })
@@ -980,7 +980,7 @@ describe('real PostgreSQL money-flow persistence', () => {
       const booking = await reserve()
       await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
       const payment = await pendingPayment(booking.id)
-      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
       let id = fixture.trainerUser
       if (role === 'ADMIN') {
         const admin = await prisma.user.create({ data: { email: `outcome-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role } })
@@ -1009,7 +1009,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     const booking = await reserve()
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
-    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
     const clock = vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime() - 1)
     let release!: () => void
     let ready!: (pid: number) => void
@@ -1041,7 +1041,7 @@ describe('real PostgreSQL money-flow persistence', () => {
     vi.spyOn(Date, 'now').mockReturnValue(booking.endsAt!.getTime())
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
     const payment = await pendingPayment(booking.id)
-    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } })
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
     const actor = { id: fixture.trainerUser, role: 'TRAINER' }
     await Promise.all([applyBookingAction(booking.id, actor, { action: 'complete' }), applyBookingAction(booking.id, actor, { action: 'complete' })])
     expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: fixture.trainer } })).totalSessions).toBe(1)

@@ -62,7 +62,9 @@ export async function GET(req: NextRequest) {
       }),
       prisma.booking.count({ where }),
     ])
-    return NextResponse.json({ bookings, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+    return NextResponse.json({ bookings: bookings.map(booking => ({ ...booking,
+      payment: booking.payment ? { ...booking.payment, financialReview: role === 'ADMIN' ? booking.payment.financialReview : !!booking.payment.financialReview } : null,
+    })), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch {
     console.error('Booking read failed')
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 503 })

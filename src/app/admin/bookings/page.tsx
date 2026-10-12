@@ -12,6 +12,8 @@ import { formatBookingDate } from '@/lib/booking-date'
 import { Loader2, Calendar, RefreshCw } from 'lucide-react'
 import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 import { BookingOutcomeActions } from '@/components/shared/BookingOutcomeActions'
+import { PaymentHoldSummary } from '@/components/shared/PaymentHoldSummary'
+import { bookingPaymentHold, type BookingPaymentState } from '@/lib/booking-payment-hold'
 
 interface Booking {
   id: string
@@ -31,7 +33,7 @@ interface Booking {
   parentProfile: { user: { email: string } }
   athleteProfile: { firstName: string; lastName: string }
   serviceOffering: { title: string; priceInCents: number }
-  payment: (RefundSummaryPayment & { stripePaymentIntentId: string | null }) | null
+  payment: (RefundSummaryPayment & BookingPaymentState & { stripePaymentIntentId: string | null }) | null
 }
 
 export default function AdminBookings() {
@@ -170,6 +172,7 @@ export default function AdminBookings() {
                       {b.payment && <Badge variant="outline" className={b.payment.status === 'SUCCEEDED' ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/20 bg-amber-400/10 text-amber-200'}>Payment: {b.payment.status}</Badge>}
                     </div>
                     <RefundSummary payment={b.payment} />
+                    <PaymentHoldSummary booking={b} />
                     <div className="mt-2 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                     <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
                       <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
@@ -192,13 +195,13 @@ export default function AdminBookings() {
                       </Button>}
                       {b.status === 'PENDING' && (
                         <>
-                          <Button size="sm" disabled={actionBusy || needsReload} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>
                           <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}
                       {b.status === 'CONFIRMED' && (
                         <>
-                          <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload} onAction={action => void handleAction(b.id, action)} />
+                          <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} onAction={action => void handleAction(b.id, action)} />
                           <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}

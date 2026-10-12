@@ -1,4 +1,4 @@
-import type { RefundStatus } from '@prisma/client'
+import { Prisma, type RefundStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
 import { SettlementConflict, verifyDestinationSettlement } from '@/lib/stripe-settlement'
@@ -81,6 +81,7 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
     if (!Number.isSafeInteger(succeeded + pending) || succeeded + pending > payment.amountInCents) throw new RefundReconciliationError('Refund totals exceed the recorded payment')
     const status = succeeded === payment.amountInCents ? 'REFUNDED' : succeeded > 0 ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED'
     const changed = payment.stripeChargeId !== settlement.chargeId || payment.stripeTransferId !== settlement.transferId ||
+      !payment.settlementVerifiedAt || (payment.financialReview as { key?: string } | null)?.key !== settlement.review?.key ||
       payment.status !== status || payment.refundAmountInCents !== succeeded || payment.refundPendingAmountInCents !== pending || payment.refundFailedCount !== failed ||
       rows.some(row => { const old = previous.find(item => item.id === row.id); return !old || old.status !== row.status || old.transferReversalId !== row.transferReversalId || old.failureBalanceTransactionId !== row.failureBalanceTransactionId })
     for (const row of rows) {
@@ -88,6 +89,7 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
       if (saved.paymentId !== payment.id) throw new RefundReconciliationError('Refund is already linked to a different payment')
     }
     await tx.payment.update({ where: { id: payment.id }, data: { stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId, status,
+      settlementVerifiedAt: observedAt, financialReview: settlement.review ? JSON.parse(JSON.stringify(settlement.review)) : Prisma.DbNull,
       refundAmountInCents: succeeded, refundPendingAmountInCents: pending, refundFailedCount: failed, refundsVerifiedAt: observedAt } })
     if (status === 'REFUNDED') await tx.booking.updateMany({ where: { id: booking.id, status: { in: ['PENDING', 'CONFIRMED'] } }, data: { status: 'CANCELLED' } })
     if (changed && (rows.length || payment.refundAmountInCents > 0)) {

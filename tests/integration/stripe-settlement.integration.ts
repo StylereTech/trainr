@@ -11,6 +11,7 @@ import { changeNotifications, readNotifications } from '@/lib/notifications'
 import { reconcileBookingPayment } from '@/lib/payment-reconciliation'
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
 import { applyBookingAction } from '@/lib/booking-actions'
+import { readDashboardBookings } from '@/lib/dashboard-bookings'
 
 const provider = vi.hoisted(() => ({ intent: vi.fn(), charge: vi.fn(), transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), session: vi.fn(), signature: '' }))
 const secret = 'whsec_synthetic_settlement_only'
@@ -670,6 +671,61 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     const notifications = await notices()
     expect(notifications).toHaveLength(2)
     expect(notifications.every(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
+  })
+  for (const mode of ['dispute', 'reversal', 'fee-refund']) {
+    it.each(['confirm', 'complete', 'no_show'] as const)(`blocks manual %s after ${mode} even when review notices are removed`, async action => {
+      const operator = await admin()
+      if (mode === 'dispute') f.disputes = [settlementDispute(f)]
+      if (mode === 'reversal') f.transfer.amount_reversed = 600
+      if (mode === 'fee-refund') f.fee.amount_refunded = 100
+      expect((await webhook()).status).toBe(200)
+      await prisma.notification.deleteMany({ where: { userId: { in: [operator, parentId, trainerId] } } })
+      expect(await payment()).toMatchObject({ settlementVerifiedAt: expect.any(Date), financialReview: { key: expect.any(String) } })
+      for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+        const result = await readDashboardBookings(actor, actor.role === 'PARENT' ? 'upcoming' : 'all', 1, 10)
+        expect(result.bookings[0].payment).toMatchObject({ financialReview: true, settlementVerifiedAt: expect.any(Date) })
+        expect(JSON.stringify(result)).not.toContain(f.charge.id)
+      }
+      if (action !== 'confirm') await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CONFIRMED' } })
+      const before = await booking()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(new Date('2031-01-01').getTime())
+      try {
+        await expect(applyBookingAction(f.booking.id, { id: operator, role: 'ADMIN' }, { action })).rejects.toMatchObject({ status: 409 })
+      } finally { clock.mockRestore() }
+      expect(await booking()).toEqual(before)
+      expect(await notices()).toHaveLength(0)
+    })
+  }
+  it.each(['dispute', 'reversal', 'fee-refund'])('refund refresh persists %s review instead of bypassing the action hold', async mode => {
+    const operator = await admin()
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    if (mode === 'dispute') f.disputes = [settlementDispute(f)]
+    if (mode === 'reversal') f.transfer.amount_reversed = 600
+    if (mode === 'fee-refund') f.fee.amount_refunded = 100
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    expect(await payment()).toMatchObject({ status: 'SUCCEEDED', settlementVerifiedAt: expect.any(Date), financialReview: { key: expect.any(String) } })
+    await expect(applyBookingAction(f.booking.id, { id: operator, role: 'ADMIN' }, { action: 'confirm' })).rejects.toMatchObject({ status: 409 })
+  })
+  it('keeps stored review on provider failure; only fresh verified clean receipts clear it', async () => {
+    f.transfer.amount_reversed = 600
+    await webhook()
+    const held = await payment()
+    provider.transfer.mockRejectedValueOnce(new Error('synthetic provider failure'))
+    expect((await webhook()).status).toBe(503)
+    expect(await payment()).toEqual(held)
+    // Synthetic clean receipt transition tests the reconciliation contract, not real reversal undo.
+    f.transfer.amount_reversed = 0
+    expect((await webhook()).status).toBe(200)
+    expect(await payment()).toMatchObject({ financialReview: null, settlementVerifiedAt: expect.any(Date) })
+    expect((await booking()).status).toBe('CONFIRMED')
+  })
+  it('requires legacy succeeded payments to be verified before manual confirmation', async () => {
+    const operator = await admin()
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status: 'SUCCEEDED' } })
+    await expect(applyBookingAction(f.booking.id, { id: operator, role: 'ADMIN' }, { action: 'confirm' })).rejects.toMatchObject({ status: 409 })
+    await webhook()
+    expect(await payment()).toMatchObject({ settlementVerifiedAt: expect.any(Date), financialReview: null })
+    expect((await booking()).status).toBe('CONFIRMED')
   })
   it.each([1000, 6000])('reconciles an already-refunded charge (%s cents) on the first paid event, without confirming', async amount => {
     f.charge.amount_refunded = amount

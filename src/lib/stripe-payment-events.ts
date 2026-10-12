@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyDestinationSettlement, type SettlementSource } from '@/lib/stripe-settlement'
 import { reconcilePaymentRefunds } from '@/lib/refund-reconciliation'
 import { createHash } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 
 export class PaymentEventConflict extends Error {}
 export class PaymentEventAuthorizationError extends PaymentEventConflict {}
@@ -110,6 +111,7 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     await tx.payment.update({
       where: { id: payment.id },
       data: { ...identity, stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId,
+        settlementVerifiedAt: new Date(), financialReview: review ? JSON.parse(JSON.stringify(review)) : Prisma.DbNull,
         status: fullyRefunded ? 'REFUNDED' : partiallyRefunded ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED' },
     })
     const refundActivity = fullyRefunded || partiallyRefunded || payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0

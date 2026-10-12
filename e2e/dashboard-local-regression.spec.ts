@@ -21,7 +21,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
           date: new Date(Date.UTC(2020, 10, index + 1)), startTime: '09:00', endTime: '10:00', timeZone: 'UTC',
           startsAt: new Date(Date.UTC(2020, 10, index + 1, 9)), endsAt: new Date(Date.UTC(2020, 10, index + 1, 10)),
           status: index < 12 ? 'PENDING' : index === 23 ? 'RESCHEDULED' : 'COMPLETED',
-          totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, notes: `Synthetic row ${index}`, payment: { create: { amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, status: 'SUCCEEDED' } } } })
+          totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, notes: `Synthetic row ${index}`, payment: { create: { amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, status: 'SUCCEEDED', settlementVerifiedAt: new Date() } } } })
         await localAuth.signIn(role === 'PARENT' ? parent : trainer)
         // Only external Stripe observations are simulated; booking/athlete reads and mutations are real HTTP + SQL.
         await page.route('**/api/payments/connect', route => route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, transfersEnabled: null, providerError: '', dashboardSupported: false, onboardingSupported: true } }))

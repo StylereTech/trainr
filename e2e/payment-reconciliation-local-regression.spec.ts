@@ -34,7 +34,7 @@ for (const width of [1440, 390]) test.describe(`Payment recovery ${width}px`, ()
       calls++
       expect(route.request().postDataJSON()).toEqual({ bookingId: booking.id })
       if (scenario === 'success' || scenario === 'lost-response') {
-        await db.payment.update({ where: { id: booking.payment!.id }, data: { status: 'SUCCEEDED' } })
+        await db.payment.update({ where: { id: booking.payment!.id }, data: { status: 'SUCCEEDED', settlementVerifiedAt: new Date() } })
         await db.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED' } })
       }
       if (scenario === 'lost-response') return route.abort('failed')

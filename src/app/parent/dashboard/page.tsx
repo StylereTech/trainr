@@ -15,6 +15,8 @@ import { dashboardResponseSchema, type DashboardBooking as Booking, athletesResp
 import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { formatBookingDate } from '@/lib/booking-date'
+import { PaymentHoldSummary } from '@/components/shared/PaymentHoldSummary'
+import { bookingPaymentHold } from '@/lib/booking-payment-hold'
 import { requestCheckout } from '@/lib/checkout-client'
 import { checkoutTimeError } from '@/lib/booking-time'
 
@@ -169,6 +171,7 @@ export default function ParentDashboard() {
                           <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
+                        <PaymentHoldSummary booking={b} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{formatBookingDate(b.date)}</span>
@@ -195,7 +198,7 @@ export default function ParentDashboard() {
                             This trainer must finish Stripe setup before payment can be collected.
                           </div>
                         )}
-                        {b.payment?.status === 'SUCCEEDED' && <div className="mt-1 text-xs font-medium text-emerald-300">{b.totalAmountInCents === 0 ? 'No payment due' : 'Paid'}</div>}
+                        {b.payment?.status === 'SUCCEEDED' && !bookingPaymentHold(b) && <div className="mt-1 text-xs font-medium text-emerald-300">{b.totalAmountInCents === 0 ? 'No payment due' : 'Paid'}</div>}
                       </div>
                     </CardContent>
                   </Card>
@@ -219,6 +222,7 @@ export default function ParentDashboard() {
                           <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
+                        <PaymentHoldSummary booking={b} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                           <span>{formatBookingDate(b.date)}</span>

@@ -22,10 +22,13 @@ export async function readDashboardBookings(actor: { id: string; role?: string }
         serviceOffering: { select: { title: true, durationMinutes: true } },
         trainerProfile: { select: { firstName: true, lastName: true, stripeAccountId: true, stripeOnboardingComplete: true } },
         parentProfile: { select: { user: { select: { email: true } } } }, athleteProfile: { select: { firstName: true, lastName: true } }, review: { select: { id: true } },
-        payment: { select: { status: true, refundAmountInCents: true, refundPendingAmountInCents: true, refundFailedCount: true, refundsVerifiedAt: true } } },
+        payment: { select: { status: true, refundAmountInCents: true, refundPendingAmountInCents: true, refundFailedCount: true, refundsVerifiedAt: true,
+          settlementVerifiedAt: true, financialReview: true } } },
       orderBy: [{ date: view === 'past' || view === 'completed' || view === 'all' ? 'desc' : 'asc' }, { startTime: 'asc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit })
     const reviewsToLeave = actor.role === 'PARENT' ? await tx.booking.count({ where: { ...scope, status: 'COMPLETED', review: null } }) : 0
-    return { bookings: rows.map(({ trainerProfile, ...booking }) => ({ ...booking, trainerProfile: { firstName: trainerProfile.firstName, lastName: trainerProfile.lastName,
+    return { bookings: rows.map(({ trainerProfile, payment, ...booking }) => ({ ...booking,
+      payment: payment ? { ...payment, financialReview: !!payment.financialReview } : null,
+      trainerProfile: { firstName: trainerProfile.firstName, lastName: trainerProfile.lastName,
       paymentReady: !!trainerProfile.stripeAccountId && trainerProfile.stripeOnboardingComplete } })), counts, reviewsToLeave, pagination: { page, limit, total, totalPages } }
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
 }

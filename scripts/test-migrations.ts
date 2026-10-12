@@ -38,7 +38,7 @@ async function snapshot(client: PrismaClient) {
     const rows = await client.$queryRawUnsafe<Array<{ row: Record<string, unknown> }>>(`SELECT row_to_json(t) AS row FROM "${table}" t ORDER BY id`)
     result[table] = rows.map(({ row }) => {
       if (table === 'users') for (const key of ['sessionVersion', 'deletedAt', 'verificationTokenSeed', 'resetPasswordTokenSeed', 'verificationToken', 'verificationExpiry', 'resetPasswordToken', 'resetPasswordExpiry']) delete row[key]
-      if (table === 'payments') for (const key of ['refundPendingAmountInCents', 'refundFailedCount', 'refundsVerifiedAt']) delete row[key]
+      if (table === 'payments') for (const key of ['refundPendingAmountInCents', 'refundFailedCount', 'refundsVerifiedAt', 'settlementVerifiedAt', 'financialReview']) delete row[key]
       if (table === 'trainer_profiles') delete row.timeZone
       if (table === 'bookings') for (const key of ['timeZone', 'startsAt', 'endsAt']) delete row[key]
       return row
@@ -123,6 +123,7 @@ async function main() {
         for (const value of [user.verificationToken, user.verificationExpiry, user.resetPasswordToken, user.resetPasswordExpiry, user.verificationTokenSeed, user.resetPasswordTokenSeed]) assert.equal(value, null)
         const payment = await client.payment.findUniqueOrThrow({ where: { id: 'legacy-payment' } })
         assert.equal(payment.refundPendingAmountInCents, 0); assert.equal(payment.refundFailedCount, 0); assert.equal(payment.refundsVerifiedAt, null)
+        assert.equal(payment.settlementVerifiedAt, null); assert.equal(payment.financialReview, null)
         assert.equal(await client.checkoutAttempt.count(), 0); assert.equal(await client.paymentRefund.count(), 0)
         assert.equal(await client.packagePurchase.count(), 0)
         assert.equal(await client.packageRefund.count(), 0)

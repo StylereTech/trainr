@@ -12,6 +12,7 @@ export function dashboardFixture(rows: any[], url: string) {
   return { bookings: filtered.slice((page - 1) * limit, page * limit).map(row => ({ ...row, date: new Date(row.date).toISOString(), trainerPayoutInCents: row.trainerPayoutInCents ?? 5100, notes: row.notes ?? null, review: row.review ?? null,
     serviceOffering: { durationMinutes: 60, ...row.serviceOffering }, parentProfile: row.parentProfile || { user: { email: 'parent@example.test' } },
     trainerProfile: { ...row.trainerProfile, paymentReady: row.trainerProfile?.paymentReady ?? (!!row.trainerProfile?.stripeAccountId && !!row.trainerProfile?.stripeOnboardingComplete) },
-    payment: row.payment ? { refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0, refundsVerifiedAt: null, ...row.payment } : null,
+    payment: row.payment ? { refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0, refundsVerifiedAt: null,
+      settlementVerifiedAt: null, financialReview: false, ...row.payment } : null,
   })), counts, reviewsToLeave: rows.filter(row => row.status === 'COMPLETED' && !row.review).length, pagination: { page, limit, total: filtered.length, totalPages } }
 }

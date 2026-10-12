@@ -31,6 +31,8 @@ import { useRemoteData } from '@/lib/use-remote-data'
 import { BookingPager } from '@/components/shared/BookingPager'
 import { TrainerBalance } from '@/components/shared/TrainerBalance'
 import { BookingOutcomeActions } from '@/components/shared/BookingOutcomeActions'
+import { PaymentHoldSummary } from '@/components/shared/PaymentHoldSummary'
+import { bookingPaymentHold } from '@/lib/booking-payment-hold'
 import { connectStatusSchema, stripeRedirect } from '@/lib/connect-contract'
 
 export default function TrainerDashboard() {
@@ -281,6 +283,7 @@ export default function TrainerDashboard() {
                             <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                           </div>
                           <RefundSummary payment={b.payment} />
+                          <PaymentHoldSummary booking={b} />
                           <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                           <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
                             <span>{formatBookingDate(b.date)}</span>
@@ -298,12 +301,12 @@ export default function TrainerDashboard() {
                           <div className="flex flex-wrap gap-2">
                             {b.status === 'PENDING' && (
                               <>
-                                <Button size="sm" className="gradient-primary border-0 text-white" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'confirm')}><CheckCircle2 className="mr-1 h-3 w-3" />Confirm</Button>
+                                <Button size="sm" className="gradient-primary border-0 text-white" disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} onClick={() => handleAction(b.id, 'confirm')}><CheckCircle2 className="mr-1 h-3 w-3" />Confirm</Button>
                                 <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" disabled={actionBusy || needsReload} onClick={() => handleAction(b.id, 'cancel')}><XCircle className="mr-1 h-3 w-3" />Decline</Button>
                               </>
                             )}
                             {b.status === 'CONFIRMED' && (
-                              <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload} allowNoShow onAction={action => void handleAction(b.id, action)} />
+                              <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} allowNoShow onAction={action => void handleAction(b.id, action)} />
                             )}
                           </div>
                         </div>

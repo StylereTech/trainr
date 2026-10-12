@@ -18,6 +18,7 @@ export const dashboardBookingSchema = z.object({
   parentProfile: z.object({ user: z.object({ email: z.string() }) }), athleteProfile: person,
   review: z.object({ id: z.string() }).nullable(),
   payment: z.object({ status: z.enum(['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']),
+    settlementVerifiedAt: z.string().datetime().nullable(), financialReview: z.boolean(),
     refundAmountInCents: count, refundPendingAmountInCents: count, refundFailedCount: count, refundsVerifiedAt: z.string().datetime().nullable() }).nullable(),
 })
 export type DashboardBooking = z.infer<typeof dashboardBookingSchema>
