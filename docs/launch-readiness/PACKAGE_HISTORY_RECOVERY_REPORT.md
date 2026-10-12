@@ -49,6 +49,22 @@ Desktop parent and mobile trainer history screenshots were visually inspected: l
 
 After the clean run, independent SQL inspection verified the disposable guard and zero users, bookings, payments, packages, package purchases/refunds/checkout attempts, wallet entries and sports. The owned app server was interrupted only after test completion, and owned PostgreSQL stopped successfully. No required local test process remains running. Publication evidence follows after deployment.
 
+## Publication And Hosted Verification
+
+Source commit `484f875e757cfdfe839e6b06f79af2e028e63e1a` (`feat: add owned package history and payment recovery`) was pushed to `codex/payment-readiness-20261006`; post-push worktree was clean. Main remained `2067e743c54ffee669cd484f26dc472b157f1881` at the pre-publication remote check.
+
+GitHub Actions [run 38209516716](https://github.com/StylereTech/trainr/actions/runs/38209516716) completed with both `check` and `migrations` failed and empty step lists. Fresh UI annotations on both jobs: `The job was not started because your account is locked due to a billing issue.` No billing setting was changed; this is not a code-test failure or a green hosted CI result.
+
+No automatic Vercel status/deployment appeared for the push during initial inspection. Used the existing project's Create Deployment form, verified `codex/payment-readiness-20261006`, **Preview**, source `484f875`, and submitted once. This created [AGgXpp4vNMZyn3KsVSKBoksJ2ddE](https://vercel.com/styleres-projects/trainr/AGgXpp4vNMZyn3KsVSKBoksJ2ddE), Ready, 1m 1s, unique `trainr-lk5r1jimq-styleres-projects.vercel.app`. Its 05:50:10.403 UTC build log confirmed `Audit staging schema verified; migration checksums verified.` A delayed automatic deployment subsequently appeared and superseded it; the manual submission was redundant in hindsight, not a fix to an established trigger failure.
+
+The newest source deployment [Ga2AGHZVXHuaFiybe1WuQdvtGuZT](https://vercel.com/styleres-projects/trainr/Ga2AGHZVXHuaFiybe1WuQdvtGuZT) was visibly **Ready / Latest**, duration 55s, timestamp **2026-10-12 05:51:18 UTC**, environment **Preview**, exact source `484f875`, unique `trainr-7a6x0lwgy-styleres-projects.vercel.app`; the stable audit alias was listed. Its 05:50:35.956 UTC build log independently confirmed the staging schema and migration checksums. No configuration change or Production promotion was made.
+
+Eight anonymous stable-Preview checks passed, exit 0, client UTC **05:51:30-33** (`.postgres-test/package-history-source-hosted-smoke.json`): health 200 with `dbConnected:true`; bookings, trainer packages, trainer wallet, admin refund POST, package-purchase GET and refresh POST each 401; unsigned empty payment-webhook POST 400. The server clock was about 14 seconds ahead of the local client; timestamps are labeled accordingly. No authenticated financial mutation or valid event was submitted.
+
+Existing hosted **PARENT** session: dashboard showed the new `My packages` link and the same saved `Sandbox Athlete`; clicked through to `/parent/packages`, observed the real empty-history state, clicked `Reload purchase history`, then refreshed the page and observed the same result. Browser error log was empty. Direct navigation to `/trainer/purchases` returned to `/parent/dashboard` with the same athlete link. This proves reachable authenticated empty history and parent-role denial, not a real paid purchase or authenticated trainer success.
+
+Stripe's existing sandbox Connect tab could not be freshly inspected because of stale-page/browser timeouts; a temporary read-only replacement also timed out and was closed. No new account-count or onboarding success is claimed from that attempt. The prior zero-connected-account observation remains historical evidence only.
+
 ## Remaining Gates
 
 Public package buying, shared-credit ledger/issuance/redemption, cancellation/restoration/expiry policy, refund operations, account closure and actual hosted trainer onboarding/payment/transfer/payout testing remain incomplete. Email setup remains deferred by the owner. CI billing and dependency-security findings are still open. Main, Production, Story, credentials and actual funds are excluded from this pass.
