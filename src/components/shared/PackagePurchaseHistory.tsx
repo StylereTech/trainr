@@ -77,6 +77,7 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
             {purchase.reviewRequired && <p className="mt-1 text-sm text-amber-200">Financial review required</p>}
             <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
               <dt className="text-slate-400">Sessions</dt><dd>{purchase.totalSessions} &middot; Family-shared</dd>
+              <dt className="text-slate-400">Credits recorded</dt><dd data-testid="package-credits-granted">{purchase.creditsGranted}</dd>
               <dt className="text-slate-400">Listed validity</dt><dd>{purchase.validForDays} days</dd>
               <dt className="text-slate-400">Purchase created</dt><dd>{new Date(purchase.createdAt).toLocaleDateString()}</dd>
             </dl>

@@ -30,11 +30,13 @@ export async function readPackageHistory(actor: PackageHistoryActor, raw: Packag
     const page = Math.min(requestedPage, Math.max(1, totalPages))
     const rows = await tx.packagePurchase.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit,
       include: { trainerProfile: { select: { firstName: true, lastName: true } }, parentProfile: { select: { user: { select: { email: true } } } },
+        creditGrants: { select: { sessionsCount: true } },
         checkoutAttempts: { orderBy: { sequence: 'desc' }, take: 1, select: { stripeCheckoutSessionId: true, retiredAt: true } } } })
     return { purchases: rows.map(row => {
       const terms = packagePurchaseTermsSchema.parse(row.terms)
       const attempt = row.checkoutAttempts[0]
       return { id: row.id, title: terms.title, counterparty: actor.role === 'PARENT' ? `${row.trainerProfile.firstName} ${row.trainerProfile.lastName}`.trim() : row.parentProfile.user.email,
+        creditsGranted: row.creditGrants.reduce((sum, grant) => sum + grant.sessionsCount, 0),
         createdAt: row.createdAt.toISOString(), totalSessions: terms.totalSessions, validForDays: terms.validForDays,
         items: terms.items.map(({ title, sessionsCount, durationMinutes }) => ({ title, sessionsCount, durationMinutes })),
         amountInCents: row.amountInCents, trainerAllocationInCents: actor.role === 'TRAINER' ? row.trainerPayoutInCents : null, status: row.status,

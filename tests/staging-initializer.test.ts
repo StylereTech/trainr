@@ -70,9 +70,9 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all seventeen committed migrations with SHA256 hashes', () => {
+  it('reads all eighteen committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(17)
+    expect(migrations).toHaveLength(18)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -146,5 +146,15 @@ describe('isolated audit preview initializer', () => {
     const deploy = vi.fn()
     await expect(initializeStaging(database({ count: 30 }), [...manifest, { ...upgrade, name: 'unreviewed' }], deploy)).rejects.toThrow('STAGING_UPGRADE_NOT_APPROVED')
     expect(deploy).not.toHaveBeenCalled()
+  })
+  it('allows credit grant history only in the guarded audit Preview', async () => {
+    const migration = { name: '20261012080000_add_package_credit_grants', checksum: 'reviewed-credit-grants' }
+    const db = database({ count: 33 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    const deploy = vi.fn()
+    await expect(initializeStaging(db, [...manifest, migration], deploy)).resolves.toBe('upgraded')
+    expect(deploy).toHaveBeenCalledOnce()
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
+    expect(() => stagingConfig({ ...env, VERCEL_GIT_COMMIT_REF: 'main' })).toThrow('STAGING_BRANCH_REQUIRED')
   })
 })

@@ -7,15 +7,23 @@ import { SettlementConflict, verifyDestinationCharge, type SettlementSource } fr
 import { PackagePurchaseError } from '@/lib/package-purchases'
 import { assertPackageAttempt, assertPackageSession, packagePaymentIdentity, stripeObjectId } from '@/lib/package-checkout-identity'
 import { reconcilePackageRefundHistory } from '@/lib/package-refunds'
+import { recordPackageCreditGrants } from '@/lib/package-credit-grants'
+import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 
 // A paid redirect/event is only a prompt to read current provider receipts, never proof itself.
 export async function reconcilePackageCheckout(purchaseId: string, attemptId: string, sessionId: string,
   evidence: { intentId: string; chargeId: string; source: SettlementSource; refunds?: { refundId?: string } } | undefined = undefined,
   actor?: { id: string; role?: string }) {
   return prisma.$transaction(async tx => {
+    const owners = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, select: {
+      parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
+    } })
+    if (!owners) throw new PackagePurchaseError('Package purchase not found', 404)
+    const accounts = await tx.$queryRaw<Array<{ id: string; role: string; deletedAt: Date | null }>>`
+      SELECT id, role, "deletedAt" FROM users
+      WHERE id IN (${owners.parentProfile.userId}, ${owners.trainerProfile.userId}, ${actor?.id || ''}) ORDER BY id FOR SHARE`
     if (actor) {
-      await tx.$queryRaw`SELECT id FROM users WHERE id = ${actor.id} FOR SHARE`
-      const current = await tx.user.findUnique({ where: { id: actor.id }, select: { role: true, deletedAt: true } })
+      const current = accounts.find(account => account.id === actor.id)
       if (!current || current.deletedAt || current.role !== actor.role || !['PARENT', 'TRAINER'].includes(current.role)) {
         throw new PackagePurchaseError('Parent or trainer access is required', 403)
       }
@@ -28,6 +36,25 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     const purchase = await tx.packagePurchase.findUnique({ where: { id: purchaseId } })
     const attempt = await tx.packageCheckoutAttempt.findFirst({ where: { purchaseId }, orderBy: { sequence: 'desc' } })
     if (!purchase || !attempt || attempt.id !== attemptId) throw new PackagePurchaseError('Package checkout attempt does not match the purchase.')
+    await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${purchase.trainerProfileId} FOR SHARE`
+    const trainer = await tx.trainerProfile.findUniqueOrThrow({ where: { id: purchase.trainerProfileId }, include: { sports: true } })
+    const parent = await tx.parentProfile.findUniqueOrThrow({ where: { id: purchase.parentProfileId } })
+    if (parent.userId !== owners.parentProfile.userId || trainer.userId !== owners.trainerProfile.userId) throw new PackagePurchaseError('Package ownership changed. Retry reconciliation.')
+    const terms = packagePurchaseTermsSchema.parse(purchase.terms)
+    // Keep fulfillment eligibility stable while provider evidence is read and grants commit.
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM service_offerings
+      WHERE id IN (${Prisma.join(terms.items.map(item => item.serviceOfferingId).sort())}) ORDER BY id FOR SHARE`)
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM sports
+      WHERE id IN (${Prisma.join([...new Set(terms.items.map(item => item.sportId))].sort())}) ORDER BY id FOR SHARE`)
+    const services = await tx.serviceOffering.findMany({ where: { id: { in: terms.items.map(item => item.serviceOfferingId) } }, include: { sport: true } })
+    const fulfillmentReview = [
+      ...(!accounts.some(account => account.id === parent.userId && account.role === 'PARENT' && !account.deletedAt) ? ['parent_account_unavailable'] : []),
+      ...(!accounts.some(account => account.id === trainer.userId && account.role === 'TRAINER' && !account.deletedAt) || !trainer.isActive || trainer.approvalStatus !== 'APPROVED' ? ['trainer_unavailable'] : []),
+      ...(terms.items.some(item => { const service = services.find(value => value.id === item.serviceOfferingId)
+        return !service?.isActive || service.trainerProfileId !== trainer.id || !service.sport?.isActive || service.sportId !== item.sportId ||
+          service.durationMinutes !== item.durationMinutes || service.type !== item.type || !trainer.sports.some(value => value.sportId === item.sportId)
+      }) ? ['purchased_service_unavailable'] : []),
+    ]
     assertPackageAttempt(purchase, attempt)
     const session = await stripe.checkout.sessions.retrieve(sessionId, {}, { timeout: 4000, maxNetworkRetries: 0 })
     if (session.id !== sessionId) throw new PackagePurchaseError('Package checkout session identity changed.')
@@ -43,17 +70,19 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     const refunds = evidence?.refunds || actor ? await reconcilePackageRefundHistory(tx, purchase, intentId, settlement.chargeId, settlement.hasRefunds, evidence?.refunds?.refundId) : null
     const refundState = refunds || purchase
     // A normal paid/transfer replay must not clear unresolved refund evidence.
-    const details = { ...settlement.review?.details, packageRefunds: { refundedInCents: refundState.refundAmountInCents,
+    const details = { ...settlement.review?.details, ...(fulfillmentReview.length ? { fulfillmentReview } : {}), packageRefunds: { refundedInCents: refundState.refundAmountInCents,
       pendingInCents: refundState.refundPendingAmountInCents, failedCount: refundState.refundFailedCount } }
-    const review = refundState.refundAmountInCents || refundState.refundPendingAmountInCents || refundState.refundFailedCount
+    const review = fulfillmentReview.length || refundState.refundAmountInCents || refundState.refundPendingAmountInCents || refundState.refundFailedCount
       ? { key: createHash('sha256').update(JSON.stringify(details)).digest('hex'), details } : settlement.review
     await tx.packageCheckoutAttempt.update({ where: { id: attempt.id }, data: { stripeCheckoutSessionId: session.id } })
-    return tx.packagePurchase.update({ where: { id: purchase.id }, data: {
+    const updated = await tx.packagePurchase.update({ where: { id: purchase.id }, data: {
       stripeCheckoutSessionId: session.id, stripePaymentIntentId: intentId, stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId,
       status: ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(purchase.status) ? purchase.status : 'SUCCEEDED',
       settlementVerifiedAt: new Date(), financialReview: review ? JSON.parse(JSON.stringify(review)) : Prisma.DbNull,
       ...(refunds || {}),
     } })
+    await recordPackageCreditGrants(tx, updated)
+    return updated
   }, { maxWait: 5000, timeout: actor ? 90000 : evidence?.refunds ? 45000 : 30000 })
 }
 

@@ -9,7 +9,7 @@ export const packageHistoryQuery = z.object({
 export type PackageHistoryQuery = z.infer<typeof packageHistoryQuery>
 export const packageHistoryRecord = z.object({
   id: z.string().min(1), title: z.string(), counterparty: z.string(), createdAt: z.string().datetime(),
-  totalSessions: count.min(1), validForDays: count.min(1),
+  totalSessions: count.min(1), validForDays: count.min(1), creditsGranted: count,
   items: z.array(z.object({ title: z.string(), sessionsCount: count.min(1), durationMinutes: count.min(1) })).min(1),
   amountInCents: count, trainerAllocationInCents: count.nullable(),
   status: z.enum(['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']),

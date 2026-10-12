@@ -92,6 +92,108 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
+  it('issues family-owned service credits exactly once across concurrent receipt replays', async () => {
+    const { session, attempt } = await paidSession()
+    expect(await independent.packageCreditGrant.count()).toBe(0)
+    const parent = await prisma.parentProfile.findUniqueOrThrow({ where: { userId: parentId } })
+    for (const firstName of ['First', 'Second']) await prisma.athleteProfile.create({ data: { parentProfileId: parent.id, firstName, lastName: 'Synthetic', dateOfBirth: new Date('2015-01-01') } })
+    await Promise.all([1, 2, 3].map(() => reconcilePackageCheckout(purchaseId, attempt.id, session.id)))
+    const grants = await independent.packageCreditGrant.findMany({ where: { purchaseId } })
+    expect(grants).toEqual([{ purchaseId, serviceOfferingId: expect.any(String), sessionsCount: 2, grantedAt: expect.any(Date) }])
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    expect(await independent.packageCreditGrant.findMany({ where: { purchaseId } })).toEqual(grants)
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+      expect((await readPackageHistory(actor, { view: 'all', page: 1, limit: 10 })).purchases[0].creditsGranted).toBe(2)
+    }
+    expect(await independent.booking.count()).toBe(0); expect(await independent.walletEntry.count()).toBe(0)
+  })
+  it('preserves per-service quantities from a mixed package instead of creating one interchangeable balance', async () => {
+    const service = await prisma.serviceOffering.findFirstOrThrow({ where: { trainerProfileId } })
+    const second = await prisma.serviceOffering.create({ data: { trainerProfileId, sportId, title: 'Second service', priceInCents: 2000, durationMinutes: 30 } })
+    const catalog = await prisma.package.create({ data: { trainerProfileId, title: 'Mixed services', totalSessions: 3, priceInCents: 6000,
+      items: { create: [{ serviceOfferingId: service.id, sessionsCount: 2 }, { serviceOfferingId: second.id, sessionsCount: 1 }] } } })
+    const purchase = await preparePackagePurchase(parentId, { requestId: randomUUID(), packageId: catalog.id, catalogRevision: catalog.updatedAt.toISOString(), expectedTotalInCents: 6000 })
+    purchaseId = purchase.id
+    const { session } = await paidSession(); expect((await webhook(session)).status).toBe(200)
+    const grants = await independent.packageCreditGrant.findMany({ where: { purchaseId } })
+    expect(grants).toHaveLength(2)
+    expect(grants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ serviceOfferingId: service.id, sessionsCount: 2 }),
+      expect.objectContaining({ serviceOfferingId: second.id, sessionsCount: 1 }),
+    ]))
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'all', page: 1, limit: 10 })).purchases.find(row => row.id === purchaseId)?.creditsGranted).toBe(3)
+  })
+  it.each(['parent-deleted', 'parent-role', 'trainer-deleted', 'trainer-role', 'trainer-inactive', 'trainer-unapproved', 'service-inactive', 'service-changed', 'sport-inactive'])('holds credit issuance for %s after checkout was opened', async mode => {
+    const { session } = await paidSession()
+    if (mode === 'parent-deleted') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    if (mode === 'parent-role') await prisma.user.update({ where: { id: parentId }, data: { role: 'TRAINER' } })
+    if (mode === 'trainer-deleted') await prisma.user.update({ where: { id: trainerId }, data: { deletedAt: new Date() } })
+    if (mode === 'trainer-role') await prisma.user.update({ where: { id: trainerId }, data: { role: 'PARENT' } })
+    if (mode === 'trainer-inactive') await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { isActive: false } })
+    if (mode === 'trainer-unapproved') await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { approvalStatus: 'PENDING' } })
+    if (mode === 'service-inactive') await prisma.serviceOffering.updateMany({ where: { trainerProfileId }, data: { isActive: false } })
+    if (mode === 'service-changed') await prisma.serviceOffering.updateMany({ where: { trainerProfileId }, data: { durationMinutes: 30 } })
+    if (mode === 'sport-inactive') await prisma.sport.update({ where: { id: sportId }, data: { isActive: false } })
+    expect((await webhook(session)).status).toBe(200)
+    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', settlementVerifiedAt: expect.any(Date), financialReview: expect.objectContaining({ details: expect.objectContaining({ fulfillmentReview: expect.any(Array) }) }) })
+    expect(await independent.packageCreditGrant.count()).toBe(0)
+  })
+  it.each(['dispute', 'reversal', 'fee-refund', 'pending-refund'])('does not issue credits for %s', async mode => {
+    const { session, attempt } = await paidSession()
+    if (mode === 'dispute') f.disputes = [settlementDispute(f)]
+    if (mode === 'reversal') f.transfer.amount_reversed = 1000
+    if (mode === 'fee-refund') f.fee.amount_refunded = 100
+    if (mode === 'pending-refund') refunds = [refundReceipt({ status: 'pending' })]
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id, undefined, { id: parentId, role: 'PARENT' })
+    expect(await independent.packageCreditGrant.count()).toBe(0)
+  })
+  it('keeps immutable grants during later financial review and recovers without duplicate issuance', async () => {
+    const { session, attempt } = await paidSession(); await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    const before = await independent.packageCreditGrant.findMany({ where: { purchaseId } })
+    f.disputes = [settlementDispute(f)]
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'all', page: 1, limit: 10 })).purchases[0]).toMatchObject({ creditsGranted: 2, reviewRequired: true })
+    expect(await independent.packageCreditGrant.findMany({ where: { purchaseId } })).toEqual(before)
+    f.disputes = []
+    await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    expect(await independent.packageCreditGrant.findMany({ where: { purchaseId } })).toEqual(before)
+  })
+  it('rolls back issuance when current provider verification fails', async () => {
+    const { session, attempt } = await paidSession(); provider.transfer.mockRejectedValue(new Error('Synthetic unavailable'))
+    await expect(reconcilePackageCheckout(purchaseId, attempt.id, session.id)).rejects.toThrow()
+    expect((await readPurchase()).status).toBe('PENDING'); expect(await independent.packageCreditGrant.count()).toBe(0)
+  })
+  it.each(['sport', 'service'])('holds %s eligibility through the receipt verification transaction', async kind => {
+    const { session, attempt } = await paidSession()
+    let release!: () => void, entered!: () => void
+    const blocked = new Promise<void>(resolve => { release = resolve })
+    const reading = new Promise<void>(resolve => { entered = resolve })
+    provider.transfer.mockImplementation(async () => { entered(); await blocked; return structuredClone(f.transfer) })
+    const settling = reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    try {
+      await reading
+      await expect(independent.$transaction(async tx => {
+        await tx.$executeRaw`SET LOCAL lock_timeout = '250ms'`
+        if (kind === 'sport') await tx.sport.update({ where: { id: sportId }, data: { isActive: false } })
+        else await tx.serviceOffering.updateMany({ where: { trainerProfileId }, data: { isActive: false } })
+      })).rejects.toThrow(/lock timeout/)
+    } finally { release(); await settling }
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(1)
+  })
+  it('enforces immutable grant quantities and identity in SQL', async () => {
+    const { session, attempt } = await paidSession(); await reconcilePackageCheckout(purchaseId, attempt.id, session.id)
+    const grant = await independent.packageCreditGrant.findFirstOrThrow({ where: { purchaseId } })
+    await expect(independent.packageCreditGrant.updateMany({ where: { purchaseId }, data: { sessionsCount: 3 } })).rejects.toThrow()
+    await expect(independent.packageCreditGrant.deleteMany({ where: { purchaseId } })).rejects.toThrow()
+    await expect(independent.packageCreditGrant.create({ data: { purchaseId, serviceOfferingId: 'unrelated', sessionsCount: 2 } })).rejects.toThrow()
+    expect(await independent.packageCreditGrant.findMany({ where: { purchaseId } })).toEqual([grant])
+  })
+  it('does not infer credits from a legacy success label or an unverified insert', async () => {
+    const purchase = await readPurchase(), item = (purchase.terms as any).items[0]
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { status: 'SUCCEEDED' } })
+    await expect(independent.packageCreditGrant.create({ data: { purchaseId, serviceOfferingId: item.serviceOfferingId, sessionsCount: 2 } })).rejects.toThrow()
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'all', page: 1, limit: 10 })).purchases[0].creditsGranted).toBe(0)
+  })
   it.each(['PARENT', 'TRAINER'])('lists immutable scoped purchase history for %s without provider details', async role => {
     const { session } = await paidSession(); expect((await webhook(session)).status).toBe(200)
     const original = await readPurchase()

@@ -384,11 +384,24 @@ model PackagePurchase {
   package        Package        @relation(fields: [packageId], references: [id], onDelete: Restrict)
   checkoutAttempts PackageCheckoutAttempt[]
   refunds PackageRefund[]
+  creditGrants PackageCreditGrant[]
 
   @@unique([parentProfileId, requestId])
   @@index([trainerProfileId, createdAt])
   @@index([packageId])
   @@map("package_purchases")
+}
+
+// Immutable issuance evidence. Redemption and expiry are separate lifecycle decisions.
+model PackageCreditGrant {
+  purchaseId        String
+  serviceOfferingId String
+  sessionsCount     Int
+  grantedAt         DateTime @default(now()) @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@id([purchaseId, serviceOfferingId])
+  @@map("package_credit_grants")
 }
 
 model PackageCheckoutAttempt {

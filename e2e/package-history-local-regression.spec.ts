@@ -33,8 +33,11 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       // Browser response handling only; SQL integration tests verify provider receipts and ownership.
       await page.route('**/api/package-purchases/refresh', async route => {
         calls++; expect(route.request().postDataJSON()).toEqual({ purchaseId: purchase.id })
-        if (scenario === 'success' || scenario === 'lost-response') await db.packagePurchase.update({ where: { id: purchase.id }, data: {
-          status: 'SUCCEEDED', stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`, stripeTransferId: `tr_synthetic_${key}`, settlementVerifiedAt: new Date() } })
+        if (scenario === 'success' || scenario === 'lost-response') {
+          await db.packagePurchase.update({ where: { id: purchase.id }, data: {
+            status: 'SUCCEEDED', stripePaymentIntentId: `pi_synthetic_${key}`, stripeChargeId: `ch_synthetic_${key}`, stripeTransferId: `tr_synthetic_${key}`, settlementVerifiedAt: new Date() } })
+          await db.packageCreditGrant.create({ data: { purchaseId: purchase.id, serviceOfferingId: service.id, sessionsCount: 2 } })
+        }
         if (scenario === 'lost-response') return route.abort('failed')
         if (scenario === 'provider-failure') return route.fulfill({ status: 503, json: { error: 'Provider unavailable. Reload purchase history.' } })
         return route.fulfill({ json: scenario === 'malformed' ? { ok: true } : { refreshed: true, purchaseId: purchase.id } })
@@ -57,6 +60,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       await expect(page.getByText('Current catalog differs', { exact: true })).toHaveCount(0)
       await expect(page.getByText('$60.00', { exact: true })).toBeVisible()
       await expect(page.getByText('Session credits unavailable', { exact: true })).toBeVisible()
+      await expect(page.getByTestId('package-credits-granted')).toHaveText('0')
       const refresh = page.getByRole('button', { name: 'Refresh payment', exact: true })
       if (scenario === 'history') {
         await expect(page.getByText('Partially refunded', { exact: true })).toBeVisible()
@@ -88,6 +92,7 @@ for (const width of [1440, 390]) for (const role of ['PARENT', 'TRAINER'] as con
       await page.screenshot({ path: info.outputPath('package-history.png'), fullPage: true })
       await page.reload()
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
+      await expect(page.getByTestId('package-credits-granted')).toHaveText(['success', 'lost-response'].includes(scenario) ? '2' : '0')
       expect(await db.booking.count()).toBe(0); expect(await db.walletEntry.count()).toBe(0)
       expect(errors).toEqual([])
     } finally {
