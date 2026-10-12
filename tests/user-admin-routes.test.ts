@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server'
 import { GET, PATCH } from '@/app/api/admin/users/route'
 import { UserAdminActionError } from '@/lib/user-admin-actions'
 
-const mock = vi.hoisted(() => ({ session: vi.fn(), action: vi.fn(), find: vi.fn(), count: vi.fn(), transaction: vi.fn() }))
+const mock = vi.hoisted(() => ({ session: vi.fn(), action: vi.fn(), find: vi.fn(), count: vi.fn(), transaction: vi.fn(), closures: vi.fn() }))
+vi.mock('@/lib/account-checkout-closures', () => ({ processInitialAccountCheckouts: mock.closures }))
 vi.mock('@/lib/auth', () => ({ getServerSession: mock.session }))
 vi.mock('@/lib/prisma', () => ({ prisma: { user: { findMany: mock.find, count: mock.count }, $transaction: mock.transaction } }))
 vi.mock('@/lib/user-admin-actions', async original => ({ ...await original<typeof import('@/lib/user-admin-actions')>(), applyUserAdminAction: mock.action }))
@@ -37,6 +38,16 @@ describe('administrator user HTTP boundaries', () => {
   it('passes the reviewed version and current actor to the transaction', async () => {
     expect((await patch(valid)).status).toBe(200)
     expect(mock.action).toHaveBeenCalledWith('admin', valid)
+  })
+  it('starts bounded checkout closure only after successful account revocation', async () => {
+    const input = { userId: 'user', revision: valid.revision, action: 'delete', reason: 'Synthetic review' }
+    mock.action.mockResolvedValue({ success: true, deleted: true })
+    expect((await patch(input)).status).toBe(200)
+    expect(mock.closures).toHaveBeenCalledWith('user')
+    expect(mock.action.mock.invocationCallOrder[0]).toBeLessThan(mock.closures.mock.invocationCallOrder[0])
+    mock.closures.mockClear(); mock.action.mockRejectedValue(new UserAdminActionError('Conflict', 409))
+    expect((await patch(input)).status).toBe(409)
+    expect(mock.closures).not.toHaveBeenCalled()
   })
   it.each([400, 403, 404, 409])('preserves expected action failure %i', async status => {
     mock.action.mockRejectedValue(new UserAdminActionError('Expected conflict', status))

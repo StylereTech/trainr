@@ -9,6 +9,7 @@ import {
 const navItems = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/checkout-closures', label: 'Checkout Closures', icon: Shield },
   { href: '/admin/trainers', label: 'Trainer Approvals', icon: UserCheck },
   { href: '/admin/bookings', label: 'Bookings', icon: Calendar },
   { href: '/admin/payouts', label: 'Payouts & Revenue', icon: DollarSign },
@@ -22,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAuth(['ADMIN'])
 
   return (
-    <div className="-mx-4 -my-0 flex min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.14),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#08111f_100%)] text-white lg:-mx-6">
+    <div className="flex min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.14),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#08111f_100%)] text-white">
       <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-slate-950/90 lg:flex lg:flex-col">
         <div className="border-b border-white/10 px-6 py-5">
           <div className="flex items-center gap-3">

@@ -37,6 +37,7 @@ model User {
   messageThreadsA MessageThread[]  @relation("ParticipantA")
   messageThreadsB MessageThread[]  @relation("ParticipantB")
   uploadedAssets  UploadedAsset[]
+  checkoutClosures AccountCheckoutClosure[]
   reportsFiled    ModerationReport[] @relation("Reporter")
 
   // Admin-specific
@@ -53,6 +54,24 @@ model User {
   @@index([verificationToken])
   @@index([resetPasswordToken])
   @@map("users")
+}
+
+model AccountCheckoutClosure {
+  id        String @id @default(cuid())
+  userId    String
+  kind      String
+  targetId  String
+  status    String @default("PENDING")
+  outcome   String?
+  sessionId String?
+  checkedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, targetId])
+  @@index([status, createdAt])
+  @@map("account_checkout_closures")
 }
 
 // ==================

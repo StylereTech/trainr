@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { closeAccount } from '@/lib/account-closure'
+import { processInitialAccountCheckouts } from '@/lib/account-checkout-closures'
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function DELETE(req: NextRequest) {
       return true
     })
     if (!allowed) return NextResponse.json({ error: 'Admin accounts must be transferred before deletion.' }, { status: 403 })
+    await processInitialAccountCheckouts(requestUser.id)
     return NextResponse.json({ success: true, deleted: true })
   } catch {
     console.error('Account deletion transaction failed')

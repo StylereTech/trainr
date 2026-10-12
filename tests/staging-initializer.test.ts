@@ -70,9 +70,9 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all eighteen committed migrations with SHA256 hashes', () => {
+  it('reads all twenty committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(18)
+    expect(migrations).toHaveLength(20)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -156,5 +156,20 @@ describe('isolated audit preview initializer', () => {
     expect(deploy).toHaveBeenCalledOnce()
     expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
     expect(() => stagingConfig({ ...env, VERCEL_GIT_COMMIT_REF: 'main' })).toThrow('STAGING_BRANCH_REQUIRED')
+  })
+  it('allows the account closure queue only in the guarded audit Preview', async () => {
+    const migration = { name: '20261012090000_add_account_checkout_closures', checksum: 'reviewed-account-closure-queue' }
+    const db = database({ count: 34 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    await expect(initializeStaging(db, [...manifest, migration], vi.fn())).resolves.toBe('upgraded')
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
+    expect(() => stagingConfig({ ...env, VERCEL_GIT_COMMIT_REF: 'main' })).toThrow('STAGING_BRANCH_REQUIRED')
+  })
+  it('allows the closure proof correction only after the same staging guards', async () => {
+    const migration = { name: '20261012090100_require_checkout_closure_proof', checksum: 'reviewed-closure-proof' }
+    const db = database({ count: 34 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    await expect(initializeStaging(db, [...manifest, migration], vi.fn())).resolves.toBe('upgraded')
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
   })
 })

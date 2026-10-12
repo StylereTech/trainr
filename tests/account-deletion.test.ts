@@ -11,7 +11,7 @@ describe('App Review account deletion compliance', () => {
     const api = read('src/app/api/account/route.ts')
 
     expect(page).toContain('Delete your Trainr account')
-    expect(page).toContain("fetch('/api/account', { method: 'DELETE' })")
+    expect(page).toContain("fetch('/api/account', { method: 'DELETE', signal: AbortSignal.timeout(45000) })")
     expect(page).toContain('No phone call or email is required')
     expect(api).toContain('export async function DELETE')
     expect(api).toContain('getRequestUser')

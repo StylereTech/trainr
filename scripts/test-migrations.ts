@@ -60,8 +60,8 @@ async function verifyHistory(client: PrismaClient) {
     SELECT conname FROM pg_constraint WHERE conname IN ('checkout_attempts_sequence_positive', 'users_sessionVersion_nonnegative',
       'payments_refund_pending_nonnegative', 'payments_refund_failed_nonnegative', 'rate_limit_buckets_hash_format', 'rate_limit_buckets_bounded_hits', 'bookings_time_snapshot_complete',
       'package_purchases_amounts_valid', 'package_purchases_hash_valid', 'package_purchases_terms_version', 'package_checkout_attempts_sequence_positive',
-      'package_purchases_refund_totals_valid', 'package_refunds_amount_currency_valid', 'package_credit_grants_quantity_valid')`
-  assert.equal(constraints.length, 14)
+      'package_purchases_refund_totals_valid', 'package_refunds_amount_currency_valid', 'package_credit_grants_quantity_valid', 'account_checkout_closures_state_valid')`
+  assert.equal(constraints.length, 15)
   const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable', 'package_refunds_identity_immutable', 'package_credit_grants_immutable') AND NOT tgisinternal`
   assert.equal(triggers.length, 5)
   const indexes = await client.$queryRaw<Array<{ indexdef: string }>>`
@@ -84,9 +84,9 @@ async function main() {
   const clients: PrismaClient[] = []
   try {
     assert.deepEqual(await admin.$queryRaw`SELECT purpose FROM trainr_test_guard`, [{ purpose: 'disposable integration database' }])
-    for (const mode of ['fresh', 'legacy', 'phone_history']) {
+    for (const mode of ['fresh', 'legacy', 'phone_history', 'closure_history']) {
       const name = `trainr_audit_migration_${randomUUID().replaceAll('-', '').slice(0, 12)}_${mode}`
-      assert.match(name, /^trainr_audit_migration_[a-f0-9]{12}_(fresh|legacy|phone_history)$/)
+      assert.match(name, /^trainr_audit_migration_[a-f0-9]{12}_(fresh|legacy|phone_history|closure_history)$/)
       await admin.$executeRawUnsafe(`CREATE DATABASE "${name}" OWNER trainr_test`)
       created.push(name)
       await admin.$executeRawUnsafe(`COMMENT ON DATABASE "${name}" IS '${tag}'`)
@@ -107,6 +107,20 @@ async function main() {
           cli(url, 'existing recorded phone migration', ['migrate', 'resolve', '--applied', phoneMigration, '--schema', schema])
         }
         cli(url, `${mode}: baseline after known fixture comparison`, ['migrate', 'resolve', '--applied', '0_baseline', '--schema', schema])
+        if (mode === 'closure_history') {
+          const prior = readdirSync(directory, { withFileTypes: true }).filter(item => item.isDirectory() && item.name !== '0_baseline' && item.name < '20261012090000_add_account_checkout_closures').map(item => item.name).sort()
+          for (const migration of prior) {
+            cli(url, `closure_history: install ${migration}`, ['db', 'execute', '--file', resolve(directory, migration, 'migration.sql'), '--schema', schema])
+            cli(url, `closure_history: record ${migration}`, ['migrate', 'resolve', '--applied', migration, '--schema', schema])
+          }
+          const catalog = await client.package.create({ data: { id: 'closure-history-package', trainerProfileId: 'legacy-trainer-profile', title: 'Synthetic package', priceInCents: 6000, totalSessions: 2 } })
+          await client.packagePurchase.create({ data: { id: 'closure-history-purchase', parentProfileId: 'legacy-parent-profile', trainerProfileId: 'legacy-trainer-profile', packageId: catalog.id,
+            requestId: 'synthetic-closure-history', payloadHash: 'a'.repeat(64), catalogRevision: catalog.updatedAt,
+            terms: { version: 1, title: 'Synthetic package', description: '', validForDays: 90, totalSessions: 2,
+              items: [{ serviceOfferingId: 'legacy-service', sportId: 'legacy-sport', title: 'Synthetic session', durationMinutes: 60, type: 'INDIVIDUAL', sessionsCount: 2 }] },
+            amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100 } })
+          await client.user.update({ where: { id: 'legacy-parent' }, data: { deletedAt: new Date('2026-10-01'), updatedAt: new Date('2026-01-01') } })
+        }
       }
       cli(url, `${mode}: full migration deployment`, ['migrate', 'deploy', '--schema', schema])
       await verifyHistory(client)
@@ -119,16 +133,24 @@ async function main() {
           assert.equal(booking.timeZone, null); assert.equal(booking.startsAt, null); assert.equal(booking.endsAt, null)
         }
         const user = await client.user.findUniqueOrThrow({ where: { id: 'legacy-parent' } })
-        assert.equal(user.sessionVersion, 0); assert.equal(user.deletedAt, null)
+        assert.equal(user.sessionVersion, 0); assert.equal(user.deletedAt?.toISOString() || null, mode === 'closure_history' ? '2026-10-01T00:00:00.000Z' : null)
         for (const value of [user.verificationToken, user.verificationExpiry, user.resetPasswordToken, user.resetPasswordExpiry, user.verificationTokenSeed, user.resetPasswordTokenSeed]) assert.equal(value, null)
         const payment = await client.payment.findUniqueOrThrow({ where: { id: 'legacy-payment' } })
         assert.equal(payment.refundPendingAmountInCents, 0); assert.equal(payment.refundFailedCount, 0); assert.equal(payment.refundsVerifiedAt, null)
         assert.equal(payment.settlementVerifiedAt, null); assert.equal(payment.financialReview, null)
         assert.equal(await client.checkoutAttempt.count(), 0); assert.equal(await client.paymentRefund.count(), 0)
-        assert.equal(await client.packagePurchase.count(), 0)
+        assert.equal(await client.packagePurchase.count(), mode === 'closure_history' ? 1 : 0)
         assert.equal(await client.packageRefund.count(), 0)
         if (phoneBefore) assert.deepEqual(await client.trainerPhoneLead.findMany(), phoneBefore)
         console.log(`PASS: ${mode}: all 12 legacy tables preserved; only intended token revocation/defaults changed`)
+        if (mode === 'closure_history') {
+          const tasks = await client.accountCheckoutClosure.findMany({ orderBy: { kind: 'asc' } })
+          assert.deepEqual(tasks.map(task => ({ kind: task.kind, targetId: task.targetId, userId: task.userId, status: task.status, checkedAt: task.checkedAt })), [
+            { kind: 'BOOKING', targetId: 'legacy-payment', userId: 'legacy-parent', status: 'PENDING', checkedAt: null },
+            { kind: 'PACKAGE', targetId: 'closure-history-purchase', userId: 'legacy-parent', status: 'PENDING', checkedAt: null },
+          ])
+          console.log('PASS: historical closed-account booking and package backfill; no provider closure inferred')
+        }
       }
       if (mode === 'fresh' && process.argv.includes('--integration')) {
         await client.$executeRaw`CREATE TABLE trainr_test_guard (purpose TEXT NOT NULL)`

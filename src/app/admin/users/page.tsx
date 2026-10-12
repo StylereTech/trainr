@@ -1,5 +1,6 @@
 "use client"
 
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -100,6 +101,7 @@ export default function AdminUsers() {
     <div className="space-y-5 text-white">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
         <h1 className="text-2xl font-semibold">Users</h1>
+        <Link href="/admin/checkout-closures" className="text-sm text-emerald-300 underline">Checkout closures</Link>
         <Button variant="outline" size="sm" onClick={() => void fetchUsers()} disabled={loading || saving}><RefreshCw className="mr-2 h-4 w-4" />Reload</Button>
       </header>
       <form className="flex flex-col gap-3 sm:flex-row" onSubmit={event => {

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { adminUserFields, applyUserAdminAction, userAdminActionSchema, UserAdminActionError } from '@/lib/user-admin-actions'
+import { processInitialAccountCheckouts } from '@/lib/account-checkout-closures'
 
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).max(100000).default(1),
@@ -48,7 +49,9 @@ export async function PATCH(req: NextRequest) {
     try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
     const parsed = userAdminActionSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: 'Invalid account action. Reload and check the required fields.' }, { status: 400 })
-    return NextResponse.json(await applyUserAdminAction(session.user.id, parsed.data))
+    const result = await applyUserAdminAction(session.user.id, parsed.data)
+    if (parsed.data.action === 'delete') await processInitialAccountCheckouts(parsed.data.userId)
+    return NextResponse.json(result)
   } catch (error) {
     if (error instanceof UserAdminActionError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Administrator account transaction failed')
