@@ -43,7 +43,7 @@ Scoped parent/trainer history now exposes `creditsGranted` and a `Credits record
 - Final serial `npm run check`: PASS, exit 0; lint zero errors / 42 existing warnings, TypeScript, **1,402 units / 64 files** (42.34s, start 07:54:10 UTC), Prisma generation and optimized Next build passed. Compilation 30.9s, build TypeScript 26.0s; `.postgres-test/package-credits-final-check.log`. Focused browser-spec lint and `git diff --check` also passed.
 - Browser regression: **36 passed**, 4.3m, exit 0, completed by 08:02 UTC. Command: `playwright test e2e/package-history-local-regression.spec.ts e2e/trainer-packages-local-regression.spec.ts --project=chromium --workers=1`; `.postgres-test/package-credits-browser.log`. All 24 parent/trainer history cases and 12 trainer package-management cases passed at 1440px/390px, including refresh/reload, uncertain responses, list failure and parent denial. Success/lost-response reloads retained two recorded credits; other cases retained zero. No unexpected page errors or horizontal overflow.
 - Post-browser independent SQL guard and counts: owned disposable database confirmed; users, bookings, payments, purchases, grants and wallet entries all zero. Owned app port 3108 and PostgreSQL port 55439 stopped after tests.
-- Deployment evidence is pending. Unexecuted gates are not passes.
+- Source publication and hosted evidence follow below. Unexecuted gates are not passes.
 
 ### Eligibility Race Reproduction
 
@@ -63,3 +63,12 @@ Inspected full-page success-state captures at 1440px and 390px. Long titles and 
 ## Remaining Release Gates
 
 Implement atomic owned-child redemption, balance/expiry enforcement and policy-snapshot-backed restoration, then expose accessible package purchase and booking controls. Obtain actual hosted trainer login/Connect readiness, customer sandbox checkout, valid webhook receipt, destination transfer and payout proof. Account-closure checkout-link retirement and other previously documented financial/security gates remain open. Overall production and money-flow signoff: **HOLD**.
+
+## Published Source And Hosted Retest
+
+- Source commit: `61f30d880f0b554d6e1700d57f2a793d4bb134b1`, pushed to `codex/payment-readiness-20261006`. No main/Production/Story update.
+- Vercel deployment [`GpwohgBdbp98ZChWRvbTveMEArtH`](https://vercel.com/styleres-projects/trainr/GpwohgBdbp98ZChWRvbTveMEArtH): Ready, Latest, Preview, 57s; completion 2026-10-12 **08:04:57 UTC**. Source link matches `61f30d8`. Unique URL: `https://trainr-e4959vxct-styleres-projects.vercel.app`; stable audit branch alias unchanged.
+- Expanded build logs and searched staging: **Audit staging schema upgraded; migration checksums verified.** This is the guarded audit Preview upgrade, not a Production migration.
+- Anonymous hosted checks **08:05:29-32 UTC**, all ten PASS: GET health 200 with `dbConnected=true`; GET bookings, trainer packages, trainer wallet and package purchases 401; POST admin refunds and package refresh 401; unsigned POST payments webhook 400; PATCH nonexistent booking and admin bookings 401. Empty unauthenticated mutation bodies only; no financial signature, session or real transaction. Evidence: `.postgres-test/package-credits-source-hosted-smoke.json`.
+- Authenticated parent dashboard reload was **not executed**: browser approval service returned a temporary HTTP 429/retry-limit failure. No workaround was attempted. Read-only retry approval requested from owner. Prior parent persistence evidence is not reused as a pass for this deployment; saved-athlete/history/role browser retest remains pending.
+- Fresh GitHub [run 38221331032](https://github.com/StylereTech/trainr/actions/runs/38221331032) confirms both `check` and `migrations` were **not started because the account is locked due to a billing issue**. Job IDs 114718035918 and 114718035687. This is an external pre-execution CI block, not a failing executed test or green CI result. Billing settings unchanged.
