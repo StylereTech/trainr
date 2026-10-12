@@ -49,7 +49,16 @@ Provider contract checked against official [Checkout Session expiry](https://doc
 - Final full `npm run check` after both migrations and the layout fix: **PASS**, exit 0; lint zero errors / 42 existing warnings, TypeScript, **1,408 units / 65 files** (30.58s, start **08:51:53 UTC**) and optimized 81-page build passed. Compilation 18.3s, build TypeScript 8.1s; `.postgres-test/account-closures-complete-check.log`. File/staged SHA-256 matches were independently verified for both new migrations.
 - Final compiled browser retest: **24 passed**, 1.7m, exit 0; `.postgres-test/account-closures-browser-retest.log`. Includes 12 queue cases, six real/simulated deletion acknowledgement cases, four existing administrator user-action cases and two layout geometry checks across 1440px/390px. Browser queue mutation responses are explicit synthetic fixtures; provider identity/expiry behavior is tested in SQL with simulated Stripe. No actual Stripe request is claimed.
 - Independent post-browser SQL check: correct disposable database/user/guard marker; users, bookings, payments, purchases and closure tasks all **zero**. Both applied migration hashes equal the file/staged hashes. Owned local app and PostgreSQL were stopped after verification.
-- Hosted publication evidence pending. Unexecuted gates are not passes.
+- Published source and hosted evidence below. Unexecuted gates are not passes.
+
+## Published Source And Hosted Retest
+
+- Source commit **`66856a98e04270316aaef6228a49f5946426dbd9`** pushed to `codex/payment-readiness-20261006`; no main/Production/Story changes.
+- Vercel audit Preview **`G2UTek8cEP3Eq1jewAeTxfBf8dyT`**, source `66856a9`, Ready **2026-10-12 08:58:36 UTC**. Unique URL: `https://trainr-h4dtvcnsc-styleres-projects.vercel.app`; stable audit-branch alias remains `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`.
+- Build log **08:57:50.455 UTC**: `Audit staging schema upgraded; migration checksums verified.` This is the guarded audit-only migration path, not a Production migration.
+- Anonymous hosted smoke **08:58:54-08:58:57 UTC**, **12/12 PASS**, exit 0; `.postgres-test/account-closures-source-hosted-smoke.json`. GET `/api/health`: 200 with `dbConnected: true`. GET bookings, trainer/packages, trainer/wallet and package-purchases: 401. POST admin/refunds and package-purchases/refresh: 401. PATCH bookings/audit-nonexistent and admin/bookings: 401. GET and POST admin/checkout-closures: 401. Unsigned POST payments/webhook: 400. Requests had no session cookies and mutation bodies were empty JSON; no successful financial action was attempted.
+- [GitHub CI run 38226794553](https://github.com/StylereTech/trainr/actions/runs/38226794553): both check and migrations failed **before execution**, no steps. Current run annotations explicitly report an account lock due to a billing issue. Local passing suites are not represented as hosted CI passes; billing was not changed.
+- Signed-in hosted parent/trainer/admin verification remains unexecuted pending approval after the prior browser approval-service rate limit. No alternative cookie/API access was used. Local simulated provider tests and anonymous health/protection checks do not prove sandbox checkout, webhook settlement, Connect, transfer or payout.
 
 ## Visual Evidence
 
