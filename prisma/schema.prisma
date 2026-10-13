@@ -419,9 +419,26 @@ model PackageCreditGrant {
   sessionsCount     Int
   grantedAt         DateTime @default(now()) @db.Timestamptz(3)
   purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  redemptions PackageCreditRedemption[]
 
   @@id([purchaseId, serviceOfferingId])
   @@map("package_credit_grants")
+}
+
+// One session, one funding record; restoration does not erase consumption history.
+model PackageCreditRedemption {
+  bookingId String @id
+  purchaseId String
+  serviceOfferingId String
+  redeemedAt DateTime @default(now()) @db.Timestamptz(3)
+  restoredAt DateTime? @db.Timestamptz(3)
+  restoredByUserId String?
+  restorationReason String?
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  grant PackageCreditGrant @relation(fields: [purchaseId, serviceOfferingId], references: [purchaseId, serviceOfferingId], onDelete: Restrict)
+
+  @@index([purchaseId, serviceOfferingId, restoredAt])
+  @@map("package_credit_redemptions")
 }
 
 // Success-event time, not checkout creation or the most recent reconciliation time.
@@ -545,6 +562,7 @@ model Booking {
   messages      Message[]
   walletEntries WalletEntry[]
   createRequests BookingCreateRequest[]
+  creditRedemption PackageCreditRedemption?
 
   @@index([trainerProfileId, date, startTime])
   @@index([trainerProfileId, startsAt, endsAt])

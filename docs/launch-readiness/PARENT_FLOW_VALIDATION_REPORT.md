@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-13: internal shared-family credit spending and cancellation primitives now have focused SQL coverage. [Exact evidence and remaining integration](PACKAGE_CREDIT_LEDGER_REPORT.md). The parent booking screen still cannot redeem credits; public package sales must remain unavailable until that full flow passes. No new hosted parent action was performed in this pass.
+
 2026-10-12 Preview recovery pass: existing parent session survived refresh; synthetic athlete unchanged-save and changed-note save/reload passed. Original notes were restored and independently reloaded. Package history, Open/Past tabs and unfiltered trainer browsing loaded, but no trainer was selectable. [Exact steps, deployment source and limitations](PACKAGE_CREDIT_POLICY_REPORT.md). Paid booking and new package redemption remain unproven; **HOLD**.
 
 2026-10-11 booking-layout pass, baseline `d9b67e711ab286360f4521b80e14f309c3bf49dd`: booking review/payment controls no longer require a mobile toggle, athlete selection is labeled, and unavailable services cannot suggest a bookable session. [Exact focused/full validation, initial failures, screenshots and publication status](BOOKING_LAYOUT_READINESS_REPORT.md). Local retry tests preserve one reservation, one coupon use and refreshed payment state; these are not actual hosted Stripe receipts. The owner confirmed that future package credits are shared across the parent's children, but package purchase/redemption is not yet implemented. Overall **HOLD**.

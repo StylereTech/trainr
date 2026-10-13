@@ -66,3 +66,28 @@ PASS configuration presence only. No settings were changed and no event was sent
 - Refresh payment verifies current money evidence but cannot reconstruct a missing historical success event. If the original event is unavailable or conflicts, leave expiry unknown and escalate for an audited disposition. No automatic guessed backfill is implemented.
 - Credits still cannot be redeemed. Build the atomic per-service redemption ledger, cross-child ownership, cancellation restoration and current-financial-hold checks, then public purchase/booking controls and end-to-end tests before enabling package sales.
 - User-controlled trainer login/onboarding, actual hosted sandbox Checkout/transfer/payout proof, deferred email delivery and the other current launch gates remain open. CI billing is not fixed by a local test pass.
+
+## Publication And Hosted Retest
+
+Source `efa28013fda319d827d3f11215dce4ecc7f92cc3` was committed and pushed to `codex/payment-readiness-20261006`. Vercel Preview [34HyJg1KqWuku9ft7njLBVt7CmT3](https://vercel.com/styleres-projects/trainr/34HyJg1KqWuku9ft7njLBVt7CmT3) was observed Ready at **2026-10-12 13:59:33 UTC**, duration 52s, with matching branch/source and the stable audit alias. Main remained `2067e743c54ffee669cd484f26dc472b157f1881`.
+
+At **2026-10-12 14:01:31-14:01:33 UTC**, eight anonymous no-cookie, no-redirect JSON checks passed against the stable audit Preview:
+
+| Method / route | Expected | Actual |
+| --- | --- | --- |
+| GET `/api/health` | 200, connected database | PASS, `dbConnected: true` |
+| GET `/api/trainers?limit=1&page=1` | 200 catalog response | PASS endpoint, total 0; trainer prerequisite remains blocked |
+| GET `/api/bookings` | 401 | PASS |
+| GET `/api/trainer/packages` | 401 | PASS |
+| GET `/api/trainer/wallet` | 401 | PASS |
+| GET `/api/package-purchases` | 401 | PASS |
+| POST `/api/payments/checkout`, `{}` | 401 | PASS; no checkout created |
+| POST `/api/payments/webhook`, unsigned `{}` | 400 | PASS; no event accepted |
+
+Log: `.postgres-test/receipt-source-hosted-smoke.json`. The existing signed-in parent session reloaded `/parent/athletes/cmv3bs3xr0001jn0694fd2p2f` and retained the synthetic athlete's saved name, birth date, skills, sports and original notes. No hosted data was changed. This is persistence/readback evidence, not package payment proof.
+
+GitHub run [38259521335](https://github.com/StylereTech/trainr/actions/runs/38259521335), check job `114846159774`, explicitly reported: "The job was not started because your account is locked due to a billing issue." The migrations check also had failure status. CI is **not green**; local results and Vercel readiness are separate evidence. No billing settings or credits were changed.
+
+The Vercel build-log viewer also showed seven high-severity dependency findings during install. They remain a separate security gate; no force upgrade was performed or remediation claimed in this pass.
+
+Opening build-log search for the migration checksum line was blocked before execution by the browser approval service's usage limit. The same bundled call's parent-dashboard navigation did not execute either. No alternative browser/API route was used to bypass that decision. Therefore **the exact hosted schema/checksum log line and further signed-in history navigation were not verified in this pass**, despite Ready deployment and successful health/profile checks. The source deployment is verified; no later docs deployment or subsequent hosted retest is claimed here. This evidence addendum was written locally on 2026-10-13 after rechecking the clean source branch. Overall **HOLD** remains unchanged.

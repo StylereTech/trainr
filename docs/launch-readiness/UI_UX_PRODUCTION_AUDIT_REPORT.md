@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-13 ledger regression pass: final 64-case local browser run passed at 1440px/390px across booking prices, checkout recovery and parent/trainer package history. A deliberate native-abort case needed a 60-second whole-test budget; application 15-second timeout and 20-second recovery assertions were unchanged. Initial failure, focused retest, full rerun, screenshots and zero-row cleanup are [recorded exactly](PACKAGE_CREDIT_LEDGER_REPORT.md#browser-recovery). No new credit-booking UI is enabled and no hosted signed-in UI signoff is claimed.
+
 2026-10-12 payment-date history pass: Payment date and Valid until now distinguish verified success timing from unknown/legacy expiry. Parent/trainer views at 1440px and 390px passed all 24 cases on the final full retest, including refresh errors, lost responses, reload persistence and overflow checks. Desktop/mobile screenshots were viewed. The initial cleanup/browser-shutdown timeout is retained, not hidden. [Exact environment, synthetic accounts, failure/retest evidence, screenshots and publication status](PACKAGE_PAYMENT_TIME_REPORT.md). Credits remain unavailable for booking; actual hosted money-flow and overall production signoff remain **HOLD**.
 
 2026-10-12 payout-history follow-up: trainer history gains accessible newer/older icon controls, page indication, distinct older-empty wording and same-page retry. [Exact baseline, desktop/mobile evidence, publication status and limitations](PAYOUT_HISTORY_PAGINATION_REPORT.md). Real Stripe money-flow signoff remains **HOLD**.

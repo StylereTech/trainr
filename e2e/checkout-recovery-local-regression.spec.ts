@@ -9,6 +9,8 @@ for (const width of [1440, 390]) for (const entry of ['dashboard', 'booking'] as
     test.use({ viewport: { width, height: 1000 }, timezoneId: 'America/Los_Angeles' })
     for (const scenario of ['processing', 'timeout', 'invalid-error', 'invalid-json', 'unsafe-url', 'success'] as const) {
       test(`recovers ${scenario} without duplicating or claiming payment`, async ({ page, localAuth }, testInfo) => {
+        // The real 15s abort, reservation, retry and reload share this budget; recovery assertions remain 20s.
+        if (scenario === 'timeout') test.setTimeout(60_000)
         const db = localAuth.database
         const parent = await localAuth.create('PARENT'), trainer = await localAuth.create('TRAINER')
         const parentProfile = await db.parentProfile.findUniqueOrThrow({ where: { userId: parent.id } })

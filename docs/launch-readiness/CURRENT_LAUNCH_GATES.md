@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Credit Ledger Follow-Up
+
+2026-10-13: internal credit spending/restoration is implemented with focused SQL evidence, but not exposed through public purchase/booking/cancellation routes. [Current exact test results, receipt-mismatch correction, publication state and blockers](PACKAGE_CREDIT_LEDGER_REPORT.md). Do not treat recorded grants or this ledger as a usable customer booking flow. Full money-flow and production release remain **HOLD**.
+
 ## Payment Time Follow-Up
 
 2026-10-12: package success-event timing, immutable SQL receipts and parent/trainer history dates are implemented in the audit branch. [Exact test failures, retests, migration evidence and publication status](PACKAGE_PAYMENT_TIME_REPORT.md). This resolves the validity-anchor prerequisite only. Atomic shared-child redemption, cancellation restoration, public package sales and actual hosted Stripe transfer/payout proof remain unfinished code/testing. The existing sandbox platform destination already subscribes to `payment_intent.succeeded`; connected accounts still show zero. Overall **HOLD**.

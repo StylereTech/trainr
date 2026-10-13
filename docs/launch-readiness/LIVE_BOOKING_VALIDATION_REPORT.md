@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-13 credit-ledger pass: final 823 SQL cases, 1,501 units, build/static checks, four migration rehearsals and 64 selected local browser cases passed. [Exact failures/retests and evidence boundary](PACKAGE_CREDIT_LEDGER_REPORT.md). These use disposable accounts and simulated payment evidence, not a new hosted booking. Public package redemption and actual live/sandbox money-flow validation remain **HOLD**.
+
 2026-10-12 11:20:56 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: anonymous isolated Preview health reports a connected database, but `/api/trainers?limit=1&page=1` returns `pagination.total: 0`. No current signed-in hosted booking/payment is claimed. Public package purchase/redemption remains incomplete. [Current requirement audit and exact remaining proof](CURRENT_LAUNCH_GATES.md). Overall **HOLD**; no Production write.
 
 2026-10-11 package-management pass, baseline `c22688a75140890df623851a67eebdecdc857da1`: trainer catalog creation/editing/duplication/activation and immutable booked terms are implemented; retiring a linked service now atomically hides affected listings. Full quality gate passed (1,273 units, 76-page build), and 392 real PostgreSQL tests passed. [Exact steps, failures, retests, browser/publication status and limits](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). Package checkout/credits and actual hosted trainer/Stripe booking/transfer/payout remain **HOLD**. Audit Preview only; main/Production/Story unchanged.

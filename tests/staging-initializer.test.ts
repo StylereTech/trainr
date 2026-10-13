@@ -72,7 +72,7 @@ describe('isolated audit preview initializer', () => {
   })
   it('reads all twenty-two committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(22)
+    expect(migrations).toHaveLength(23)
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {
@@ -117,6 +117,16 @@ describe('isolated audit preview initializer', () => {
   it('allows immutable payment receipts only in the guarded audit Preview', async () => {
     const migration = { name: '20261012140000_add_package_payment_receipts', checksum: 'reviewed-payment-receipts' }
     const db = database({ count: 35 })
+    db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
+    const deploy = vi.fn()
+    await expect(initializeStaging(db, [...manifest, migration], deploy)).resolves.toBe('upgraded')
+    expect(deploy).toHaveBeenCalledOnce()
+    expect(() => stagingConfig({ ...env, VERCEL_ENV: 'production' })).toThrow('STAGING_PREVIEW_REQUIRED')
+    expect(() => stagingConfig({ ...env, VERCEL_GIT_COMMIT_REF: 'main' })).toThrow('STAGING_BRANCH_REQUIRED')
+  })
+  it('allows the credit ledger only in the guarded audit Preview', async () => {
+    const migration = { name: '20261013060000_add_package_credit_redemptions', checksum: 'reviewed-credit-redemptions' }
+    const db = database({ count: 36 })
     db.query.mockResolvedValueOnce([...ledger, { ...ledger[0], migration_name: migration.name, checksum: migration.checksum }])
     const deploy = vi.fn()
     await expect(initializeStaging(db, [...manifest, migration], deploy)).resolves.toBe('upgraded')

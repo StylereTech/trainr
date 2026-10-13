@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-13: internal owning-trainer credit restoration passes focused SQL tests without issuing a second payout or cash refund. [Exact account scope, negative cases and unimplemented route/dashboard integration](PACKAGE_CREDIT_LEDGER_REPORT.md). This is not a hosted trainer cancellation, Connect or payout signoff.
+
 2026-10-11 trainer form accessibility pass: profile editing and initial onboarding now associate visible labels with controls and expose selection/removal semantics. [Exact baseline failures, keyboard/label regressions and publication status](TRAINER_FORM_ACCESSIBILITY_REPORT.md). Synthetic local trainer form verification does not establish hosted signup, approval, Stripe onboarding or payout; those gates remain **HOLD**.
 
 2026-10-11 transfer-readiness/navigation pass: current Stripe transfer support now participates in cached readiness, status responses and trainer UI; documented legacy support remains valid. Mobile selected profile-view visibility and draft retention passed alongside payout/checkout regressions in the final 72-case browser suite; 1,290 units and 396 real SQL tests also passed. [Exact environment, steps, failures/retests and publication status](TRANSFER_CAPABILITY_REPORT.md). Actual hosted trainer signup/onboarding and provider-backed money flow remain **HOLD**.
