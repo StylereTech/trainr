@@ -42,7 +42,8 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     }
     // Cash bookings retain the existing checkout/webhook lock order.
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
-    await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
+    const [lockedPayment] = await tx.$queryRaw<Array<{ id: string; reviewHeld: boolean }>>`
+      SELECT id, ("financialReview" IS NOT NULL) AS "reviewHeld" FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
     const booking = await tx.booking.findUnique({
       where: { id: bookingId }, include: { trainerProfile: true, parentProfile: true, payment: true, ...creditBookingInclude },
     })
@@ -75,7 +76,9 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     }
     if (input.action !== 'cancel') {
       const held = await readPackageReviewHolds(tx, credit ? [credit.purchaseId] : [])
-      const paymentHold = credit ? packageCreditBookingHold(booking, held.has(credit.purchaseId)) : bookingPaymentHold(booking)
+      const paymentHold = credit ? packageCreditBookingHold(booking, held.has(credit.purchaseId)) : bookingPaymentHold({ ...booking,
+        payment: payment ? { ...payment, financialReview: lockedPayment?.reviewHeld !== false } : null,
+      })
       if (paymentHold) throw new BookingActionError(paymentHold, 409)
     }
     if (input.action !== 'cancel' && !credit && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||

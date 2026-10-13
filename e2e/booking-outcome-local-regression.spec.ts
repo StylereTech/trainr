@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 import { expect, test } from './fixtures/local-auth'
 
 test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL || '') || !process.env.LOCAL_E2E_SECRET, 'Requires disposable loopback fixtures.')
@@ -17,7 +18,8 @@ test.afterEach(async ({ localAuth }, testInfo) => {
 
 for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as const) test.describe(`${role} outcome ${width}px`, () => {
   test.use({ viewport: { width, height: 1000 }, timezoneId: 'America/Los_Angeles' })
-  for (const scenario of ['future', 'ongoing', 'elapsed', 'unknown', 'revoked-parent'] as const) test(scenario, async ({ page, browser, localAuth }, testInfo) => {
+  for (const scenario of ['future', 'ongoing', 'elapsed', 'unknown', 'revoked-parent', 'json-null-review', 'false-review'] as const) test(scenario, async ({ page, browser, localAuth }, testInfo) => {
+    const reviewHeld = scenario === 'json-null-review' || scenario === 'false-review'
     const db = localAuth.database
     const parent = await localAuth.create('PARENT'), trainer = await localAuth.create('TRAINER')
     const actor = role === 'ADMIN' ? await localAuth.create('ADMIN') : trainer
@@ -28,7 +30,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
     const service = await db.serviceOffering.create({ data: { trainerProfileId: trainerProfile.id, sportId: sport.id, title: 'Synthetic outcome session', priceInCents: 6000, durationMinutes: 60 } })
     owned.set(testInfo.testId, { trainer: trainerProfile.id, service: service.id, sport: sport.id })
     const athlete = await db.athleteProfile.create({ data: { parentProfileId: parentProfile.id, firstName: 'Synthetic', lastName: 'Athlete', dateOfBirth: new Date('2015-01-01') } })
-    const start = new Date(now + (scenario === 'elapsed' || scenario === 'revoked-parent' ? -7200000 : scenario === 'ongoing' ? -1800000 : 7200000))
+    const start = new Date(now + (scenario === 'elapsed' || scenario === 'revoked-parent' || reviewHeld ? -7200000 : scenario === 'ongoing' ? -1800000 : 7200000))
     const end = new Date(start.getTime() + 3600000)
     try {
       const booking = await db.booking.create({ data: {
@@ -38,6 +40,7 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
         status: 'CONFIRMED', totalAmountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100,
         payment: { create: { status: 'SUCCEEDED', amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, settlementVerifiedAt: new Date() } },
       } })
+      if (reviewHeld) await db.payment.update({ where: { bookingId: booking.id }, data: { financialReview: scenario === 'json-null-review' ? Prisma.JsonNull : false } })
       const paymentBefore = await db.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
       await localAuth.signIn(actor)
       // Only provider observations are mocked; session actions, authorization and persistence are real.
@@ -47,6 +50,19 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
       if (role === 'TRAINER') await page.getByRole('tab', { name: 'Confirmed (1)', exact: true }).click()
       const complete = page.getByRole('button', { name: 'Complete', exact: true })
       await expect(complete).toBeVisible()
+      if (reviewHeld) {
+        await expect(page.getByText('Payment needs reconciliation before this session can be confirmed or completed.', { exact: true })).toBeVisible()
+        for (const path of ['/api/bookings', role === 'ADMIN' ? '/api/admin/bookings' : '/api/dashboard/bookings?view=all']) {
+          const response = await page.request.get(path)
+          expect(response.status()).toBe(200)
+          expect((await response.json()).bookings[0].payment.financialReview).toBe(true)
+        }
+        const response = await page.request.patch(`/api/bookings/${booking.id}`, { data: { action: 'complete' } })
+        expect(response.status()).toBe(409)
+        expect((await db.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
+        await page.reload()
+        if (role === 'TRAINER') await page.getByRole('tab', { name: 'Confirmed (1)', exact: true }).click()
+      }
       if (scenario === 'elapsed' || scenario === 'revoked-parent') await expect(complete).toBeEnabled()
       else await expect(complete).toBeDisabled()
       if (role === 'TRAINER') {
@@ -57,7 +73,19 @@ for (const width of [1440, 390]) for (const role of ['TRAINER', 'ADMIN'] as cons
       if (scenario === 'unknown') await expect(page.getByText('The original session time needs confirmation by support before recording an outcome.', { exact: true })).toBeVisible()
       await complete.scrollIntoViewIfNeeded()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-      await page.screenshot({ path: testInfo.outputPath('outcome-controls.png') })
+      await page.screenshot({ path: testInfo.outputPath('outcome-controls.png'), fullPage: true })
+      if (reviewHeld) {
+        const parentContext = await browser.newContext({ baseURL: process.env.BASE_URL, viewport: { width, height: 1000 } })
+        try {
+          await localAuth.signIn(parent, parentContext)
+          const parentPage = await parentContext.newPage()
+          await parentPage.goto('/parent/dashboard')
+          await expect(parentPage.getByText('Payment needs reconciliation before this session can be confirmed or completed.', { exact: true })).toBeVisible()
+          expect((await (await parentPage.request.get('/api/bookings')).json()).bookings[0].payment.financialReview).toBe(true)
+          expect(await parentPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+          await parentPage.screenshot({ path: testInfo.outputPath('parent-review.png'), fullPage: true })
+        } finally { await parentContext.close() }
+      }
       if (scenario === 'revoked-parent') {
         await db.user.update({ where: { id: parent.id }, data: { role: 'TRAINER' } })
         await complete.click()

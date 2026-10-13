@@ -8,6 +8,7 @@ import { closeCancelledCheckout } from '@/lib/checkout-attempts'
 import { z } from 'zod'
 import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 import { readPackageReviewHolds } from '@/lib/package-review-presence'
+import { readPaymentReviewHolds } from '@/lib/payment-review-presence'
 import { Prisma } from '@prisma/client'
 
 async function requireAdmin() {
@@ -59,8 +60,11 @@ export async function GET(req: NextRequest) {
       tx.booking.count({ where }),
     ])
     const held = await readPackageReviewHolds(tx, bookings.flatMap(booking => booking.creditRedemption ? [booking.creditRedemption.purchaseId] : []))
+    const paymentHeld = await readPaymentReviewHolds(tx, bookings.filter(booking => booking.payment).map(booking => booking.id))
     return {
-      bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking, creditFunding: packageCreditFunding({ ...booking, creditRedemption }, held.has(creditRedemption?.purchaseId || '')) })),
+      bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking,
+        payment: booking.payment ? { ...booking.payment, financialReview: paymentHeld.has(booking.id) ? booking.payment.financialReview || true : null } : null,
+        creditFunding: packageCreditFunding({ ...booking, creditRedemption }, held.has(creditRedemption?.purchaseId || '')) })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     }
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })

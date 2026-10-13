@@ -22,7 +22,12 @@ beforeEach(() => {
     stats: { totalSessions: 2, totalBookings: 2 }, notifications: [], audits: [],
   }
   let tail = Promise.resolve()
-  mock.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? structuredClone(state.users) : [])
+  mock.query.mockImplementation(async (sql: TemplateStringsArray) => {
+    const query = sql.join('')
+    if (query.includes('SELECT id, role, "deletedAt"')) return structuredClone(state.users)
+    if (query.includes('AS "reviewHeld"')) return state.booking.payment ? [{ id: 'payment', reviewHeld: state.booking.payment.financialReview !== null }] : []
+    return []
+  })
   // This serial model verifies transitions/rollback, not real PostgreSQL locks.
   mock.transaction.mockImplementation(async (run) => {
     const previous = tail
@@ -136,9 +141,9 @@ describe('booking state transitions', () => {
     expect(state.stats).toEqual({ totalSessions: 3, totalBookings: 3 })
     expect(state.notifications).toHaveLength(1)
     expect(mock.query.mock.calls[0][0].join('?')).toContain('ORDER BY id FOR SHARE')
-    expect(mock.query.mock.calls.slice(1).map((call) => call[0].join('?'))).toEqual([
+    expect(mock.query.mock.calls.slice(1).map((call) => call[0].join('?').trim())).toEqual([
       'SELECT id FROM bookings WHERE id = ? FOR UPDATE',
-      'SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE',
+      'SELECT id, ("financialReview" IS NOT NULL) AS "reviewHeld" FROM payments WHERE "bookingId" = ? FOR UPDATE',
     ])
   })
   it('retries completion without incrementing statistics or notifying twice', async () => {

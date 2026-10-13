@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import Stripe from 'stripe'
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { applyPaymentEvidence } from '@/lib/stripe-payment-events'
 import { startOrResumeCheckout } from '@/lib/checkout-attempts'
@@ -94,6 +94,47 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  for (const review of [Prisma.JsonNull, false, 0, '', { reason: 'synthetic review' }]) {
+    it(`allows owner cancellation without clearing cash review presence ${JSON.stringify(review)}`, async () => {
+      await webhook()
+      await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { financialReview: review } })
+      const before = await payment()
+      await applyBookingAction(f.booking.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+      expect((await booking()).status).toBe('CANCELLED')
+      expect(await payment()).toEqual(before)
+      expect(await independent.payment.count({ where: { id: f.booking.payment.id, financialReview: { not: Prisma.DbNull } } })).toBe(1)
+    })
+    it.each(['confirm', 'complete', 'no_show'] as const)(`blocks cash review presence ${JSON.stringify(review)} for %s`, async action => {
+      await webhook()
+      await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { financialReview: review } })
+      await prisma.booking.update({ where: { id: f.booking.id }, data: {
+        status: action === 'confirm' ? 'PENDING' : 'CONFIRMED',
+      } })
+      const before = await booking()
+      const beforeTrainer = await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })
+      const beforeNotices = await notices()
+      const operator = await admin()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(new Date('2031-01-01').getTime())
+      try {
+        for (const actor of [{ id: trainerId, role: 'TRAINER' }, { id: operator, role: 'ADMIN' }]) {
+          await expect(applyBookingAction(f.booking.id, actor, { action })).rejects.toMatchObject({ status: 409 })
+        }
+      } finally { clock.mockRestore() }
+      expect(await booking()).toEqual(before)
+      expect(await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })).toEqual(beforeTrainer)
+      expect(await notices()).toEqual(beforeNotices)
+    })
+    it(`projects cash review presence ${JSON.stringify(review)} without private detail`, async () => {
+      await webhook()
+      await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { financialReview: review } })
+      for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+        const result = await readDashboardBookings(actor, actor.role === 'PARENT' ? 'upcoming' : 'all', 1, 10)
+        expect(result.bookings[0].payment?.financialReview).toBe(true)
+        expect(JSON.stringify(result)).not.toContain('synthetic review')
+        expect(JSON.stringify(result)).not.toContain(f.charge.id)
+      }
+    })
+  }
   it.each(['PENDING', 'REVIEW'])('retains captured funds without confirming a reinstated booking while checkout retirement is %s', async status => {
     await prisma.accountCheckoutClosure.create({ data: { userId: trainerId, kind: 'BOOKING', targetId: f.booking.payment.id, status } })
     expect((await webhook()).status).toBe(200)

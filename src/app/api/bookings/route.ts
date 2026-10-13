@@ -7,6 +7,7 @@ import { bookingSchema } from '@/lib/validations'
 import { BookingCreationError, createBooking } from '@/lib/booking-creation'
 import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 import { readPackageReviewHolds } from '@/lib/package-review-presence'
+import { readPaymentReviewHolds } from '@/lib/payment-review-presence'
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,9 +68,12 @@ export async function GET(req: NextRequest) {
         tx.booking.count({ where }),
       ])
       const held = await readPackageReviewHolds(tx, bookings.flatMap(booking => booking.creditRedemption ? [booking.creditRedemption.purchaseId] : []))
+      const paymentHeld = await readPaymentReviewHolds(tx, bookings.filter(booking => booking.payment).map(booking => booking.id))
       return { bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking,
         creditFunding: packageCreditFunding({ ...booking, creditRedemption }, held.has(creditRedemption?.purchaseId || '')),
-        payment: booking.payment ? { ...booking.payment, financialReview: role === 'ADMIN' ? booking.payment.financialReview : !!booking.payment.financialReview } : null,
+        payment: booking.payment ? { ...booking.payment, financialReview: role === 'ADMIN'
+          ? paymentHeld.has(booking.id) ? booking.payment.financialReview || true : null
+          : paymentHeld.has(booking.id) } : null,
       })), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
     return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, no-store' } })
