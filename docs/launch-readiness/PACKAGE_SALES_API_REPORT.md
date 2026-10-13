@@ -58,6 +58,38 @@ Scope: 24 desktop/mobile checkout recovery cases, 16 credit reservation cases, 2
 
 Independent SQL readback after the browser run confirms the disposable guard and **zero users, bookings, payments, purchases, attempts, grants, receipts, redemptions and sports**. The owned local app and PostgreSQL cluster were stopped cleanly. No unknown rows were removed. No new frontend layout was introduced in this pass; the existing browser assertions were rerun without changing them.
 
+## Published Source
+
+Source **`03d92938e9a4bc8610155312b52df3e49f8b382b`** (`feat: expose recoverable package checkout API`) was committed and pushed to the isolated audit branch. Remote readback matched; main remains **`2067e743c54ffee669cd484f26dc472b157f1881`**. The recorded local runs apply to this application tree, not a later documentation-only commit. Deployment and hosted retest evidence follows after execution.
+
+[GitHub Actions run 38381477852](https://github.com/StylereTech/trainr/actions/runs/38381477852): `check` and `migrations` failed **10:09:58-10:10:00 UTC**; fresh jobs metadata shows **zero steps** for each. Neither is a CI pass or a fresh migration rehearsal. The current metadata does not establish the underlying account/billing cause; prior evidence is not relabeled as a new diagnosis. Vercel Preview Comments succeeded but does not run application tests. No billing/workflow setting was changed.
+
+At **10:11:25 UTC**, the source commit's Vercel status reported **success** for [deployment Hiu3uJzbEsyb1REY6cBFmPrtxvCh](https://vercel.com/styleres-projects/trainr/Hiu3uJzbEsyb1REY6cBFmPrtxvCh). No manual deployment, Production alias change or hosted migration-log access occurred.
+
+### Anonymous Hosted Retest
+
+**15/15 PASS**, **10:11:32-10:11:36 UTC**, no cookies or account, on `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`.
+
+| Method and route | Expected | Actual |
+| --- | --- | --- |
+| GET `/api/health` | 200, ok and database connected | PASS |
+| GET `/api/trainers?limit=1&page=1` | 200, valid paginated catalog | PASS; **0 trainers** |
+| GET `/api/bookings` | 401 | PASS |
+| GET `/api/trainer/packages` | 401 | PASS |
+| GET `/api/trainer/wallet` | 401 | PASS |
+| GET `/api/package-purchases` | 401 | PASS |
+| POST `/api/payments/checkout`, empty JSON | 401 | PASS |
+| POST `/api/payments/webhook`, unsigned empty JSON | 400 | PASS |
+| PATCH `/api/bookings/audit-anonymous-probe`, empty JSON | 401 | PASS |
+| PATCH `/api/admin/bookings`, empty JSON | 401 | PASS |
+| GET `/api/dashboard/bookings?view=upcoming` | 401 | PASS |
+| GET `/api/admin/bookings` | 401 | PASS |
+| GET `/api/bookings/credits?purchaseId=audit-anonymous-probe` | 401 | PASS |
+| POST `/api/bookings/credits`, empty JSON | 401 | PASS |
+| POST `/api/package-purchases/checkout`, empty JSON | 401 | PASS |
+
+All responses were JSON with expected contracts. Log: `.postgres-test/package-sales-hosted-smoke.json`. The requested source SHA is a script label, not a runtime-reported version: stable-alias/source mapping remains **not independently verified**. Health and denial checks do not establish a signed-in hosted purchase. Previously blocked hosted browser actions were not retried through another interface. No actual Stripe transaction, onboarding, transfer or payout was performed.
+
 ## Remaining Gates
 
 Customer package purchase/review/retry UI, actual signed-in hosted payment and credit reservation, Stripe success-event/webhook/destination-transfer/payout proof, trainer setup, CI execution and previously recorded release gates remain unfinished. The JSON-null ambiguity also warrants a follow-up audit of display/read projections; this pass fixes checkout release, not every historical financial-review reader. Production readiness remains **HOLD**.
