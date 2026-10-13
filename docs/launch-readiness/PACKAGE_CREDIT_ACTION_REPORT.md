@@ -54,4 +54,12 @@ Actual signed-in hosted checkout, Stripe webhook delivery, Connect onboarding, t
 
 ## Final Gates And Publication
 
-All scoped local regression gates above passed. Commit/push and post-push metadata/smoke evidence follow after publication. No hosted action or full money-flow success is claimed here.
+All scoped local regression gates above passed. Source `fb809943509c52e345f5804bd26f261b85f1f807` (`feat: integrate package credit booking actions`) was committed and pushed to the audit branch. Application and local test results above refer to that source; the later publication-note commit changes documentation only.
+
+GitHub commit status first reported the [Vercel audit deployment DBEMWZZENCtWXHs948AwZPLCBdon](https://vercel.com/styleres-projects/trainr/DBEMWZZENCtWXHs948AwZPLCBdon) pending, then success at approximately **07:44 UTC**. One intervening metadata read failed with a connector transport error; a delayed retry of the same source recovered. No deployment was restarted. This is commit-status metadata, not independent alias/source mapping or hosted migration-log inspection.
+
+[GitHub Actions run 38364290857](https://github.com/StylereTech/trainr/actions/runs/38364290857) has `check` and `migrations` marked failed, started 07:41:38 UTC and completed 07:41:40 UTC, with **zero executed steps** in the fresh jobs response. Preview Comments succeeded. The prior billing-lock evidence does not freshly establish this run's precise failure cause. GitHub CI remains unresolved, not green.
+
+Post-push anonymous smoke used only the stable audit Preview, no cookies/credentials, at **07:44:22-07:44:25 UTC**. All **10/10 passed** with JSON contracts: health 200 (`ok`/`dbConnected` true); trainer catalog 200 (integer total **0**); bookings, trainer packages, trainer wallet and package history GETs 401; empty checkout POST 401; unsigned webhook POST 400; PATCH `/api/bookings/audit-anonymous-probe` and `/api/admin/bookings` each 401. These checks submit no authenticated booking action or provider transaction. Evidence: `.postgres-test/credit-actions-hosted-smoke.json`.
+
+Every smoke record explicitly marks `aliasSourceIndependentlyVerified: false`. The requested source SHA is not a SHA returned by these endpoints. No blocked signed-in navigation or Vercel log retrieval was performed by another route. Hosted authenticated credit actions, actual Stripe Checkout, Connect and payouts remain unverified. Overall **HOLD**.
