@@ -78,6 +78,14 @@ Visually inspected full-page normal review and long-title public-profile screens
 
 Independent `psql` readback after the suite confirmed the disposable guard and **zero users, bookings, payments, purchases, attempts, grants, receipts, redemptions and sports**. Log: `.postgres-test/package-purchase-ui-cleanup.log`. Local Next and owned PostgreSQL cluster were stopped. No unknown data was deleted. Post-harness `npm run typecheck` also exited 0, `.postgres-test/package-purchase-ui-browser-types.log`.
 
+## Published Source And Hosted Retest
+
+Source **`e905ca4c74890430cd18d03a0aa1240e5aff79de`** was committed and pushed to `codex/payment-readiness-20261006`. Remote readback matched; main remained **`2067e743c54ffee669cd484f26dc472b157f1881`**. No Production/Story/Replit changes. The source worktree was clean after push; this report's publication additions are a subsequent documentation-only change.
+
+GitHub commit status reports **Vercel success** for [deployment 4FNLvkxfC1gSVstmkSCwyAVT5Hgm](https://vercel.com/styleres-projects/trainr/4FNLvkxfC1gSVstmkSCwyAVT5Hgm). [Actions run 38388679917](https://github.com/StylereTech/trainr/actions/runs/38388679917) has failed `check` and `migrations` jobs with **zero steps** (11:13:01-11:13:03 UTC). These are not passing hosted checks. This read did not establish the fresh execution failure cause; historical billing notes must not be presented as a new diagnosis. Vercel Preview Comments success is not CI test success.
+
+**16/16 anonymous hosted checks PASS**, **11:14:37-11:14:41 UTC**, against [the stable audit Preview](https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app), no cookies. [Machine-readable routes, timestamps, expected and actual responses](PACKAGE_PURCHASE_UI_HOSTED_SMOKE.json). Health/database and catalog returned JSON 200; catalog total was **0 trainers**. Protected booking, trainer, admin, credits, package checkout/history/review routes returned JSON 401; unsigned webhook returned JSON 400. No authenticated mutation or provider payment occurred. The script's source SHA is a requested label, **not independent proof that the alias serves that exact SHA**; `aliasSourceIndependentlyVerified` remains false. No final production smoke or hosted signed-in flow is claimed.
+
 ## Remaining Gates
 
 Actual signed-in hosted Stripe Checkout, signed provider webhook delivery, Connect onboarding, destination transfer and payout proof remain required. Current Preview trainer setup/catalog eligibility, CI execution, deferred email setup, pending expiry/retirement policy and previous release gates remain open. Other financial-review read projections still require their own JSON-null audit; correcting checkout/history does not prove every reader correct. Production readiness remains **HOLD**.

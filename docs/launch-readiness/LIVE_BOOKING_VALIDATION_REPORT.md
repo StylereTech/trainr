@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-13 package purchase UI, source `e905ca4c74890430cd18d03a0aa1240e5aff79de`: public trainer packages now link into parent purchase review; existing purchases link to payment review and session-credit booking. Selected local regression includes package purchase/recovery, credit booking, history, cash checkout recovery and trainer catalog editing (**112 passed**, zero retries). [Exact synthetic/provider boundary, failures, screenshots and hosted retest](PACKAGE_PURCHASE_UI_REPORT.md). This is not a successful signed-in hosted booking or actual Stripe payment; **HOLD**.
+
 2026-10-13 package sales API pass: joined local lifecycle verifies the checkout endpoint, signed synthetic payment, shared sibling reservations, exact-request replay and cancellation restoration without a second charge. [Exact steps and boundaries](PACKAGE_SALES_API_REPORT.md). This does not establish the missing customer purchase screen or actual hosted Stripe booking; **HOLD**.
 
 2026-10-13: the audit branch now connects shared package credits to a parent reservation form and atomic booking API. [Exact local SQL/browser verification, failures and publication evidence](PACKAGE_CREDIT_RESERVATION_REPORT.md). Its prerequisite payment receipts are synthetic local fixtures; these tests do not establish a new hosted Stripe purchase or transfer. Public package sales and actual hosted money-flow validation remain **HOLD**.

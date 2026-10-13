@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-13 package purchase UI, source `e905ca4c74890430cd18d03a0aa1240e5aff79de`: all 12 local trainer-package lifecycle/error/reload cases passed alongside parent purchase and trainer history regressions. Public long package titles now wrap within their cards at desktop/phone widths; missing trainer time zones prevent checkout. [Exact evidence, reproduced failures and publication](PACKAGE_PURCHASE_UI_REPORT.md). Actual hosted trainer onboarding, Connect and payouts remain unverified; **HOLD**.
+
 2026-10-13 package sales API pass: joined local lifecycle reads the verified synthetic package purchase and recorded credits from both parent and trainer history after signed-event processing. [Exact steps and test scope](PACKAGE_SALES_API_REPORT.md). No new trainer Connect onboarding, real transfer or bank payout occurred; full hosted trainer money-flow remains **HOLD**.
 
 2026-10-13: parent credit reservations now create confirmed sessions and participant notifications using the same trainer capacity constraints as cash bookings. Current service duration/type/sport, account eligibility and immutable paid terms are rechecked. [Exact tests, dashboard readback and limits](PACKAGE_CREDIT_RESERVATION_REPORT.md). No new payment/payout is created for redemption; actual hosted trainer/Stripe proof remains **HOLD**.
