@@ -1,6 +1,6 @@
 # Package Settlement Refund Inventory Audit
 
-Status at **2026-10-13 14:44 UTC**: full SQL, repository quality gate and 28 desktop/mobile browser/API cases pass. Publication/retest pending. Overall readiness remains **HOLD**.
+Status at **2026-10-13 14:51 UTC**: full SQL, repository quality gate and 28 desktop/mobile browser/API cases pass. Source published to audit Preview; 19 hosted smoke checks and both GitHub CI jobs pass. Overall readiness remains **HOLD**.
 
 ## Baseline And Scope
 
@@ -39,6 +39,15 @@ Provider references checked 2026-10-13: Stripe explicitly does not guarantee [we
 - Four screenshots visually inspected: [parent desktop](screenshots/package-refund-inventory-parent-1440.png), [parent mobile](screenshots/package-refund-inventory-parent-390.png), [trainer desktop](screenshots/package-refund-inventory-trainer-1440.png), [trainer mobile](screenshots/package-refund-inventory-trainer-390.png). Long titles wrap; refund categories, allocation and review warnings remain legible without overlap. No frontend styles changed.
 - Independent SQL read verified the disposable purpose marker and zero rows in ten fixture tables. Local Next server and owned PostgreSQL cluster stopped. No customer data or funds changed.
 
+## Published Preview
+
+- Source `8e7826bd12fd426454cf7c4959f9df390a650a94` committed and pushed to `codex/payment-readiness-20261006`. Main remains `2067e743c54ffee669cd484f26dc472b157f1881`; Production and Story unchanged.
+- Normal Vercel UI independently showed this source and the stable audit alias on [Ready Preview deployment](https://vercel.com/styleres-projects/trainr/AmoEMjrNaftYa7YeVcYg4LYXKV8U), completed **2026-10-13 14:47:32 UTC** in 55 seconds.
+- Anonymous hosted smoke: **19/19 PASS**, **14:48:07.030-14:48:10.680 UTC**, terminal exit 0. [Raw endpoint-by-endpoint evidence](PACKAGE_SETTLEMENT_REFUND_INVENTORY_HOSTED_SMOKE.json) records methods, paths, expected/actual statuses and account context. Health reports connected DB; trainer catalog is empty; protected operations including package refresh reject unauthenticated requests; unsigned webhook rejects with 400. No credentials, actual payment or valid data mutation was submitted.
+- The smoke script's source SHA is a requested label, not independently detected source identity. Vercel UI provides the independent alias/source mapping above.
+- [GitHub CI run 38416277572](https://github.com/StylereTech/trainr/actions/runs/38416277572): `check` **SUCCESS** completed **14:48:59 UTC**; `migrations` **SUCCESS** completed **14:49:02 UTC**. Dependency installation, Prisma generation, `npm run check`, and guarded `npm run test:migrations -- --integration` executed successfully. Current run no longer exhibits the earlier account billing block. No billing settings were changed by this audit.
+- Retest scope is bounded: hosted health, catalog and anonymous permission/error behavior, not authenticated hosted purchases, Connect or payouts.
+
 ## Remaining Gates
 
-Preview publication/retest is pending. Actual hosted trainer signup, Connect, paid checkout, transfer/payout and email remain unverified. The analogous cash-payment path needs a separate missed-refund inventory audit; package changes do not prove cash safety. Dependency reachability/remediation and other release gates remain open. Previously verified GitHub CI billing lock is not treated as a current-pass run result.
+Actual hosted trainer signup, Connect, paid checkout, transfer/payout and email remain unverified. The analogous cash-payment path needs a separate missed-refund inventory audit; package changes do not prove cash safety. Dependency reachability/remediation and other release gates remain open. Earlier report entries describing blocked CI are historical; the current source run passed both jobs.
