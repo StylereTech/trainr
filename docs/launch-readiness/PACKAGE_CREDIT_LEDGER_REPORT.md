@@ -77,4 +77,23 @@ Overall release decision: **HOLD**. This is tested internal infrastructure, not 
 
 ## Publication
 
-Pending commit/push and post-publication checks. The remote audit branch was freshly fetched and matched the baseline above; `origin/main` remained `2067e743c54ffee669cd484f26dc472b157f1881`. No main merge, production promotion or Story change is authorized by these test results.
+Source commit `009db0566204615b5dbc4f2ee097ec8382154cb2` (`feat: add shared package credit ledger`) was committed and pushed to `codex/payment-readiness-20261006`. The post-push working tree was clean and tracked the same remote branch. `origin/main` remained `2067e743c54ffee669cd484f26dc472b157f1881`. No main merge, production promotion or Story change was performed.
+
+At 2026-10-13 07:01 UTC, GitHub's commit status reported Vercel success, linking [audit deployment 7VgcW4kyAqvYpBabC7orV975rb2b](https://vercel.com/styleres-projects/trainr/7VgcW4kyAqvYpBabC7orV975rb2b). The separate Preview Comments check succeeded. This is deployment metadata, not independently verified alias/source mapping or inspection of the hosted migration log; the blocked browser actions were not retried or bypassed.
+
+[GitHub Actions run 38359783456](https://github.com/StylereTech/trainr/actions/runs/38359783456) marked both `check` and `migrations` failed at 06:58:22 UTC, two seconds after their recorded start. The fresh jobs response contains zero executed steps in each job. Annotation retrieval was rejected as an unsupported connector endpoint. The prior billing lock is historical evidence; the current failure's precise cause is not freshly established. Do not report GitHub CI as green or these jobs as executed test failures.
+
+Anonymous post-push smoke used only the stable audit Preview, no account/cookies, no provider credentials and no authenticated navigation. Initial restricted-network requests at 07:02:56-07:02:57 UTC failed with fetch `TypeError` and no HTTP responses; these were not application assertion results. The permitted network retry at **07:03:47-07:03:52 UTC passed all eight checks**:
+
+| Request | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| GET `/api/health` | 200, JSON `ok` and `dbConnected` true | Matched | PASS |
+| GET `/api/trainers?limit=1&page=1` | 200, trainer array and integer total | Matched; total 0 | PASS, no eligible trainer to book |
+| GET `/api/bookings` | 401 JSON error | Matched | PASS |
+| GET `/api/trainer/packages` | 401 JSON error | Matched | PASS |
+| GET `/api/trainer/wallet` | 401 JSON error | Matched | PASS |
+| GET `/api/package-purchases` | 401 JSON error | Matched | PASS |
+| POST `/api/payments/checkout`, `{}` | 401 JSON error | Matched | PASS |
+| POST `/api/payments/webhook`, unsigned `{}` | 400 JSON error | Matched | PASS |
+
+Evidence: `.postgres-test/credit-ledger-hosted-smoke.json`. Each record explicitly marks `aliasSourceIndependentlyVerified: false`; the source SHA identifies the requested published revision, not a SHA returned by the endpoint. This smoke proves anonymous endpoint behavior at that time, not signed-in booking, deployed migration checksums, Stripe delivery, Connect or payout success. Application test evidence above belongs to source `009db05`; a documentation-only publication follow-up does not change that tested source. Overall **HOLD** remains.
