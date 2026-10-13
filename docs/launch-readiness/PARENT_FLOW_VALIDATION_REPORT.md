@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+Cash-review publication, 2026-10-13 13:43 UTC: source `6481c762b4d1556f6e22e456b92d5f5466015de5` is pushed and verified Ready in Preview; 16 anonymous hosted checks pass. CI remains account-billing-blocked; actual hosted Stripe flow is not verified. [Evidence and boundaries](CASH_REVIEW_PRESENCE_REPORT.md#published-preview). **HOLD; Production unchanged.**
+
 2026-10-13 cash-review follow-up: corrected baseline reproduced 16 booking-action/dashboard failures for SQL-present but falsy review values. Fixed mutation/read presence checks; final local quality gate passes **1,606 units**, **1,019 SQL cases** and **60 desktop/mobile browser/API cases with zero retries**. Ten fixture tables are empty and six screenshots reviewed. [Exact failures, retests, publication status and remaining gates](CASH_REVIEW_PRESENCE_REPORT.md). This is synthetic verification, not hosted Stripe proof. **HOLD; Production unchanged.**
 
 Publication update, 2026-10-13: source `63bbb1ba3f51f827b7c3f8dfe81f3edf4ecdbaaf` is pushed to the audit branch and verified Ready in Vercel Preview. Build logs confirm the guarded schema upgrade/checksum verification; 16 anonymous hosted checks pass. GitHub CI is blocked before execution by an account billing lock. Trainer signup handoff, actual Stripe money-flow proof and other release gates remain open. [Publication evidence and limitations](CREDIT_REVIEW_PRESENCE_REPORT.md#published-preview-verification). **HOLD; Production unchanged.**

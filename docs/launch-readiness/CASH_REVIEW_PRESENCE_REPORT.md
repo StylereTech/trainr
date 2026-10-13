@@ -1,5 +1,7 @@
 # Cash Payment Review Presence Audit
 
+Latest verified result, **2026-10-13 13:43 UTC**: source `6481c762b4d1556f6e22e456b92d5f5466015de5` is pushed and deployed to Preview; local full quality gate, 1,019 SQL cases, 60 browser/API cases and 16 anonymous hosted probes passed. Overall readiness remains **HOLD**.
+
 ## Baseline
 
 - Date: 2026-10-13 UTC. Baseline commit `41a73cfbce96b9d59011d558ba3dc27211129dd8`; clean audit branch at entry. Previous pass made progress by publishing the credit-hold fix and verifying Preview.
@@ -23,7 +25,7 @@
 - Focused unit retest: **94/94 passed**, three files, **13:29:00 UTC**, 2.64 seconds. Log: `.postgres-test/cash-review-unit-focused.log`.
 - Final quality gate: **PASS**, terminal exit 0; lint 0 errors / 42 existing warnings, TypeScript, **1,606/1,606 units** in 75 files (start **13:29:51 UTC**, 45.16 seconds), Prisma generation and optimized Next build. Log: `.postgres-test/cash-review-check-final.log`. Existing middleware-deprecation and Edge Runtime `process.cwd` warnings remain. No migration changed in this pass.
 - Final selected browser/API suite: **60/60 passed**, 5.2 minutes, one worker and zero retries; completed before **13:39:49 UTC**. Log: `.postgres-test/cash-review-browser.log`. Local app log shows startup/ready only, without reported application errors. These results cover the named cases, not every platform workflow.
-- Independent final SQL read verified the disposable marker and zero rows in users, bookings, payments, package purchases, sports, both checkout-attempt tables, credit grants/redemptions and payment receipts. Local Next server and owned PostgreSQL cluster were stopped. Screenshot verification is recorded below; publication remains pending.
+- Independent final SQL read verified the disposable marker and zero rows in users, bookings, payments, package purchases, sports, both checkout-attempt tables, credit grants/redemptions and payment receipts. Local Next server and owned PostgreSQL cluster were stopped. Screenshot verification and publication evidence are recorded below.
 
 ## Browser Scope
 
@@ -44,6 +46,14 @@ Six accepted screenshots were visually inspected: warnings and labels fit; train
 | Parent | [1440px](screenshots/cash-review-parent-1440.png) | [390px](screenshots/cash-review-parent-390.png) |
 | Trainer | [1440px](screenshots/cash-review-trainer-1440.png) | [390px](screenshots/cash-review-trainer-390.png) |
 | Admin | [1440px](screenshots/cash-review-admin-1440.png) | [390px](screenshots/cash-review-admin-390.png) |
+
+## Published Preview
+
+- Committed and pushed `6481c762b4d1556f6e22e456b92d5f5466015de5` to `codex/payment-readiness-20261006`; main remains `2067e743c54ffee669cd484f26dc472b157f1881`. No production promotion or migration change occurred.
+- [Vercel deployment](https://vercel.com/styleres-projects/trainr/3fhLFxq922EodcBTt9bKyEBx93BR) was verified in the normal UI as Ready / Latest / Preview, completed **13:42:38 UTC**, duration 55 seconds. UI maps this source commit to the stable audit alias and `trainr-j2mnrtdh6-styleres-projects.vercel.app`. GitHub's Vercel status is success.
+- Anonymous hosted retest: **16/16 PASS**, **13:42:58-13:43:02 UTC**, terminal exit 0. Health/database and public catalog contracts pass; catalog has zero trainers. Protected reads/writes return 401 and unsigned webhook returns 400. [Raw methods, routes, timestamps and results](CASH_REVIEW_PRESENCE_HOSTED_SMOKE.json). The script does not establish alias provenance (`aliasSourceIndependentlyVerified: false`); the separate UI verification above does.
+- [Current GitHub CI run 38407044738](https://github.com/StylereTech/trainr/actions/runs/38407044738) failed. Fresh UI annotations for both check and migrations state: `The job was not started because your account is locked due to a billing issue.` Billing and runner settings were not changed. Local tests are not presented as hosted CI.
+- Trainer signup was freshly rechecked: credentials remain blank and terms unchecked. No agreement was accepted or credential entered. Actual hosted trainer setup/Stripe payment/transfer/payout verification remains pending the existing owner handoff.
 
 ## Remaining Boundaries
 
