@@ -1,11 +1,25 @@
 import type { Prisma } from '@prisma/client'
 import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
+import type { PackageCreditFunding } from '@/lib/booking-payment-hold'
 
 export const creditBookingInclude = {
   creditRedemption: { include: { grant: { include: { purchase: { include: { paymentReceipt: true } } } } } },
 } satisfies Prisma.BookingInclude
 
-type CreditBooking = Prisma.BookingGetPayload<{ include: typeof creditBookingInclude }>
+type CreditBooking = Pick<Prisma.BookingGetPayload<{ include: typeof creditBookingInclude }>,
+  'id' | 'parentProfileId' | 'trainerProfileId' | 'serviceOfferingId' | 'packageId' | 'packageSessionNumber' |
+  'totalAmountInCents' | 'platformFeeInCents' | 'trainerPayoutInCents' | 'startsAt' | 'endsAt' | 'creditRedemption'>
+
+export function packageCreditFunding(booking: CreditBooking & { payment: unknown }): PackageCreditFunding | null {
+  const credit = booking.creditRedemption
+  if (!credit) return null
+  const terms = packagePurchaseTermsSchema.safeParse(credit.grant.purchase.terms)
+  return { kind: 'PACKAGE_CREDIT', purchaseId: credit.purchaseId,
+    packageTitle: terms.success ? terms.data.title : 'Package',
+    restoredAt: credit.restoredAt?.toISOString() ?? null,
+    hold: credit.restoredAt ? null : packageCreditBookingHold(booking),
+  }
+}
 
 // A previously reserved session keeps its funding after expiry, but never after a
 // refund/review hold. Read this under the purchase lock, not from a cached DTO.

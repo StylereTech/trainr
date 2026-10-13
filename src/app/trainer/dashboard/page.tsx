@@ -276,11 +276,11 @@ export default function TrainerDashboard() {
                   tabItems[tab].map((b) => (
                     <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
                       <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-                        <div className="flex-1">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-sm">{b.parentProfile.user.email.split('@')[0]}</span>
                             <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
-                            <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
+                            <Badge variant="outline">{b.creditFunding ? 'Package credit' : b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                           </div>
                           <RefundSummary payment={b.payment} />
                           <PaymentHoldSummary booking={b} />
@@ -294,8 +294,8 @@ export default function TrainerDashboard() {
                         </div>
                         <div className="flex flex-col gap-2 md:items-end">
                           <div className="text-left md:text-right">
-                            <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                            <div className="text-xs text-slate-400">Booked allocation: {formatCurrency(b.trainerPayoutInCents)}</div>
+                            <div className="font-semibold text-white">{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</div>
+                            <div className="text-xs text-slate-400">{b.creditFunding ? 'Allocation recorded on package purchase' : `Booked allocation: ${formatCurrency(b.trainerPayoutInCents)}`}</div>
                             {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -306,7 +306,10 @@ export default function TrainerDashboard() {
                               </>
                             )}
                             {b.status === 'CONFIRMED' && (
-                              <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} allowNoShow onAction={action => void handleAction(b.id, action)} />
+                              <><BookingOutcomeActions booking={b} disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} allowNoShow onAction={action => void handleAction(b.id, action)} />
+                              {b.creditFunding && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => {
+                                if (window.confirm('Cancel this session? Trainer cancellation returns one session credit to the parent. Original package expiry and payment restrictions still apply. No cash refund will be issued.')) void handleAction(b.id, 'cancel')
+                              }}><XCircle className="mr-1 h-3 w-3" />Cancel session</Button>}</>
                             )}
                           </div>
                         </div>

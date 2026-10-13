@@ -5,6 +5,7 @@ import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { bookingSchema } from '@/lib/validations'
 import { BookingCreationError, createBooking } from '@/lib/booking-creation'
+import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
       prisma.booking.findMany({
         where,
         include: {
+          ...creditBookingInclude,
           serviceOffering: true,
           trainerProfile: { include: { sports: { include: { sport: true } } } },
           parentProfile: { include: { user: { select: { id: true, email: true } } } },
@@ -62,7 +64,8 @@ export async function GET(req: NextRequest) {
       }),
       prisma.booking.count({ where }),
     ])
-    return NextResponse.json({ bookings: bookings.map(booking => ({ ...booking,
+    return NextResponse.json({ bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking,
+      creditFunding: packageCreditFunding({ ...booking, creditRedemption }),
       payment: booking.payment ? { ...booking.payment, financialReview: role === 'ADMIN' ? booking.payment.financialReview : !!booking.payment.financialReview } : null,
     })), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch {

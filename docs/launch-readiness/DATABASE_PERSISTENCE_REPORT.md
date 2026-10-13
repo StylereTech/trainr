@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-13: credit dashboard reads now serialize transaction-consistent, role-scoped funding projections. Complete disposable SQL regression passed **860/860**; new cases check ownership, immutable purchased titles, early/late cancellation readback and payment holds. [Exact environment, steps, cleanup and subsequent UI evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Synthetic receipts are not hosted Stripe evidence. No migration or production database change; **HOLD**.
+
 2026-10-13 credit-ledger pass: independent SQL reads verify shared-child consumption, one-time restoration, rollback and last-credit races including RepeatableRead. [Exact database/account guard, unpublished-migration correction, regression/rehearsal status and remaining gates](PACKAGE_CREDIT_LEDGER_REPORT.md). Customer-facing redemption is not enabled; no Production or hosted payment proof is claimed.
 
 2026-10-12 payment-time pass: additive immutable package receipts preserve the original signed success-event time across replay and history refresh. All four fresh/historical migration rehearsals passed with 22 migration checksums and schema parity; the full 736-case SQL suite passed and independent cleanup counts were zero. [Exact account scope, SQL safeguards, failure/retest logs and publication status](PACKAGE_PAYMENT_TIME_REPORT.md). This is owned disposable/Preview evidence, not Production DB or hosted money-flow signoff.

@@ -9,6 +9,10 @@ export const viewStates = {
 } satisfies Record<DashboardView, Array<typeof bookingStates[number]>>
 const count = z.number().int().nonnegative().safe()
 const person = z.object({ firstName: z.string(), lastName: z.string() })
+export const packageCreditFundingSchema = z.object({
+  kind: z.literal('PACKAGE_CREDIT'), purchaseId: z.string().min(1), packageTitle: z.string().min(1).max(150),
+  restoredAt: z.string().datetime().nullable(), hold: z.string().min(1).nullable(),
+}).strict()
 export const dashboardBookingSchema = z.object({
   id: z.string().min(1), date: z.string().datetime(), startTime: z.string(), endTime: z.string(),
   timeZone: z.string().nullable().default(null), startsAt: z.string().datetime().nullable().default(null), endsAt: z.string().datetime().nullable().default(null),
@@ -17,6 +21,7 @@ export const dashboardBookingSchema = z.object({
   trainerProfile: person.extend({ paymentReady: z.boolean() }),
   parentProfile: z.object({ user: z.object({ email: z.string() }) }), athleteProfile: person,
   review: z.object({ id: z.string() }).nullable(),
+  creditFunding: packageCreditFundingSchema.nullable().default(null),
   payment: z.object({ status: z.enum(['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']),
     settlementVerifiedAt: z.string().datetime().nullable(), financialReview: z.boolean(),
     refundAmountInCents: count, refundPendingAmountInCents: count, refundFailedCount: count, refundsVerifiedAt: z.string().datetime().nullable() }).nullable(),

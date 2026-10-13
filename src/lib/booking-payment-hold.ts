@@ -7,7 +7,23 @@ export type BookingPaymentState = {
   financialReview?: unknown
 }
 
-export function bookingPaymentHold(booking: { totalAmountInCents: number; payment: BookingPaymentState | null }) {
+export type PackageCreditFunding = {
+  kind: 'PACKAGE_CREDIT'
+  purchaseId: string
+  packageTitle: string
+  restoredAt: string | null
+  hold: string | null
+}
+
+export type BookingFundingState = { totalAmountInCents: number; payment: BookingPaymentState | null; creditFunding?: PackageCreditFunding | null }
+
+export function bookingPaymentHold(booking: BookingFundingState) {
+  // Display-only projection. Mutations verify the locked purchase/receipt, never this DTO.
+  if (booking.creditFunding) {
+    if (booking.payment || booking.totalAmountInCents !== 0) return 'Session funding needs reconciliation. Contact support.'
+    if (booking.creditFunding.restoredAt) return 'This session credit has been returned to its package.'
+    return booking.creditFunding.hold
+  }
   const payment = booking.payment
   if (payment?.financialReview || payment?.refundAmountInCents || payment?.refundPendingAmountInCents || payment?.refundFailedCount) {
     return 'Payment needs reconciliation before this session can be confirmed or completed.'

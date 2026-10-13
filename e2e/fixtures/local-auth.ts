@@ -5,7 +5,7 @@ import { hash } from 'bcryptjs'
 import { encode } from 'next-auth/jwt'
 import { verifyDatabaseTarget } from '../../tests/integration/database-target'
 
-type LocalAuth = { database: PrismaClient; password: string; create: (role: Role) => Promise<User>; signIn: (user: User, target?: BrowserContext) => Promise<string> }
+export type LocalAuth = { database: PrismaClient; password: string; create: (role: Role) => Promise<User>; signIn: (user: User, target?: BrowserContext) => Promise<string> }
 
 export const test = base.extend<{ localAuth: LocalAuth }>({
   localAuth: async ({ context }, use) => {

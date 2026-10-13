@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { packageCreditBookingHold } from '@/lib/package-credit-booking-hold'
+import { packageCreditBookingHold, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 import { approvedPackageCreditPolicy } from '@/lib/package-purchase-schema'
+import type { Booking } from '@prisma/client'
+import { bookingPaymentHold } from '@/lib/booking-payment-hold'
+import { packageCreditFundingSchema } from '@/lib/dashboard-contract'
 
-let booking: Parameters<typeof packageCreditBookingHold>[0]
+let booking: Parameters<typeof packageCreditBookingHold>[0] & Booking
 beforeEach(() => {
   booking = {
     id: 'booking', parentProfileId: 'parent', trainerProfileId: 'trainer', serviceOfferingId: 'service',
@@ -31,6 +34,37 @@ beforeEach(() => {
 })
 
 describe('credit booking outcome funding', () => {
+  it('projects only safe funding fields and enables funded outcome controls', () => {
+    const creditFunding = packageCreditFunding(booking)
+    expect(creditFunding).toEqual({ kind: 'PACKAGE_CREDIT', purchaseId: 'purchase', packageTitle: 'Shared sessions', restoredAt: null, hold: null })
+    expect(packageCreditFundingSchema.parse(creditFunding)).toEqual(creditFunding)
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toBeNull()
+  })
+  it('does not expose raw review or Stripe receipt details', () => {
+    booking.creditRedemption!.grant.purchase.financialReview = { secret: 'private-review-detail' }
+    const creditFunding = packageCreditFunding(booking)
+    expect(creditFunding!.hold).toContain('reconciliation')
+    expect(JSON.stringify(creditFunding)).not.toMatch(/private-review-detail|pi_test|ch_test|cs_test|tr_test/)
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toEqual(creditFunding!.hold)
+  })
+  it('keeps restoration history distinct from usable booking funding', () => {
+    booking.creditRedemption!.restoredAt = new Date('2026-01-01T12:00:00Z')
+    const creditFunding = packageCreditFunding(booking)
+    expect(creditFunding).toMatchObject({ restoredAt: '2026-01-01T12:00:00.000Z', hold: null })
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toContain('returned')
+  })
+  it('does not infer credits from a missing cash payment', () => {
+    booking.creditRedemption = null
+    expect(packageCreditFunding(booking)).toBeNull()
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null })).not.toBeNull()
+  })
+  it.each([{ restoredAt: 'invalid' }, { hold: undefined }, { kind: 'CASH' }, { stripePaymentIntentId: 'pi_private' }])('rejects malformed projected credit fields %j', change => {
+    expect(packageCreditFundingSchema.safeParse({ ...packageCreditFunding(booking), ...change }).success).toBe(false)
+  })
+  it('does not enable outcomes on a contradictory dual-funded display record', () => {
+    expect(bookingPaymentHold({ totalAmountInCents: 1, payment: null, creditFunding: packageCreditFunding(booking) })).toContain('reconciliation')
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: { status: 'SUCCEEDED', refundAmountInCents: 0 }, creditFunding: packageCreditFunding(booking) })).toContain('reconciliation')
+  })
   it('accepts historically valid funding without requiring a second payment or current unexpired balance', () => {
     expect(packageCreditBookingHold(booking)).toBeNull()
   })

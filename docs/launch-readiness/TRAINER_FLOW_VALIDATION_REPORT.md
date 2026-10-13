@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-13: trainer dashboards recognize existing credit-funded sessions, retain financial holds on outcome controls, and expose policy-backed cancellation with saved restoration history. Package allocation is not represented as a new booking payment or payout. [Exact local verification and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Actual hosted trainer login, Connect, checkout and payout remain unverified; **HOLD**.
+
 2026-10-13: internal owning-trainer credit restoration passes focused SQL tests without issuing a second payout or cash refund. [Exact account scope, negative cases and unimplemented route/dashboard integration](PACKAGE_CREDIT_LEDGER_REPORT.md). This is not a hosted trainer cancellation, Connect or payout signoff.
 
 2026-10-11 trainer form accessibility pass: profile editing and initial onboarding now associate visible labels with controls and expose selection/removal semantics. [Exact baseline failures, keyboard/label regressions and publication status](TRAINER_FORM_ACCESSIBILITY_REPORT.md). Synthetic local trainer form verification does not establish hosted signup, approval, Stripe onboarding or payout; those gates remain **HOLD**.

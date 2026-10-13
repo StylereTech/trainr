@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-13: credit funding reads expose a bounded DTO instead of nested purchase/receipt records. Different-parent dashboard access remains empty; participant actions remain server-authoritative. Admin credit cancellation stays disabled pending an adjustment policy. [Exact local role, response and post-publication verification](PACKAGE_CREDIT_DASHBOARD_REPORT.md). This is not a complete fresh hosted role audit; **HOLD**.
+
 2026-10-13: credit-ledger tests deny unrelated parents, role spoofing, unapproved admin restoration, wrong-child ownership, inactive accounts and mutation of funded booking identity. [Exact SQL/helper test boundary](PACKAGE_CREDIT_LEDGER_REPORT.md). Public credit APIs are not enabled and no new hosted role matrix was run.
 
 2026-10-12 recovered Preview: existing signed-in parent was redirected from `/trainer/dashboard` to `/parent/dashboard`; anonymous protected API requests returned JSON 401 and unsigned webhook returned JSON 400 on the stable audit alias. [Exact routes, source, protection-related invalid first test and corrected retest](PACKAGE_CREDIT_POLICY_REPORT.md). This is a targeted role check, not the full hosted trainer/admin matrix.

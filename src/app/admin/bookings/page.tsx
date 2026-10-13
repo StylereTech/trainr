@@ -13,7 +13,7 @@ import { Loader2, Calendar, RefreshCw } from 'lucide-react'
 import { RefundSummary, type RefundSummaryPayment } from '@/components/shared/RefundSummary'
 import { BookingOutcomeActions } from '@/components/shared/BookingOutcomeActions'
 import { PaymentHoldSummary } from '@/components/shared/PaymentHoldSummary'
-import { bookingPaymentHold, type BookingPaymentState } from '@/lib/booking-payment-hold'
+import { bookingPaymentHold, type BookingPaymentState, type PackageCreditFunding } from '@/lib/booking-payment-hold'
 
 interface Booking {
   id: string
@@ -34,6 +34,7 @@ interface Booking {
   athleteProfile: { firstName: string; lastName: string }
   serviceOffering: { title: string; priceInCents: number }
   payment: (RefundSummaryPayment & BookingPaymentState & { stripePaymentIntentId: string | null }) | null
+  creditFunding?: PackageCreditFunding | null
 }
 
 export default function AdminBookings() {
@@ -163,13 +164,14 @@ export default function AdminBookings() {
             <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-sm text-white">{b.parentProfile.user.email.split('@')[0]}</span>
                       <span className="text-slate-500">→</span>
                       <span className="font-medium text-sm text-white">{b.trainerProfile.firstName} {b.trainerProfile.lastName}</span>
                       <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
                       {b.payment && <Badge variant="outline" className={b.payment.status === 'SUCCEEDED' ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200' : 'border-amber-400/20 bg-amber-400/10 text-amber-200'}>Payment: {b.payment.status}</Badge>}
+                      {b.creditFunding && <Badge variant="outline">Package credit</Badge>}
                     </div>
                     <RefundSummary payment={b.payment} />
                     <PaymentHoldSummary booking={b} />
@@ -183,26 +185,26 @@ export default function AdminBookings() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[300px]">
                     <div className="rounded-[1.25rem] border border-white/10 bg-slate-950/45 p-3 text-sm">
-                      <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
-                      <div className="mt-1 text-xs text-slate-400">Booked fee: {formatCurrency(b.platformFeeInCents)} • Trainer allocation: {formatCurrency(b.trainerPayoutInCents)}</div>
+                      <div className="font-semibold text-white">{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</div>
+                      <div className="mt-1 text-xs text-slate-400">{b.creditFunding ? 'Allocation recorded on package purchase' : `Booked fee: ${formatCurrency(b.platformFeeInCents)} • Trainer allocation: ${formatCurrency(b.trainerPayoutInCents)}`}</div>
                       {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                     </div>
                     <div className="flex flex-wrap gap-2 xl:justify-end">
                       {b.payment && b.totalAmountInCents > 0 && <Button size="sm" variant="outline" disabled={actionBusy || needsReload || !!refreshingRefundId} onClick={() => void refreshPayment(b.id)}><RefreshCw className="mr-2 h-4 w-4" />Refresh payment</Button>}
-                      {b.status === 'CANCELLED' && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => void handleAction(b.id, 'cancel')}><RefreshCw className="mr-2 h-4 w-4" />Reconcile checkout</Button>}
+                      {b.status === 'CANCELLED' && !b.creditFunding && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => void handleAction(b.id, 'cancel')}><RefreshCw className="mr-2 h-4 w-4" />Reconcile checkout</Button>}
                       {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId || actionBusy || needsReload} onClick={() => void refreshRefunds(b.id)}>
                         {refreshingRefundId === b.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh refunds
                       </Button>}
                       {b.status === 'PENDING' && (
                         <>
                           <Button size="sm" disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} className="gradient-primary border-0 text-white" onClick={() => handleAction(b.id, 'confirm')}>Confirm</Button>
-                          <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload || !!b.creditFunding} title={b.creditFunding ? 'Credit cancellation requires the owning parent or trainer.' : undefined} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}
                       {b.status === 'CONFIRMED' && (
                         <>
                           <BookingOutcomeActions booking={b} disabled={actionBusy || needsReload || !!bookingPaymentHold(b)} onAction={action => void handleAction(b.id, action)} />
-                          <Button size="sm" disabled={actionBusy || needsReload} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
+                          <Button size="sm" disabled={actionBusy || needsReload || !!b.creditFunding} title={b.creditFunding ? 'Credit cancellation requires the owning parent or trainer.' : undefined} variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => handleAction(b.id, 'cancel')}>Cancel</Button>
                         </>
                       )}
                     </div>

@@ -6,6 +6,7 @@ import { getRequestUser } from '@/lib/auth'
 import { applyBookingAction, BookingActionError, bookingActionSchema } from '@/lib/booking-actions'
 import { closeCancelledCheckout } from '@/lib/checkout-attempts'
 import { z } from 'zod'
+import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
     prisma.booking.findMany({
       where,
       include: {
+        ...creditBookingInclude,
         trainerProfile: { select: { firstName: true, lastName: true, slug: true } },
         parentProfile: { include: { user: { select: { email: true } } } },
         athleteProfile: { select: { firstName: true, lastName: true } },
@@ -55,9 +57,9 @@ export async function GET(req: NextRequest) {
   ])
 
   return NextResponse.json({
-    bookings,
+    bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking, creditFunding: packageCreditFunding({ ...booking, creditRedemption }) })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 // PATCH /api/admin/bookings — Admin booking actions

@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Credit Dashboard Follow-Up
+
+2026-10-13: existing credit-funded sessions now have safe participant/admin funding projections, accurate credit labels, and parent/trainer cancellation controls. This supersedes the dashboard-read/UI gap in the earlier entries, not the missing purchase/reservation flow. [Exact local failures, fixes, retests and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Public package sales, reservation creation, spendable balance, service replacement, expiry interpretation and actual hosted Stripe proof remain incomplete. Overall **HOLD**.
+
 ## Credit Action Follow-Up
 
 2026-10-13: the existing booking action handler now integrates package-credit completion/no-show funding checks and atomic policy-backed cancellation restoration. [Exact verification and remaining boundaries](PACKAGE_CREDIT_ACTION_REPORT.md). Public package sales, credit-funded reservation creation and dashboard funding/balance display remain incomplete. These actions alone do not make package booking usable or verify hosted Stripe money flow. Overall **HOLD**.

@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { approvedPackageCreditPolicy } from '@/lib/package-purchase-schema'
 import { redeemPackageCredit, restoreCancelledPackageCredit } from '@/lib/package-credit-ledger'
 import { applyBookingAction } from '@/lib/booking-actions'
+import { readDashboardBookings } from '@/lib/dashboard-bookings'
+import { dashboardResponseSchema } from '@/lib/dashboard-contract'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let parentId: string, parentProfileId: string, trainerId: string, trainerProfileId: string, otherId: string, otherProfileId: string
@@ -74,6 +76,58 @@ const spend = (purchaseId: string, bookingId: string, actor = parentId) => prism
 const restore = (bookingId: string, actor = { id: parentId, role: 'PARENT' }) => prisma.$transaction(tx => restoreCancelledPackageCredit(tx, actor, bookingId))
 const cancel = (bookingId: string) => prisma.booking.update({ where: { id: bookingId }, data: { status: 'CANCELLED' } })
 const paymentData = (bookingId: string) => ({ bookingId, amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const })
+
+describe('role-scoped credit funding dashboard', () => {
+  it.each(['PARENT', 'TRAINER'] as const)('returns a safe %s funding snapshot without a second payment', async role => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const result = await readDashboardBookings({ id: role === 'PARENT' ? parentId : trainerId, role }, role === 'PARENT' ? 'upcoming' : 'confirmed', 1, 10)
+    const payload = dashboardResponseSchema.parse(JSON.parse(JSON.stringify(result)))
+    expect(payload.bookings[0].creditFunding).toEqual({ kind: 'PACKAGE_CREDIT', purchaseId: p.id, packageTitle: 'Shared sessions', restoredAt: null, hold: null })
+    expect(payload.bookings[0].payment).toBeNull()
+    expect(result.bookings[0]).not.toHaveProperty('creditRedemption')
+    expect(result.bookings[0]).not.toHaveProperty('parentProfileId')
+    expect(result.bookings[0]).not.toHaveProperty('platformFeeInCents')
+    expect(JSON.stringify(result)).not.toContain(p.stripePaymentIntentId!)
+    expect(JSON.stringify(result)).not.toContain(p.stripeTransferId!)
+  })
+  it('does not expose another parent\'s purchased funding', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const result = await readDashboardBookings({ id: otherId, role: 'PARENT' }, 'upcoming', 1, 10)
+    expect(result.bookings).toEqual([])
+    expect(JSON.stringify(result)).not.toContain(p.id)
+  })
+  it.each(['early', 'late'])('shows the saved %s cancellation result after independent reload', async timing => {
+    const p = await purchase(), b = await booking({ startsAt: new Date(Date.now() + (timing === 'early' ? 3 * 86400000 : 3600000)) })
+    await spend(p.id, b.id)
+    await applyBookingAction(b.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    const result = await readDashboardBookings({ id: parentId, role: 'PARENT' }, 'past', 1, 10)
+    const ledger = await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })
+    expect(result.bookings[0].creditFunding?.restoredAt).toBe(ledger.restoredAt?.toISOString() ?? null)
+    expect(!!result.bookings[0].creditFunding?.restoredAt).toBe(timing === 'early')
+    expect(result.bookings[0].creditFunding?.hold).toBeNull()
+  })
+  it.each(['review', 'refund', 'pending-refund', 'failed-refund', 'unverified'])('projects a generic %s hold on both participant dashboards', async mode => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const change = mode === 'review' ? { financialReview: { detail: 'private-provider-review' } } : mode === 'refund' ? { refundAmountInCents: 1 } :
+      mode === 'pending-refund' ? { refundPendingAmountInCents: 1 } : mode === 'failed-refund' ? { refundFailedCount: 1 } : { settlementVerifiedAt: null }
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: change })
+    for (const role of ['PARENT', 'TRAINER'] as const) {
+      const result = await readDashboardBookings({ id: role === 'PARENT' ? parentId : trainerId, role }, role === 'PARENT' ? 'upcoming' : 'confirmed', 1, 10)
+      expect(result.bookings[0].creditFunding?.hold).toContain('reconciliation')
+      expect(JSON.stringify(result)).not.toContain('private-provider-review')
+    }
+  })
+  it('uses the purchased package title rather than later catalog edits', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await prisma.package.update({ where: { id: packageId }, data: { title: 'A different package title' } })
+    const result = await readDashboardBookings({ id: parentId, role: 'PARENT' }, 'upcoming', 1, 10)
+    expect(result.bookings[0].creditFunding?.packageTitle).toBe('Shared sessions')
+  })
+})
 
 describe('credit-funded booking actions', () => {
   it.each(['parent', 'trainer'])('atomically restores an early %s cancellation and retries without duplicate notices', async role => {

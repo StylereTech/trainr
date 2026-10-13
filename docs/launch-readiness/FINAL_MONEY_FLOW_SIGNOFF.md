@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-13: credit dashboard integration distinguishes consumed/restored session credits from cash payments and avoids implying a new payout. [Exact local verification and remaining boundaries](PACKAGE_CREDIT_DASHBOARD_REPORT.md). No actual Stripe Checkout, Connect, transfer or payout proof was produced by these synthetic tests. Public package sales and credit reservation remain incomplete. Money-flow signoff stays **HOLD**.
+
 2026-10-13: [credit-ledger evidence](PACKAGE_CREDIT_LEDGER_REPORT.md) verifies internal synthetic spending/restoration and mutually exclusive booking funding. It does not verify a Stripe transaction or complete public package booking. Checkout, actual trainer transfers/payouts, atomic cancellation integration and live proof remain **HOLD**.
 
 2026-10-12 11:26 UTC: [requirement-level completion audit](CURRENT_LAUNCH_GATES.md), baseline `7399513ab9274bf45919f7be4f053b57df6aed17`, confirms that money flow is not signed off. Fresh Preview catalog has no eligible trainer and refreshed named sandbox has no connected account. Public package purchase/redemption and the published automatic refund/late-credit promise are not fully implemented. Local simulated-provider tests and anonymous hosted smoke do not resolve these requirements. Overall **HOLD**, not an external-only-blocker claim.

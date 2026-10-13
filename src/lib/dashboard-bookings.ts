@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { bookingStates, viewStates, type DashboardView } from '@/lib/dashboard-contract'
+import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 
 export class DashboardReadError extends Error {
   constructor(message: string, public status: number) { super(message) }
@@ -19,6 +20,8 @@ export async function readDashboardBookings(actor: { id: string; role?: string }
     const page = Math.min(requestedPage, Math.max(1, totalPages))
     const rows = await tx.booking.findMany({ where: { ...scope, status: { in: viewStates[view] } },
       select: { id: true, date: true, startTime: true, endTime: true, timeZone: true, startsAt: true, endsAt: true, status: true, totalAmountInCents: true, trainerPayoutInCents: true, notes: true,
+        parentProfileId: true, trainerProfileId: true, serviceOfferingId: true, platformFeeInCents: true, packageId: true, packageSessionNumber: true,
+        ...creditBookingInclude,
         serviceOffering: { select: { title: true, durationMinutes: true } },
         trainerProfile: { select: { firstName: true, lastName: true, stripeAccountId: true, stripeOnboardingComplete: true } },
         parentProfile: { select: { user: { select: { email: true } } } }, athleteProfile: { select: { firstName: true, lastName: true } }, review: { select: { id: true } },
@@ -26,9 +29,14 @@ export async function readDashboardBookings(actor: { id: string; role?: string }
           settlementVerifiedAt: true, financialReview: true } } },
       orderBy: [{ date: view === 'past' || view === 'completed' || view === 'all' ? 'desc' : 'asc' }, { startTime: 'asc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit })
     const reviewsToLeave = actor.role === 'PARENT' ? await tx.booking.count({ where: { ...scope, status: 'COMPLETED', review: null } }) : 0
-    return { bookings: rows.map(({ trainerProfile, payment, ...booking }) => ({ ...booking,
-      payment: payment ? { ...payment, financialReview: !!payment.financialReview } : null,
-      trainerProfile: { firstName: trainerProfile.firstName, lastName: trainerProfile.lastName,
-      paymentReady: !!trainerProfile.stripeAccountId && trainerProfile.stripeOnboardingComplete } })), counts, reviewsToLeave, pagination: { page, limit, total, totalPages } }
+    return { bookings: rows.map(row => ({
+      id: row.id, date: row.date, startTime: row.startTime, endTime: row.endTime, timeZone: row.timeZone,
+      startsAt: row.startsAt, endsAt: row.endsAt, status: row.status, totalAmountInCents: row.totalAmountInCents,
+      trainerPayoutInCents: row.trainerPayoutInCents, notes: row.notes, serviceOffering: row.serviceOffering,
+      parentProfile: row.parentProfile, athleteProfile: row.athleteProfile, review: row.review,
+      creditFunding: packageCreditFunding(row),
+      payment: row.payment ? { ...row.payment, financialReview: !!row.payment.financialReview } : null,
+      trainerProfile: { firstName: row.trainerProfile.firstName, lastName: row.trainerProfile.lastName,
+      paymentReady: !!row.trainerProfile.stripeAccountId && row.trainerProfile.stripeOnboardingComplete } })), counts, reviewsToLeave, pagination: { page, limit, total, totalPages } }
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
 }

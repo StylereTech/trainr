@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-13: parent credit-funded sessions now show package funding and saved restoration history, never a second Pay now action. Cancellation includes the approved early/late policy and refresh recovery after an uncertain response. A reproduced 390px athlete-tile overflow is fixed. [Exact local verification and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Public package purchase/reservation and actual hosted payment proof remain unfinished; **HOLD**.
+
 2026-10-13: internal shared-family credit spending and cancellation primitives now have focused SQL coverage. [Exact evidence and remaining integration](PACKAGE_CREDIT_LEDGER_REPORT.md). The parent booking screen still cannot redeem credits; public package sales must remain unavailable until that full flow passes. No new hosted parent action was performed in this pass.
 
 2026-10-12 Preview recovery pass: existing parent session survived refresh; synthetic athlete unchanged-save and changed-note save/reload passed. Original notes were restored and independently reloaded. Package history, Open/Past tabs and unfiltered trainer browsing loaded, but no trainer was selectable. [Exact steps, deployment source and limitations](PACKAGE_CREDIT_POLICY_REPORT.md). Paid booking and new package redemption remain unproven; **HOLD**.

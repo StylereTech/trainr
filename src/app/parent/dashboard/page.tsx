@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, Users, Star, Plus, Clock, Loader2, CreditCard, RefreshCw, Package } from 'lucide-react'
+import { Calendar, Users, Star, Plus, Clock, Loader2, CreditCard, RefreshCw, Package, XCircle } from 'lucide-react'
 import { formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import { RefundSummary } from '@/components/shared/RefundSummary'
@@ -25,7 +25,7 @@ function isTrainerPaymentReady(booking: Booking) {
 }
 
 function canStartCheckout(booking: Booking) {
-  return ['PENDING', 'CONFIRMED'].includes(booking.status) && booking.totalAmountInCents > 0 &&
+  return !booking.creditFunding && ['PENDING', 'CONFIRMED'].includes(booking.status) && booking.totalAmountInCents > 0 &&
     (!booking.payment || ['PENDING', 'FAILED'].includes(booking.payment.status))
 }
 
@@ -47,6 +47,31 @@ export default function ParentDashboard() {
   const [startingCheckoutId, setStartingCheckoutId] = useState<string | null>(null)
   const checkoutInFlight = useRef(false)
   const [checkoutError, setCheckoutError] = useState('')
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [cancelError, setCancelError] = useState('')
+  const [cancelNeedsReload, setCancelNeedsReload] = useState(false)
+  const cancellationInFlight = useRef(false)
+
+  const reloadCancellation = async () => {
+    if (await dashboard.reload()) { setCancelNeedsReload(false); setCancelError('') }
+  }
+  const cancelCreditSession = async (bookingId: string) => {
+    if (cancellationInFlight.current || cancelNeedsReload || checkoutInFlight.current) return
+    if (!window.confirm('Cancel this session? Parent cancellations at least 24 hours before the start return one session credit. Later cancellations use the credit. Original expiry and package payment restrictions still apply. No cash refund will be issued.')) return
+    cancellationInFlight.current = true
+    setCancellingId(bookingId); setCancelError(''); setCancelNeedsReload(true)
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }), signal: AbortSignal.timeout(15000) })
+      const body = await response.json().catch(() => null)
+      if (!response.ok || body?.id !== bookingId || body?.status !== 'CANCELLED') throw new Error(typeof body?.error === 'string' ? body.error : 'Cancellation could not be verified. Refresh before another action.')
+      if (await dashboard.reload()) {
+        setCancelNeedsReload(false)
+        toast({ title: 'Session cancelled', description: 'The saved credit result is in your past sessions. No cash refund was issued.' })
+      } else setCancelError('Cancellation received, but current booking state could not be loaded. Refresh before another action.')
+    } catch (error) { setCancelError(error instanceof Error ? error.message : 'Cancellation could not be verified. Refresh before another action.') }
+    finally { cancellationInFlight.current = false; setCancellingId(null) }
+  }
 
   useEffect(() => {
     const paymentState = searchParams.get('payment')
@@ -56,7 +81,7 @@ export default function ParentDashboard() {
   }, [searchParams, toast])
 
   const handleCheckout = async (bookingId: string) => {
-    if (checkoutInFlight.current) return
+    if (checkoutInFlight.current || cancellationInFlight.current || cancelNeedsReload) return
     checkoutInFlight.current = true
     setStartingCheckoutId(bookingId)
     setCheckoutError('')
@@ -79,7 +104,7 @@ export default function ParentDashboard() {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
 
-  if (!dashboard.data) return <div role="alert" className="container py-10 text-rose-200">Unable to load current bookings.<Button variant="outline" onClick={() => void dashboard.reload()}><RefreshCw className="mr-2 h-4 w-4" />Retry bookings</Button></div>
+  if (!dashboard.data) return <div role="alert" className="container py-10 text-rose-200">Unable to load current bookings.<Button variant="outline" onClick={() => void reloadCancellation()}><RefreshCw className="mr-2 h-4 w-4" />Retry bookings</Button></div>
   const counts = dashboard.data.counts
 
   return (
@@ -125,16 +150,16 @@ export default function ParentDashboard() {
                 <Button asChild className="mt-4 gradient-primary border-0 text-white"><Link href="/parent/athletes/new">Add Your First Athlete</Link></Button>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {athletes.map(a => (
-                  <div key={a.id} className="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4">
+                  <div key={a.id} className="min-w-0 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl gradient-primary font-semibold text-white">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl gradient-primary font-semibold text-white">
                         {a.firstName[0]}{a.lastName[0]}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <Link href={`/parent/athletes/${a.id}`} className="break-words font-medium text-white underline">{a.firstName} {a.lastName}</Link>
-                        <div className="text-xs text-slate-400">{a.sports.map(s => s.sport.name).join(', ') || 'No sports yet'}</div>
+                        <div className="break-words text-xs text-slate-400">{a.sports.map(s => s.sport.name).join(', ') || 'No sports yet'}</div>
                       </div>
                     </div>
                   </div>
@@ -148,6 +173,11 @@ export default function ParentDashboard() {
           <h2 className="font-semibold">Checkout could not be opened</h2>
           <p className="mt-1 break-words">{checkoutError}</p>
           <Button variant="outline" className="mt-3" onClick={() => void dashboard.reload()}><RefreshCw className="mr-2 h-4 w-4" />Refresh bookings</Button>
+        </div>}
+
+        {cancelError && <div role="alert" className="mt-6 border-l-2 border-amber-400 p-4 text-sm text-amber-100">
+          <p className="break-words">{cancelError}</p>
+          <Button variant="outline" className="mt-3" onClick={() => void reloadCancellation()}><RefreshCw className="mr-2 h-4 w-4" />Refresh booking state</Button>
         </div>}
 
         <Tabs value={view} onValueChange={value => { setView(value); setPage(1) }} className="mt-6">
@@ -164,11 +194,11 @@ export default function ParentDashboard() {
                 {upcomingBookings.map(b => (
                   <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
                     <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
-                          <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
+                          <Badge variant="outline">{b.creditFunding ? 'Package credit' : b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
                         <PaymentHoldSummary booking={b} />
@@ -180,11 +210,14 @@ export default function ParentDashboard() {
                         </div>
                       </div>
                       <div className="md:text-right">
-                        <div className="font-semibold text-white">{formatCurrency(b.totalAmountInCents)}</div>
+                        <div className="font-semibold text-white">{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</div>
+                        {b.creditFunding && b.status === 'CONFIRMED' && <Button size="sm" variant="outline" className="mt-2" disabled={!!cancellingId || cancelNeedsReload || !!startingCheckoutId} onClick={() => void cancelCreditSession(b.id)}>
+                          {cancellingId === b.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <XCircle className="mr-1 h-3 w-3" />}Cancel session
+                        </Button>}
                         {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : b.payment?.status === 'PROCESSING' ? 'Payment processing' : 'Awaiting payment'}</div>}
                         {canStartCheckout(b) && (
                           paymentTimeError(b, now) ? <div className="mt-2 max-w-sm text-xs text-amber-200">{paymentTimeError(b, now)}</div> : isTrainerPaymentReady(b) ? (
-                            <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={!!startingCheckoutId}>
+                            <Button size="sm" className="mt-2 gradient-primary border-0 text-white" onClick={() => handleCheckout(b.id)} disabled={!!startingCheckoutId || !!cancellingId || cancelNeedsReload}>
                               {startingCheckoutId === b.id ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Starting...</> : <><CreditCard className="mr-1 h-3 w-3" />Pay now</>}
                             </Button>
                           ) : (
@@ -215,11 +248,11 @@ export default function ParentDashboard() {
                 {pastBookings.map(b => (
                   <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
                     <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{b.trainerProfile.firstName} {b.trainerProfile.lastName[0]}.</span>
                           <Badge className={BOOKING_STATUS_COLORS[b.status] || ''}>{b.status}</Badge>
-                          <Badge variant="outline">{b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
+                          <Badge variant="outline">{b.creditFunding ? 'Package credit' : b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
                         <PaymentHoldSummary booking={b} />
@@ -228,7 +261,7 @@ export default function ParentDashboard() {
                           <span>{formatBookingDate(b.date)}</span>
                           <span>{b.startTime} – {b.endTime}</span>
                           <span className="break-words">{b.timeZone || 'Time zone unconfirmed'}</span>
-                          <span>{formatCurrency(b.totalAmountInCents)}</span>
+                          <span>{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</span>
                         </div>
                       </div>
                       {b.status === 'COMPLETED' && !b.review && (
