@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-13: the audit branch now connects shared package credits to a parent reservation form and atomic booking API. [Exact local SQL/browser verification, failures and publication evidence](PACKAGE_CREDIT_RESERVATION_REPORT.md). Its prerequisite payment receipts are synthetic local fixtures; these tests do not establish a new hosted Stripe purchase or transfer. Public package sales and actual hosted money-flow validation remain **HOLD**.
+
 2026-10-13 credit-ledger pass: final 823 SQL cases, 1,501 units, build/static checks, four migration rehearsals and 64 selected local browser cases passed. [Exact failures/retests and evidence boundary](PACKAGE_CREDIT_LEDGER_REPORT.md). These use disposable accounts and simulated payment evidence, not a new hosted booking. Public package redemption and actual live/sandbox money-flow validation remain **HOLD**.
 
 2026-10-12 11:20:56 UTC, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`: anonymous isolated Preview health reports a connected database, but `/api/trainers?limit=1&page=1` returns `pagination.total: 0`. No current signed-in hosted booking/payment is claimed. Public package purchase/redemption remains incomplete. [Current requirement audit and exact remaining proof](CURRENT_LAUNCH_GATES.md). Overall **HOLD**; no Production write.

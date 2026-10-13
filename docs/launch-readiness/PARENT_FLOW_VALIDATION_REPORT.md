@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-13: owned package history now links to a credit reservation form with current balances, eligible children, trainer-zone dates/times and stable request retries. Shared-child reservation/debit/notification persistence is atomic; it creates no second cash payment. [Exact tests and limits](PACKAGE_CREDIT_RESERVATION_REPORT.md). Actual purchase through hosted Stripe Checkout and release proof remain unfinished; **HOLD**.
+
 2026-10-13: parent credit-funded sessions now show package funding and saved restoration history, never a second Pay now action. Cancellation includes the approved early/late policy and refresh recovery after an uncertain response. A reproduced 390px athlete-tile overflow is fixed. [Exact local verification and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Public package purchase/reservation and actual hosted payment proof remain unfinished; **HOLD**.
 
 2026-10-13: internal shared-family credit spending and cancellation primitives now have focused SQL coverage. [Exact evidence and remaining integration](PACKAGE_CREDIT_LEDGER_REPORT.md). The parent booking screen still cannot redeem credits; public package sales must remain unavailable until that full flow passes. No new hosted parent action was performed in this pass.

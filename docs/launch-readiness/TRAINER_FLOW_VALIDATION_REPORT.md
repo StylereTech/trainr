@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-13: parent credit reservations now create confirmed sessions and participant notifications using the same trainer capacity constraints as cash bookings. Current service duration/type/sport, account eligibility and immutable paid terms are rechecked. [Exact tests, dashboard readback and limits](PACKAGE_CREDIT_RESERVATION_REPORT.md). No new payment/payout is created for redemption; actual hosted trainer/Stripe proof remains **HOLD**.
+
 2026-10-13: trainer dashboards recognize existing credit-funded sessions, retain financial holds on outcome controls, and expose policy-backed cancellation with saved restoration history. Package allocation is not represented as a new booking payment or payout. [Exact local verification and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Actual hosted trainer login, Connect, checkout and payout remain unverified; **HOLD**.
 
 2026-10-13: internal owning-trainer credit restoration passes focused SQL tests without issuing a second payout or cash refund. [Exact account scope, negative cases and unimplemented route/dashboard integration](PACKAGE_CREDIT_LEDGER_REPORT.md). This is not a hosted trainer cancellation, Connect or payout signoff.

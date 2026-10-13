@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-13: added a parent credit reservation form reached from package history, with service/child/date/time selectors, available-credit counts, explicit cancellation policy and same-request recovery after uncertain responses. Existing dashboard funding presentation is retained. [Exact desktop/mobile results, screenshots, failures and retests](PACKAGE_CREDIT_RESERVATION_REPORT.md). Hosted money-flow and complete product signoff remain **HOLD**.
+
 2026-10-13: fixed credit funding labels/actions across parent, trainer and admin dashboards. Visual review caught an 11.5px mobile athlete-tile overflow after the initial 74-case suite passed; a new boundary assertion reproduced it before correction. Cancellation now recovers safely from non-JSON responses. [Failure screenshots, exact retests and current evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). No claim that every screen or hosted payment flow passes; **HOLD**.
 
 2026-10-13 ledger regression pass: final 64-case local browser run passed at 1440px/390px across booking prices, checkout recovery and parent/trainer package history. A deliberate native-abort case needed a 60-second whole-test budget; application 15-second timeout and 20-second recovery assertions were unchanged. Initial failure, focused retest, full rerun, screenshots and zero-row cleanup are [recorded exactly](PACKAGE_CREDIT_LEDGER_REPORT.md#browser-recovery). No new credit-booking UI is enabled and no hosted signed-in UI signoff is claimed.

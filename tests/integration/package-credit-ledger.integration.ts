@@ -7,6 +7,13 @@ import { redeemPackageCredit, restoreCancelledPackageCredit } from '@/lib/packag
 import { applyBookingAction } from '@/lib/booking-actions'
 import { readDashboardBookings } from '@/lib/dashboard-bookings'
 import { dashboardResponseSchema } from '@/lib/dashboard-contract'
+import { NextRequest } from 'next/server'
+import { encode } from 'next-auth/jwt'
+import { createCreditBooking } from '@/lib/package-credit-booking'
+import { createBooking } from '@/lib/booking-creation'
+import { POST as creditPOST } from '@/app/api/bookings/credits/route'
+import { readCreditBookingOptions } from '@/lib/credit-booking-options'
+import { creditBookingOptions } from '@/lib/package-credit-booking-schema'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let parentId: string, parentProfileId: string, trainerId: string, trainerProfileId: string, otherId: string, otherProfileId: string
@@ -48,13 +55,13 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 // These are explicit synthetic SQL receipts, not evidence of a Stripe payment.
-async function purchase(options: { sessions?: number; version?: 1 | 2; paidAt?: Date; receipt?: boolean } = {}) {
+async function purchase(options: { sessions?: number; version?: 1 | 2; paidAt?: Date; receipt?: boolean; type?: 'INDIVIDUAL' | 'GROUP' } = {}) {
   const key = randomUUID().replaceAll('-', ''), sessions = options.sessions ?? 2, version = options.version ?? 2
   const paidAt = options.paidAt ?? new Date(Date.now() - 1000)
   const saved = await prisma.packagePurchase.create({ data: {
     parentProfileId, trainerProfileId, packageId, requestId: randomUUID(), payloadHash: 'a'.repeat(64), catalogRevision: new Date(),
     terms: { version, ...(version === 2 ? { creditPolicy: approvedPackageCreditPolicy } : {}), title: 'Shared sessions', description: '', validForDays: 90,
-      totalSessions: sessions, items: [{ serviceOfferingId: serviceId, title: 'Training', sportId, durationMinutes: 60, type: 'INDIVIDUAL', sessionsCount: sessions }] },
+      totalSessions: sessions, items: [{ serviceOfferingId: serviceId, title: 'Training', sportId, durationMinutes: 60, type: options.type ?? 'INDIVIDUAL', sessionsCount: sessions }] },
     amountInCents: 6000, platformFeeInCents: 900, trainerPayoutInCents: 5100, status: 'SUCCEEDED', settlementVerifiedAt: new Date(),
     stripePaymentIntentId: `pi_${key}`, stripeChargeId: `ch_${key}`, stripeTransferId: `tr_${key}`, stripeCheckoutSessionId: `cs_${key}`,
     createdAt: new Date(paidAt.getTime() - 1000),
@@ -76,6 +83,229 @@ const spend = (purchaseId: string, bookingId: string, actor = parentId) => prism
 const restore = (bookingId: string, actor = { id: parentId, role: 'PARENT' }) => prisma.$transaction(tx => restoreCancelledPackageCredit(tx, actor, bookingId))
 const cancel = (bookingId: string) => prisma.booking.update({ where: { id: bookingId }, data: { status: 'CANCELLED' } })
 const paymentData = (bookingId: string) => ({ bookingId, amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const })
+
+describe('atomic parent credit reservation endpoint', () => {
+  const secret = 'local-credit-reservation-test-only'
+  beforeAll(() => { vi.stubEnv('NEXTAUTH_SECRET', secret) })
+  afterAll(() => { vi.unstubAllEnvs() })
+  beforeEach(async () => {
+    await prisma.availabilitySlot.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ trainerProfileId, dayOfWeek, startTime: '08:00', endTime: '18:00' })) })
+  })
+  const request = (purchaseId: string) => ({ purchaseId, requestId: randomUUID(), serviceOfferingId: serviceId, athleteProfileId: children[0],
+    date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), startTime: '09:00', timeZone: 'UTC', notes: 'Synthetic credit reservation' })
+  async function post(body: unknown, userId: string | null = parentId) {
+    const user = userId ? await prisma.user.findUniqueOrThrow({ where: { id: userId } }) : null
+    const token = user ? await encode({ secret, token: { sub: user.id, role: user.role, sessionVersion: user.sessionVersion } }) : null
+    return creditPOST(new NextRequest('http://localhost/api/bookings/credits', { method: 'POST',
+      headers: { 'content-type': 'application/json', ...(token ? { cookie: `next-auth.session-token=${token}` } : {}) }, body: JSON.stringify(body) }))
+  }
+  async function assertEmpty() {
+    expect(await independent.booking.count()).toBe(0)
+    expect(await independent.packageCreditRedemption.count()).toBe(0)
+    expect(await independent.bookingCreateRequest.count()).toBe(0)
+    expect(await independent.notification.count()).toBe(0)
+    expect(await independent.payment.count()).toBe(0)
+    expect(await independent.walletEntry.count()).toBe(0)
+  }
+  it('reads a safe owned balance, then reflects spending and restoration independently', async () => {
+    const p = await purchase()
+    const first = creditBookingOptions.parse(await readCreditBookingOptions(parentId, p.id))
+    expect(first.services[0]).toMatchObject({ availableCredits: 2, hold: null })
+    expect(first.athletes.map(child => child.id).sort()).toEqual([...children].sort())
+    expect(JSON.stringify(first)).not.toContain(p.stripePaymentIntentId!)
+    expect(JSON.stringify(first)).not.toContain(otherChild)
+    const saved = await createCreditBooking(parentId, request(p.id))
+    expect((await readCreditBookingOptions(parentId, p.id)).services[0].availableCredits).toBe(1)
+    await applyBookingAction(saved.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    expect((await readCreditBookingOptions(parentId, p.id)).services[0].availableCredits).toBe(2)
+  })
+  it.each(['other-parent', 'trainer', 'deleted-parent'])('does not return booking options to %s', async role => {
+    const p = await purchase()
+    if (role === 'deleted-parent') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    await expect(readCreditBookingOptions(role === 'other-parent' ? otherId : role === 'trainer' ? trainerId : parentId, p.id)).rejects.toMatchObject({ status: role === 'other-parent' ? 404 : 403 })
+  })
+  it.each(['review', 'expired', 'service-retired', 'missing-receipt'])('does not label %s credits as spendable', async state => {
+    const p = await purchase({ paidAt: new Date(Date.now() - (state === 'expired' ? 91 * 86400000 : 1000)), receipt: state !== 'missing-receipt' })
+    if (state === 'review') await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: { detail: 'private-provider-review' } } })
+    if (state === 'service-retired') await prisma.serviceOffering.update({ where: { id: serviceId }, data: { isActive: false } })
+    const result = creditBookingOptions.parse(await readCreditBookingOptions(parentId, p.id))
+    expect(result.services[0].availableCredits).toBe(0)
+    expect(result.services[0].hold).toBeTruthy()
+    expect(JSON.stringify(result)).not.toContain('private-provider-review')
+  })
+  it('enforces shared cash/credit group capacity and rejects overlapping nonmatching sessions', async () => {
+    await prisma.serviceOffering.update({ where: { id: serviceId }, data: { type: 'GROUP', maxParticipants: 2 } })
+    const p = await purchase({ sessions: 3, type: 'GROUP' }), body = request(p.id)
+    const third = await prisma.athleteProfile.create({ data: { parentProfileId, firstName: 'Three', lastName: 'Synthetic', dateOfBirth: new Date('2015-01-01'), sports: { create: { sportId } } } })
+    expect((await post(body)).status).toBe(201)
+    expect((await post({ ...body, requestId: randomUUID(), athleteProfileId: children[1], startTime: '09:30' })).status).toBe(409)
+    const { purchaseId: _purchaseId, ...cash } = body
+    await createBooking(parentId, { ...cash, requestId: randomUUID(), athleteProfileId: children[1], expectedTotalInCents: 3000 })
+    expect((await post({ ...body, requestId: randomUUID(), athleteProfileId: third.id })).status).toBe(409)
+    expect(await independent.booking.count()).toBe(2)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+  })
+  it('books siblings atomically through authenticated HTTP without another payment', async () => {
+    const p = await purchase(), first = request(p.id)
+    for (const body of [first, { ...first, requestId: randomUUID(), athleteProfileId: children[1], startTime: '10:00' }]) {
+      const response = await post(body)
+      expect(response.status).toBe(201)
+      expect(response.headers.get('cache-control')).toBe('private, no-store')
+      const result = await response.json()
+      expect(result).toMatchObject({ status: 'CONFIRMED', creditFunding: { purchaseId: p.id, hold: null, restoredAt: null } })
+      expect(Object.keys(result).sort()).toEqual(['creditFunding', 'id', 'status'])
+      expect(JSON.stringify(result)).not.toContain(p.stripePaymentIntentId!)
+      expect(await independent.booking.findUnique({ where: { id: result.id } })).toMatchObject({ athleteProfileId: body.athleteProfileId, totalAmountInCents: 0 })
+    }
+    expect(await independent.packageCreditRedemption.count({ where: { purchaseId: p.id, restoredAt: null } })).toBe(2)
+    expect(await independent.bookingCreateRequest.count()).toBe(2)
+    expect(await independent.notification.count()).toBe(4)
+    expect(await independent.payment.count()).toBe(0)
+    expect(await independent.walletEntry.count()).toBe(0)
+    expect((await post({ ...first, requestId: randomUUID(), startTime: '11:00' })).status).toBe(409)
+  })
+  it('returns one saved booking for simultaneous identical retries', async () => {
+    const p = await purchase({ sessions: 1 }), body = request(p.id)
+    const results = await Promise.all([post(body), post(body)])
+    expect(results.map(result => result.status)).toEqual([201, 201])
+    expect((await results[0].json()).id).toBe((await results[1].json()).id)
+    expect(await independent.booking.count()).toBe(1)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+    expect(await independent.bookingCreateRequest.count()).toBe(1)
+    expect(await independent.notification.count()).toBe(2)
+  })
+  it('serializes different sibling reservations for the last credit', async () => {
+    const p = await purchase({ sessions: 1 }), body = request(p.id)
+    const results = await Promise.all([post(body), post({ ...body, requestId: randomUUID(), athleteProfileId: children[1], startTime: '10:00' })])
+    expect(results.map(result => result.status).sort()).toEqual([201, 409])
+    expect(await independent.booking.count()).toBe(1)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+    expect(await independent.notification.count()).toBe(2)
+  })
+  it.each(['notes', 'startTime', 'athleteProfileId', 'purchaseId'])('rejects changed %s under a committed request', async field => {
+    const p = await purchase(), body = request(p.id)
+    expect((await post(body)).status).toBe(201)
+    const changed = field === 'purchaseId' ? (await purchase()).id : field === 'athleteProfileId' ? children[1] : field === 'startTime' ? '10:00' : 'Changed'
+    expect((await post({ ...body, [field]: changed })).status).toBe(409)
+    expect(await independent.booking.count()).toBe(1)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+  })
+  it('replays cancellation history after eligibility changes without reserving or spending again', async () => {
+    const p = await purchase(), body = request(p.id), saved = await createCreditBooking(parentId, body)
+    await applyBookingAction(saved.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    await prisma.serviceOffering.update({ where: { id: serviceId }, data: { isActive: false } })
+    const replay = await createCreditBooking(parentId, body)
+    expect(replay).toMatchObject({ id: saved.id, status: 'CANCELLED', creditFunding: { restoredAt: expect.any(String) } })
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+    expect(await independent.booking.count()).toBe(1)
+  })
+  it('does not resurrect a deleted saved booking', async () => {
+    const p = await purchase(), body = request(p.id), saved = await createCreditBooking(parentId, body)
+    await prisma.booking.delete({ where: { id: saved.id } })
+    expect((await post(body)).status).toBe(409)
+    expect(await independent.booking.count()).toBe(0)
+  })
+  it.each(['cash-first', 'credit-first'])('does not reuse the request identity between cash and credit: %s', async order => {
+    const p = await purchase(), body = request(p.id), { purchaseId: _purchaseId, ...cash } = body
+    if (order === 'cash-first') {
+      await createBooking(parentId, { ...cash, expectedTotalInCents: 3000 })
+      expect((await post(body)).status).toBe(409)
+      expect(await independent.packageCreditRedemption.count()).toBe(0)
+    } else {
+      await createCreditBooking(parentId, body)
+      await expect(createBooking(parentId, { ...cash, expectedTotalInCents: 3000 })).rejects.toMatchObject({ status: 409 })
+      expect(await independent.packageCreditRedemption.count()).toBe(1)
+    }
+    expect(await independent.booking.count()).toBe(1)
+  })
+  it.each(['couponCode', 'expectedTotalInCents', 'packageId', 'status', 'parentProfileId'])('rejects unsupported %s without reserving', async field => {
+    const p = await purchase()
+    expect((await post({ ...request(p.id), [field]: field === 'expectedTotalInCents' ? 0 : 'unsupported' })).status).toBe(400)
+    await assertEmpty()
+  })
+  it.each(['anonymous', 'trainer', 'other-parent', 'other-child', 'deleted-parent'])('denies %s without a debit', async actor => {
+    const p = await purchase(), body = request(p.id)
+    if (actor === 'deleted-parent') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    const result = await post({ ...body, ...(actor === 'other-child' ? { athleteProfileId: otherChild } : {}) }, actor === 'anonymous' ? null : actor === 'trainer' ? trainerId : actor === 'other-parent' ? otherId : parentId)
+    expect(result.status).toBe(actor === 'trainer' ? 403 : actor === 'anonymous' || actor === 'deleted-parent' ? 401 : 404)
+    await assertEmpty()
+  })
+  it.each(['review', 'refund', 'pending-refund', 'failed-refund', 'unverified', 'status', 'intent', 'charge', 'checkout', 'transfer'])('holds new reservations after %s changes', async reason => {
+    const p = await purchase()
+    const change: Prisma.PackagePurchaseUpdateInput = reason === 'review' ? { financialReview: { detail: 'private-provider-review' } } :
+      reason === 'refund' ? { refundAmountInCents: 1 } : reason === 'pending-refund' ? { refundPendingAmountInCents: 1 } :
+      reason === 'failed-refund' ? { refundFailedCount: 1 } : reason === 'unverified' ? { settlementVerifiedAt: null } :
+      reason === 'status' ? { status: 'REFUNDED' } : reason === 'intent' ? { stripePaymentIntentId: 'pi_changed' } :
+      reason === 'charge' ? { stripeChargeId: 'ch_changed' } : reason === 'checkout' ? { stripeCheckoutSessionId: 'cs_changed' } : { stripeTransferId: null }
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: change })
+    const response = await post(request(p.id))
+    expect(response.status).toBe(409)
+    expect(JSON.stringify(await response.json())).not.toContain('private-provider-review')
+    await assertEmpty()
+  })
+  it.each(['expired', 'session-after-expiry', 'missing-receipt', 'legacy-policy'])('rejects %s', async state => {
+    const p = await purchase({ paidAt: new Date(Date.now() - (state === 'expired' ? 91 : state === 'session-after-expiry' ? 89 : 0) * 86400000 - 1000),
+      receipt: state !== 'missing-receipt', version: state === 'legacy-policy' ? 1 : 2 })
+    expect((await post(request(p.id))).status).toBe(409)
+    await assertEmpty()
+  })
+  it.each([false, 0, ''])('treats a non-null falsy JSON review %j as a hold before attempting a debit', async review => {
+    const p = await purchase()
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: review } })
+    const options = await readCreditBookingOptions(parentId, p.id)
+    expect(options.services[0].availableCredits).toBe(0)
+    expect((await post(request(p.id))).status).toBe(409)
+    await assertEmpty()
+  })
+  it.each(['inactive-service', 'duration', 'type', 'trainer-inactive', 'trainer-deleted', 'sport-inactive', 'child-sport', 'time-zone', 'unavailable'])('revalidates %s', async state => {
+    const p = await purchase()
+    if (state === 'inactive-service') await prisma.serviceOffering.update({ where: { id: serviceId }, data: { isActive: false } })
+    if (state === 'duration') await prisma.serviceOffering.update({ where: { id: serviceId }, data: { durationMinutes: 90 } })
+    if (state === 'type') await prisma.serviceOffering.update({ where: { id: serviceId }, data: { type: 'GROUP' } })
+    if (state === 'trainer-inactive') await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { isActive: false } })
+    if (state === 'trainer-deleted') await prisma.user.update({ where: { id: trainerId }, data: { deletedAt: new Date() } })
+    if (state === 'sport-inactive') await prisma.sport.update({ where: { id: sportId }, data: { isActive: false } })
+    if (state === 'child-sport') await prisma.athleteSport.deleteMany({ where: { athleteProfileId: children[0] } })
+    if (state === 'time-zone') await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { timeZone: 'America/New_York' } })
+    if (state === 'unavailable') await prisma.availabilitySlot.deleteMany({ where: { trainerProfileId } })
+    expect((await post(request(p.id))).status).toBe(['child-sport', 'unavailable'].includes(state) ? 400 : 409)
+    await assertEmpty()
+  })
+  it('does not reprice prepaid credit when current cash pricing changes', async () => {
+    const p = await purchase()
+    await prisma.serviceOffering.update({ where: { id: serviceId }, data: { priceInCents: 99900 } })
+    expect((await post(request(p.id))).status).toBe(201)
+    expect((await independent.booking.findFirstOrThrow()).totalAmountInCents).toBe(0)
+    expect(await independent.payment.count()).toBe(0)
+  })
+  it('serializes competing cash and credit sessions using the shared trainer lock', async () => {
+    const p = await purchase(), body = request(p.id), { purchaseId: _id, ...cash } = body
+    const results = await Promise.allSettled([createCreditBooking(parentId, body), createBooking(parentId, {
+      ...cash, requestId: randomUUID(), athleteProfileId: children[1], expectedTotalInCents: 3000,
+    })])
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
+    expect(await independent.booking.count()).toBe(1)
+  })
+  it('permits a restored credit to book again under a new request without reopening the cancelled session', async () => {
+    const p = await purchase({ sessions: 1 }), body = request(p.id), first = await createCreditBooking(parentId, body)
+    await applyBookingAction(first.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    const second = await createCreditBooking(parentId, { ...body, requestId: randomUUID(), athleteProfileId: children[1] })
+    expect(second.id).not.toBe(first.id)
+    expect(await independent.packageCreditRedemption.count({ where: { restoredAt: null } })).toBe(1)
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: first.id } })).status).toBe('CANCELLED')
+  })
+  it('rolls back the booking, debit and notices if the request record cannot commit', async () => {
+    const p = await purchase(), body = request(p.id)
+    await prisma.$executeRawUnsafe('ALTER TABLE booking_create_requests ADD CONSTRAINT credit_request_test_failure CHECK (false) NOT VALID')
+    try {
+      expect((await post(body)).status).toBe(503)
+      await assertEmpty()
+    } finally { await prisma.$executeRawUnsafe('ALTER TABLE booking_create_requests DROP CONSTRAINT credit_request_test_failure') }
+    expect((await post(body)).status).toBe(201)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+  })
+})
 
 describe('role-scoped credit funding dashboard', () => {
   it.each(['PARENT', 'TRAINER'] as const)('returns a safe %s funding snapshot without a second payment', async role => {
@@ -265,7 +495,7 @@ describe('credit-funded booking actions', () => {
   })
 })
 
-describe('real SQL family credit consumption ledger (not yet exposed by booking routes)', () => {
+describe('real SQL family credit consumption ledger', () => {
   it('shares two credits across siblings, survives independent reload and never creates money records', async () => {
     const p = await purchase(), a = await booking(), b = await booking({ athleteProfileId: children[1] })
     await spend(p.id, a.id); await spend(p.id, b.id)

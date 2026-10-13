@@ -5,9 +5,8 @@ export class PackageCreditError extends Error {
   constructor(message: string, public readonly status = 409) { super(message) }
 }
 
-// Transaction-only primitives. No public route enables redemption until booking and
-// cancellation can commit their idempotency record and this ledger together.
-export async function lockCreditBooking(tx: Prisma.TransactionClient, purchaseId: string, bookingId: string) {
+// Lock accounts before profiles/purchase, and the purchase before any booking.
+export async function lockCreditPurchase(tx: Prisma.TransactionClient, purchaseId: string) {
   const reference = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, select: {
     parentProfileId: true, trainerProfileId: true, parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
   } })
@@ -17,6 +16,11 @@ export async function lockCreditBooking(tx: Prisma.TransactionClient, purchaseId
   await tx.$queryRaw`SELECT id FROM parent_profiles WHERE id = ${reference.parentProfileId} FOR NO KEY UPDATE`
   await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = ${reference.trainerProfileId} FOR UPDATE`
   await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
+  return { reference, accounts }
+}
+
+export async function lockCreditBooking(tx: Prisma.TransactionClient, purchaseId: string, bookingId: string) {
+  const { reference, accounts } = await lockCreditPurchase(tx, purchaseId)
   const booking = await tx.booking.findUnique({ where: { id: bookingId } })
   if (!booking || booking.parentProfileId !== reference.parentProfileId || booking.trainerProfileId !== reference.trainerProfileId) {
     throw new PackageCreditError('Booking does not belong to this package purchase', 404)

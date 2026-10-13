@@ -34,6 +34,11 @@ beforeEach(() => {
 })
 
 describe('credit booking outcome funding', () => {
+  it.each([false, 0, ''])('holds non-null falsy review %j consistently with the SQL debit guard', review => {
+    booking.creditRedemption!.grant.purchase.financialReview = review
+    expect(packageCreditBookingHold(booking)).toContain('reconciliation')
+    expect(packageCreditFunding(booking)?.hold).toContain('reconciliation')
+  })
   it('projects only safe funding fields and enables funded outcome controls', () => {
     const creditFunding = packageCreditFunding(booking)
     expect(creditFunding).toEqual({ kind: 'PACKAGE_CREDIT', purchaseId: 'purchase', packageTitle: 'Shared sessions', restoredAt: null, hold: null })

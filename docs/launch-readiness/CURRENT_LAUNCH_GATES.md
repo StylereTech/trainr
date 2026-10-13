@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Credit Reservation Follow-Up
+
+2026-10-13: added the parent-owned credit reservation API, live balance/options read and linked booking form. Booking, credit debit, notifications and retry identity share one transaction; cash and credit reservations share scheduling/capacity checks. This supersedes the missing credit reservation/balance/form statements below, but does not complete public package sales or hosted Stripe proof. [Current exact tests, failures, publication and remaining boundaries](PACKAGE_CREDIT_RESERVATION_REPORT.md). Expiry interpretation and prepaid service retirement/replacement policy remain open; **HOLD**.
+
 ## Credit Dashboard Follow-Up
 
 2026-10-13: existing credit-funded sessions now have safe participant/admin funding projections, accurate credit labels, and parent/trainer cancellation controls. This supersedes the dashboard-read/UI gap in the earlier entries, not the missing purchase/reservation flow. [Exact local failures, fixes, retests and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Public package sales, reservation creation, spendable balance, service replacement, expiry interpretation and actual hosted Stripe proof remain incomplete. Overall **HOLD**.

@@ -43,7 +43,7 @@ export function packageCreditBookingHold(booking: CreditBooking & { payment: unk
       !booking.endsAt || booking.endsAt.getTime() - startsAt !== item.durationMinutes * 60000) {
     return 'Package credit funding needs reconciliation before recording this session outcome.'
   }
-  if (purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt || purchase.financialReview ||
+  if (purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt || purchase.financialReview !== null ||
       purchase.refundAmountInCents !== 0 || purchase.refundPendingAmountInCents !== 0 || purchase.refundFailedCount !== 0 ||
       !purchase.stripePaymentIntentId || !purchase.stripeChargeId || !purchase.stripeCheckoutSessionId || !purchase.stripeTransferId ||
       receipt?.stripePaymentIntentId !== purchase.stripePaymentIntentId || receipt.stripeChargeId !== purchase.stripeChargeId ||

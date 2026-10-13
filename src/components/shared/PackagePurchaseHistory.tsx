@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { z } from 'zod'
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RefundSummary } from '@/components/shared/RefundSummary'
 import { useRemoteData } from '@/lib/use-remote-data'
@@ -84,7 +84,8 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
               <dt className="text-slate-400">Valid until</dt><dd data-testid="package-expires-at" className="min-w-0 break-words">{purchase.expiresAt ? new Date(purchase.expiresAt).toLocaleString() : 'Not established'}</dd>
             </dl>
             <ul className="mt-4 space-y-1 text-sm text-slate-300">{purchase.items.map((item, index) => <li key={index} className="break-words">{item.sessionsCount} &times; {item.title} ({item.durationMinutes} min)</li>)}</ul>
-            <p className="mt-3 text-sm text-amber-200">Session credits unavailable</p>
+            {role === 'PARENT' ? <Button asChild variant="outline" className="mt-3"><Link href={`/parent/packages/${encodeURIComponent(purchase.id)}/book`}><CalendarCheck className="mr-2 h-4 w-4" />View session credits</Link></Button>
+              : <p className="mt-3 text-sm text-slate-400">Session credits are shared across the parent&apos;s children.</p>}
             <RefundSummary payment={purchase} />
           </div>
           <div className="min-w-0 md:text-right">
