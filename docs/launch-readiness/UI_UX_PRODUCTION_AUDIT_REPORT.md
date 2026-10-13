@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+2026-10-13 package purchase screens: new review, consent, recovery and owned-purchase states use the existing TRAINR layout and controls. [Exact desktop/mobile execution, screenshots and defects](PACKAGE_PURCHASE_UI_REPORT.md). Pending visual checks are not treated as passing; full production UX signoff remains **HOLD**.
+
 2026-10-13: added a parent credit reservation form reached from package history, with service/child/date/time selectors, available-credit counts, explicit cancellation policy and same-request recovery after uncertain responses. Existing dashboard funding presentation is retained. [Exact desktop/mobile results, screenshots, failures and retests](PACKAGE_CREDIT_RESERVATION_REPORT.md). Hosted money-flow and complete product signoff remain **HOLD**.
 
 2026-10-13: fixed credit funding labels/actions across parent, trainer and admin dashboards. Visual review caught an 11.5px mobile athlete-tile overflow after the initial 74-case suite passed; a new boundary assertion reproduced it before correction. Cancellation now recovers safely from non-JSON responses. [Failure screenshots, exact retests and current evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). No claim that every screen or hosted payment flow passes; **HOLD**.

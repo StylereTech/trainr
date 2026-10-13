@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { z } from 'zod'
-import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, CreditCard, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RefundSummary } from '@/components/shared/RefundSummary'
 import { useRemoteData } from '@/lib/use-remote-data'
@@ -90,6 +90,7 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
           </div>
           <div className="min-w-0 md:text-right">
             <p className="text-xs text-slate-400">Package total</p><p className="break-words text-xl font-semibold">{formatCurrency(purchase.amountInCents)}</p>
+            {role === 'PARENT' && <Button asChild variant="outline" className="mt-4 w-full md:w-auto"><Link href={`/parent/packages/${encodeURIComponent(purchase.id)}/checkout`}><CreditCard className="mr-2 h-4 w-4" />Review payment</Link></Button>}
             {purchase.trainerAllocationInCents !== null && <><p className="mt-2 text-sm text-slate-300">Original trainer allocation: {formatCurrency(purchase.trainerAllocationInCents)}</p><Link href="/trainer/profile?tab=payouts" className="mt-2 inline-block text-sm text-emerald-300 underline">Stripe payout status</Link></>}
             <Button variant="outline" className="mt-4 w-full md:w-auto" disabled={disabled || uncertain || !purchase.canRefresh} onClick={() => void refreshPayment(purchase.id)}>
               {busyId === purchase.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh payment

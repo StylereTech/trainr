@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Package Purchase UI Follow-Up
+
+2026-10-13: parent package review, consent, checkout/retry, return-state review and history navigation pass the full local quality gate (1,595 units), 981 SQL tests and 112 selected browser cases. Missing time-zone checkout, hidden review flags and long-title overflow were reproduced and fixed. [Exact tests, failures and publication boundaries](PACKAGE_PURCHASE_UI_REPORT.md). This supersedes the missing customer UI statement within the tested local scope; actual hosted Stripe checkout/Connect/transfer/payout and other release gates remain **HOLD**.
+
 ## Package Sales API Follow-Up
 
 2026-10-13: added a parent-only package checkout API using immutable reviewed purchases and recoverable Stripe attempts. Fixed reproduced review/refund hold bypasses, including SQL-vs-JSON null ambiguity. [Exact failures, retests and publication evidence](PACKAGE_SALES_API_REPORT.md). Customer purchase UI and actual hosted Stripe proof remain incomplete; this does not make package sales end-to-end ready. **HOLD**.

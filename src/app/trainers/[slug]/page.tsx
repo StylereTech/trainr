@@ -330,25 +330,25 @@ export default function TrainerProfilePage() {
               {trainer.packages.length > 0 && (
                 <>
                   <h3 className="pt-2 text-lg font-semibold text-white">Packages</h3>
-                  <p className="text-sm text-amber-200">Package checkout unavailable</p>
                   {trainer.packages.map((pkg) => (
                     <Card key={pkg.id} className="border-emerald-500/20 bg-white/[0.04] text-white">
                       <CardContent className="p-5">
                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <h4 className="text-lg font-semibold">{pkg.title}</h4>
-                            {pkg.description && <p className="mt-1 text-sm text-slate-300">{pkg.description}</p>}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="break-words text-lg font-semibold">{pkg.title}</h4>
+                            {pkg.description && <p className="mt-1 break-words text-sm text-slate-300">{pkg.description}</p>}
                             <div className="mt-3 space-y-2">
                               {pkg.items.map((item, i) => (
-                                <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-                                  {item.sessionsCount}× {item.serviceOffering.title}
+                                <div key={i} className="flex min-w-0 items-start gap-2 text-sm text-slate-300">
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                                  <span className="min-w-0 break-words">{item.sessionsCount}× {item.serviceOffering.title}</span>
                                 </div>
                               ))}
                             </div>
-                            <p className="mt-3 text-xs text-slate-400">Valid for {pkg.validForDays} days</p>
+                            <p className="mt-3 text-xs text-slate-400">Shared across your children. Valid for {pkg.validForDays} days from successful payment.</p>
+                            <Button asChild variant="outline" className="mt-4"><Link href={`/parent/packages/buy/${encodeURIComponent(pkg.id)}`}><ArrowUpRight className="mr-2 h-4 w-4" />Review package</Link></Button>
                           </div>
-                          <div className="rounded-2xl bg-slate-950/50 px-4 py-3 text-left md:text-right">
+                          <div className="shrink-0 rounded-2xl bg-slate-950/50 px-4 py-3 text-left md:text-right">
                             <div className="text-2xl font-bold text-white">{formatCurrency(pkg.priceInCents)}</div>
                             <div className="text-xs text-slate-400">{pkg.totalSessions} sessions</div>
                           </div>

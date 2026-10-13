@@ -25,7 +25,7 @@ export async function readPackageHistory(actor: PackageHistoryActor, raw: Packag
     const scope = await packageHistoryScope(tx, actor)
     const filter: Prisma.PackagePurchaseWhereInput = view === 'pending' ? { status: { in: ['PENDING', 'PROCESSING', 'FAILED'] } } :
       view === 'paid' ? { status: 'SUCCEEDED' } : view === 'refunded' ? { status: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] } } :
-      view === 'review' ? { OR: [{ financialReview: { not: Prisma.AnyNull } }, { refundPendingAmountInCents: { gt: 0 } }, { refundFailedCount: { gt: 0 } }] } : {}
+      view === 'review' ? { OR: [{ financialReview: { not: Prisma.DbNull } }, { refundPendingAmountInCents: { gt: 0 } }, { refundFailedCount: { gt: 0 } }] } : {}
     const where = { ...scope, ...filter }
     const total = await tx.packagePurchase.count({ where }), totalPages = Math.ceil(total / limit)
     const page = Math.min(requestedPage, Math.max(1, totalPages))
@@ -34,6 +34,8 @@ export async function readPackageHistory(actor: PackageHistoryActor, raw: Packag
         creditGrants: { select: { sessionsCount: true } },
         paymentReceipt: { select: { paidAt: true } },
         checkoutAttempts: { orderBy: { sequence: 'desc' }, take: 1, select: { stripeCheckoutSessionId: true, retiredAt: true } } } })
+    // Preserve SQL presence: JSON null and other falsy JSON values are review holds.
+    const held = new Set((await tx.packagePurchase.findMany({ where: { id: { in: rows.map(row => row.id) }, financialReview: { not: Prisma.DbNull } }, select: { id: true } })).map(row => row.id))
     return { purchases: rows.map(row => {
       const terms = packagePurchaseTermsSchema.parse(row.terms)
       const attempt = row.checkoutAttempts[0]
@@ -45,7 +47,7 @@ export async function readPackageHistory(actor: PackageHistoryActor, raw: Packag
         items: terms.items.map(({ title, sessionsCount, durationMinutes }) => ({ title, sessionsCount, durationMinutes })),
         amountInCents: row.amountInCents, trainerAllocationInCents: actor.role === 'TRAINER' ? row.trainerPayoutInCents : null, status: row.status,
         paymentVerified: Boolean(row.settlementVerifiedAt && row.stripePaymentIntentId && row.stripeChargeId && row.stripeTransferId),
-        reviewRequired: Boolean(row.financialReview || row.refundPendingAmountInCents || row.refundFailedCount),
+        reviewRequired: held.has(row.id) || Boolean(row.refundPendingAmountInCents || row.refundFailedCount),
         canRefresh: Boolean(attempt?.stripeCheckoutSessionId && !attempt.retiredAt), settlementVerifiedAt: row.settlementVerifiedAt?.toISOString() || null,
         refundAmountInCents: row.refundAmountInCents, refundPendingAmountInCents: row.refundPendingAmountInCents,
         refundFailedCount: row.refundFailedCount, refundsVerifiedAt: row.refundsVerifiedAt?.toISOString() || null }

@@ -12,6 +12,8 @@ import { packageHistoryResponse } from '@/lib/package-history-schema'
 import { NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
 import { POST as checkoutPOST } from '@/app/api/package-purchases/checkout/route'
+import { GET as reviewGET } from '@/app/api/package-purchases/review/route'
+import { packageReviewResponse } from '@/lib/package-sales-schema'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 import { POST as creditPOST } from '@/app/api/bookings/credits/route'
 import { readCreditBookingOptions } from '@/lib/credit-booking-options'
@@ -82,7 +84,7 @@ beforeEach(async () => {
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `package-checkout-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_settlement',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_settlement', timeZone: 'UTC',
       sports: { create: { sportId } }, serviceOfferings: { create: { title: 'Training', sportId, priceInCents: 3000 } } } } },
     include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainerId = trainer.id; trainerProfileId = trainer.trainerProfile!.id
@@ -111,6 +113,11 @@ afterEach(async () => {
 afterAll(async () => { vi.unstubAllEnvs(); await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('public package checkout route with local SQL and simulated provider', () => {
+  async function review(query: string, userId: string | null = parentId) {
+    const user = userId ? await prisma.user.findUniqueOrThrow({ where: { id: userId } }) : null
+    const token = user ? await encode({ secret: authSecret, token: { sub: user.id, role: user.role, sessionVersion: user.sessionVersion } }) : null
+    return reviewGET(new NextRequest(`http://localhost/api/package-purchases/review?${query}`, { headers: token ? { cookie: `next-auth.session-token=${token}` } : {} }))
+  }
   async function post(body: unknown, userId: string | null = parentId, raw = false) {
     const user = userId ? await prisma.user.findUniqueOrThrow({ where: { id: userId } }) : null
     const token = user ? await encode({ secret: authSecret, token: { sub: user.id, role: user.role, sessionVersion: user.sessionVersion } }) : null
@@ -126,6 +133,94 @@ describe('public package checkout route with local SQL and simulated provider', 
     expect(provider.account).not.toHaveBeenCalled(); expect(provider.create).not.toHaveBeenCalled()
     expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(0)
   }
+  it('reads a safe current offer without creating purchase or checkout records', async () => {
+    const saved = await readPurchase(), response = await review(`packageId=${saved.packageId}`)
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store')
+    const data = packageReviewResponse.parse(await response.json())
+    expect(data).toMatchObject({ buyerId: parentId, packageId: saved.packageId, purchaseId: null, catalogRevision: saved.catalogRevision.toISOString(),
+      amountInCents: 6000, canCheckout: true, canBuyAgain: false, terms: { version: 2, totalSessions: 2 } })
+    expect(JSON.stringify(data)).not.toContain('acct_settlement'); expect(JSON.stringify(data)).not.toContain('example.test')
+    expect(await readPurchase()).toEqual(saved); expect(await independent.packagePurchase.count()).toBe(1)
+    await noProvider()
+  })
+  it('recovers the original owned purchase by request identity across reloads', async () => {
+    const saved = await readPurchase()
+    const response = await review(`packageId=${saved.packageId}&requestId=${saved.requestId}`)
+    expect(response.status).toBe(200)
+    expect(packageReviewResponse.parse(await response.json())).toMatchObject({ buyerId: parentId, purchaseId, status: 'PENDING', amountInCents: 6000, canCheckout: true })
+    expect(await (await review(`purchaseId=${purchaseId}`)).json()).toMatchObject({ purchaseId, amountInCents: 6000 })
+    await noProvider()
+  })
+  it('preserves bought terms and disables checkout after the catalog changes', async () => {
+    const saved = await readPurchase()
+    await prisma.package.update({ where: { id: saved.packageId }, data: { title: 'Changed offer', priceInCents: 7000 } })
+    const old = await (await review(`purchaseId=${purchaseId}`)).json()
+    expect(old).toMatchObject({ amountInCents: 6000, terms: { title: 'Two sessions' }, canCheckout: false })
+    const current = await (await review(`packageId=${saved.packageId}`)).json()
+    expect(current).toMatchObject({ amountInCents: 7000, terms: { title: 'Changed offer' }, canCheckout: true })
+    const existing = await post(await request())
+    expect(existing.status).toBe(409); expect(await existing.json()).not.toHaveProperty('code')
+    const fresh = await post({ ...await request(), requestId: randomUUID() })
+    expect(fresh.status).toBe(409); expect(await fresh.json()).toMatchObject({ code: 'OFFER_CHANGED' })
+    await noProvider()
+  })
+  it.each([false, 0, '', Prisma.JsonNull])('review does not expose checkout for financial review %j', async financialReview => {
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+    const response = await review(`purchaseId=${purchaseId}`)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ canCheckout: false, canBuyAgain: false, hold: expect.any(String) })
+    await noProvider()
+  })
+  it.each([false, 0, '', Prisma.JsonNull])('history retains a SQL-non-null review flag %j', async financialReview => {
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+      const history = packageHistoryResponse.parse(await readPackageHistory(actor, { view: 'review', page: 1, limit: 10 }))
+      expect(history.pagination.total).toBe(1)
+      expect(history.purchases[0]).toMatchObject({ id: purchaseId, reviewRequired: true })
+    }
+  })
+  it.each(['anonymous', 'trainer', 'admin', 'deleted', 'foreign'])('denies %s review access', async mode => {
+    let actor: string | null = mode === 'anonymous' ? null : mode === 'trainer' ? trainerId : parentId
+    if (mode === 'admin') await prisma.user.update({ where: { id: parentId }, data: { role: 'ADMIN' } })
+    if (mode === 'deleted') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    if (mode === 'foreign') {
+      const other = await prisma.user.create({ data: { email: `review-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role: 'PARENT', parentProfile: { create: {} } } })
+      historyUsers.push(other.id); actor = other.id
+    }
+    expect((await review(`purchaseId=${purchaseId}`, actor)).status).toBe(mode === 'anonymous' || mode === 'deleted' ? 401 : mode === 'foreign' ? 404 : 403)
+    await noProvider()
+  })
+  it.each(['', 'packageId=x&purchaseId=y', 'packageId=x&packageId=y', 'packageId=x&requestId=no', 'purchaseId=x&extra=y'])('rejects malformed review query %s', async query => {
+    expect((await review(query)).status).toBe(400); await noProvider()
+  })
+  it.each(['trainer', 'package', 'service', 'sport'])('rejects unavailable %s offers before purchase', async mode => {
+    const saved = await readPurchase()
+    if (mode === 'trainer') await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { isActive: false } })
+    if (mode === 'package') await prisma.package.update({ where: { id: saved.packageId }, data: { isActive: false } })
+    if (mode === 'service') await prisma.serviceOffering.updateMany({ where: { trainerProfileId }, data: { isActive: false } })
+    if (mode === 'sport') await prisma.sport.update({ where: { id: sportId }, data: { isActive: false } })
+    expect((await review(`packageId=${saved.packageId}`)).status).toBe(409)
+    await noProvider()
+  })
+  it('does not let a foreign request identity reveal or resume another parent purchase', async () => {
+    const saved = await readPurchase()
+    const other = await prisma.user.create({ data: { email: `review-foreign-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role: 'PARENT', parentProfile: { create: {} } } })
+    historyUsers.push(other.id)
+    const response = await review(`packageId=${saved.packageId}&requestId=${saved.requestId}`, other.id)
+    expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ buyerId: other.id, purchaseId: null })
+    await noProvider()
+  })
+  it('allows an explicit repeat purchase only after verified success with no holds', async () => {
+    const { session } = await paidSession(); await webhook(session); await successWebhook()
+    expect(await (await review(`purchaseId=${purchaseId}`)).json()).toMatchObject({ canCheckout: false, canBuyAgain: true, status: 'SUCCEEDED' })
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview: Prisma.JsonNull } })
+    expect(await (await review(`purchaseId=${purchaseId}`)).json()).toMatchObject({ canCheckout: false, canBuyAgain: false })
+  })
+  it('blocks purchase when the trainer has no usable schedule time zone', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { timeZone: null } })
+    await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow('time zone')
+    await noProvider()
+  })
   it('creates a reviewed purchase and returns only an unpaid owned checkout; retries and resume reuse it', async () => {
     const input = { ...await request(), requestId: randomUUID() }
     const response = await post(input), result = await response.json()
@@ -580,9 +675,11 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
     await prisma.packagePurchase.update({ where: { id: purchaseId }, data })
     expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view, page: 1, limit: 10 })).purchases.map(row => row.id)).toEqual([purchaseId])
   })
-  it.each([Prisma.DbNull, Prisma.JsonNull])('does not invent financial review for a null review JSON', async financialReview => {
+  it.each([Prisma.DbNull, Prisma.JsonNull])('distinguishes absent SQL review from a stored JSON null hold', async financialReview => {
     await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
-    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'review', page: 1, limit: 10 })).purchases).toEqual([])
+    const history = await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'review', page: 1, limit: 10 })
+    expect(history.purchases.map(row => row.id)).toEqual(financialReview === Prisma.DbNull ? [] : [purchaseId])
+    expect((await readPackageHistory({ id: parentId, role: 'PARENT' }, { view: 'all', page: 1, limit: 10 })).purchases[0].reviewRequired).toBe(financialReview !== Prisma.DbNull)
   })
   it.each(['PARENT', 'TRAINER'])('recovers missed package payment and current refund history for %s without issuing money', async role => {
     await paidSession(); refunds = [refundReceipt({ status: 'pending' })]

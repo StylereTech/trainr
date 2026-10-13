@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+2026-10-13 package purchase UI follow-up: trainer profile > Review package > full-price/terms consent > Stripe checkout, plus saved-request recovery, owned-purchase review and credit/history links. [Exact tests and distinction between local fixtures and hosted payment proof](PACKAGE_PURCHASE_UI_REPORT.md). Existing purchase terms are retained; a return URL does not mark payment successful. **HOLD** pending remaining gates.
+
 2026-10-13: parent-only package checkout API now supports a reviewed initial purchase and owned-purchase resume, with same-request recovery and current authorization. [Exact local route/provider-simulation evidence and remaining UI work](PACKAGE_SALES_API_REPORT.md). No customer purchase screen or signed-in hosted Stripe completion is claimed; **HOLD**.
 
 2026-10-13: owned package history now links to a credit reservation form with current balances, eligible children, trainer-zone dates/times and stable request retries. Shared-child reservation/debit/notification persistence is atomic; it creates no second cash payment. [Exact tests and limits](PACKAGE_CREDIT_RESERVATION_REPORT.md). Actual purchase through hosted Stripe Checkout and release proof remain unfinished; **HOLD**.

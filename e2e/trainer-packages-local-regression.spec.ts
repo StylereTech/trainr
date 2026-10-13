@@ -58,7 +58,7 @@ for (const width of [1440, 390]) {
     expect((await publicProfile.json()).packages).toHaveLength(1)
     await page.goto(`/trainers/${trainer.slug}`)
     await page.getByRole('tab', { name: 'Services', exact: true }).click()
-    await expect(page.getByText('Package checkout unavailable', { exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Review package', exact: true }).first()).toBeVisible()
     await expect(page.getByText('Five-session plan', { exact: true })).toBeVisible()
     await page.goto('/trainer/packages')
     await expect(row.getByRole('button', { name: 'Duplicate Five-session plan', exact: true })).toBeEnabled()

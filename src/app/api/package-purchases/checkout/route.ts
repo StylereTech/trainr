@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
-import { PackagePurchaseError, preparePackagePurchase } from '@/lib/package-purchases'
+import { PackageOfferChangedError, PackagePurchaseError, preparePackagePurchase } from '@/lib/package-purchases'
 import { startOrResumePackageCheckout } from '@/lib/package-checkout'
 import { packageCheckoutRequest, packageCheckoutResponse } from '@/lib/package-sales-schema'
 import { stripeRuntimeStatus } from '@/lib/stripe'
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     const result = await startOrResumePackageCheckout(purchaseId, actor.id)
     return json(packageCheckoutResponse.parse(result))
   } catch (error) {
+    if (error instanceof PackageOfferChangedError) return json({ error: error.message, code: 'OFFER_CHANGED' }, 409)
     if (error instanceof PackagePurchaseError) return json({ error: error.message }, error.status)
     if (error instanceof SettlementConflict) return json({ error: error.message }, 409)
     console.error('Package checkout could not be verified')
