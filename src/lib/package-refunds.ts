@@ -13,7 +13,9 @@ export async function reconcilePackageRefundHistory(tx: Prisma.TransactionClient
   const previous = await tx.packageRefund.findMany({ where: { purchaseId: purchase.id } })
   if (previous.some(old => !current.some(refund => refund.id === old.id))) throw new RefundReconciliationError('Previously recorded package refund is missing from Stripe history')
   const previousSucceeded = previous.filter(refund => refund.status === 'SUCCEEDED').reduce((total, refund) => total + refund.amountInCents, 0)
-  if (previousSucceeded !== purchase.refundAmountInCents ||
+  const previousPending = previous.filter(refund => ['PENDING', 'REQUIRES_ACTION'].includes(refund.status)).reduce((total, refund) => total + refund.amountInCents, 0)
+  const previousFailed = previous.filter(refund => ['FAILED', 'CANCELED'].includes(refund.status)).length
+  if (previousSucceeded !== purchase.refundAmountInCents || previousPending !== purchase.refundPendingAmountInCents || previousFailed !== purchase.refundFailedCount ||
       (purchase.status === 'REFUNDED' && previousSucceeded !== purchase.amountInCents) ||
       (purchase.status === 'PARTIALLY_REFUNDED' && (previousSucceeded <= 0 || previousSucceeded >= purchase.amountInCents))) {
     throw new RefundReconciliationError('Recorded package refund state has no consistent ledger evidence')

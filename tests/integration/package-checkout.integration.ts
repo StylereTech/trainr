@@ -698,6 +698,58 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
     expect(await readPurchase()).toEqual(previous); expect(provider.intent).not.toHaveBeenCalled()
     expect(provider.create).not.toHaveBeenCalled(); expect(provider.expire).not.toHaveBeenCalled()
   })
+  for (const role of ['PARENT', 'TRAINER'] as const) for (const status of ['open', 'expired']) {
+    it.each([Prisma.JsonNull, false, 0, '', { reason: 'synthetic review' }])(`package settlement held unpaid ${status} refresh rejects ${role} review %j`, async financialReview => {
+      await startOrResumePackageCheckout(purchaseId, parentId)
+      const attempt = await readAttempt(); sessions.get(attempt.stripeCheckoutSessionId!).status = status
+      await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+      const before = await readPurchase()
+      await expect(refreshPackageHistory({ id: role === 'PARENT' ? parentId : trainerId, role }, purchaseId)).rejects.toThrow('Package payment is not completed')
+      expect(await readPurchase()).toEqual(before)
+      expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+      expect(provider.intent).not.toHaveBeenCalled()
+    })
+  }
+  for (const type of ['checkout.session.completed', 'payment_intent.succeeded', 'transfer.created', 'application_fee.created', 'charge.updated']) {
+    async function deliverCurrentPayment(session: any) {
+      if (type === 'payment_intent.succeeded') return successWebhook()
+      const object = type === 'transfer.created' ? f.transfer : type === 'application_fee.created' ? f.fee : type === 'charge.updated' ? f.charge : session
+      return webhook(object, type)
+    }
+    it.each(['pending', 'requires_action', 'failed', 'canceled', 'succeeded'])(`package settlement refund inventory on ${type} detects missed %s refund delivery`, async status => {
+      const { session } = await paidSession()
+      refunds = [refundReceipt({ status })]
+      if (status === 'succeeded') f.charge.amount_refunded = 1000
+      expect((await deliverCurrentPayment(session)).status).toBe(200)
+      expect(provider.refunds).toHaveBeenCalledOnce()
+      expect(await readPurchase()).toMatchObject({
+        status: status === 'succeeded' ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED',
+        refundAmountInCents: status === 'succeeded' ? 1000 : 0,
+        refundPendingAmountInCents: ['pending', 'requires_action'].includes(status) ? 1000 : 0,
+        refundFailedCount: ['failed', 'canceled'].includes(status) ? 1 : 0,
+        refundsVerifiedAt: expect.any(Date), financialReview: expect.any(Object),
+      })
+      expect(await independent.packageRefund.count({ where: { purchaseId } })).toBe(1)
+      expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+    })
+    it(`package settlement refund inventory on ${type} fails closed when refund history is unavailable`, async () => {
+      const { session } = await paidSession(), before = await readPurchase()
+      provider.refunds.mockRejectedValue(new Error('Synthetic refund history unavailable'))
+      expect((await deliverCurrentPayment(session)).status).toBe(503)
+      expect(await readPurchase()).toEqual(before)
+      expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+      expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    })
+    it.each(['refundAmountInCents', 'refundPendingAmountInCents', 'refundFailedCount'] as const)(`package settlement refund inventory on ${type} preserves unbacked %s`, async field => {
+      const { session } = await paidSession()
+      await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { [field]: 1 } })
+      const before = await readPurchase()
+      expect((await deliverCurrentPayment(session)).status).toBe(409)
+      expect(await readPurchase()).toEqual(before)
+      expect(await independent.packageCreditGrant.count({ where: { purchaseId } })).toBe(0)
+      expect(await independent.packagePaymentReceipt.count({ where: { purchaseId } })).toBe(0)
+    })
+  }
   it.each(['missing-session', 'retired', 'provider-failure', 'wrong-destination', 'missing-refund'])('does not replace accounting on history refresh %s', async mode => {
     if (mode === 'missing-session') {
       provider.create.mockRejectedValue(new Error('provider outcome unknown'))
@@ -890,9 +942,9 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
       object = type === 'application_fee.refund.updated' ? { id: 'fr_test', fee: f.fee.id } : f.fee
     } else if (type.startsWith('charge.dispute.')) {
       f.disputes = [settlementDispute(f)]; object = f.disputes[0]
-    } else { f.charge.amount_refunded = 1000; object = f.charge }
+    } else { f.charge.amount_refunded = 1000; refunds = [refundReceipt()]; object = f.charge }
     expect((await webhook(object, type)).status).toBe(200)
-    expect(await readPurchase()).toMatchObject({ status: 'SUCCEEDED', stripeChargeId: f.charge.id,
+    expect(await readPurchase()).toMatchObject({ status: type === 'charge.updated' ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED', stripeChargeId: f.charge.id,
       stripeTransferId: f.transfer.id, settlementVerifiedAt: expect.any(Date), financialReview: { key: expect.any(String) } })
     expect(await prisma.payment.count()).toBe(0); expect(await prisma.booking.count()).toBe(0); expect(await prisma.walletEntry.count()).toBe(0)
   })
@@ -981,7 +1033,8 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
   })
   it('does not let lifecycle verification undo an existing refund status', async () => {
     await paidSession()
-    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { status: 'REFUNDED' } })
+    refunds = [refundReceipt({ amount: 6000 })]; f.charge.amount_refunded = 6000; f.charge.refunded = true
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
     expect((await webhook(f.charge, 'charge.updated')).status).toBe(200)
     expect((await readPurchase()).status).toBe('REFUNDED')
   })
@@ -1159,7 +1212,7 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
   })
   it.each(['refund', 'reversal', 'fee-refund'])('records review requirements for current %s activity, without granting anything', async mode => {
     const { session } = await paidSession()
-    if (mode === 'refund') f.charge.amount_refunded = 1000
+    if (mode === 'refund') { f.charge.amount_refunded = 1000; refunds = [refundReceipt()] }
     if (mode === 'reversal') f.transfer.amount_reversed = 500
     if (mode === 'fee-refund') f.fee.amount_refunded = 100
     expect((await webhook(session)).status).toBe(200)
@@ -1192,9 +1245,14 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
   })
   it.each(['REFUNDED', 'PARTIALLY_REFUNDED'] as const)('preserves terminal refund state %s on repeated paid receipt verification', async status => {
     const { session } = await paidSession()
-    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { status } })
+    const amount = status === 'REFUNDED' ? 6000 : 1000
+    refunds = [refundReceipt({ amount })]; f.charge.amount_refunded = amount; f.charge.refunded = status === 'REFUNDED'
+    expect((await webhook(refunds[0], 'refund.updated')).status).toBe(200)
+    const before = await readPurchase()
+    expect(before.status).toBe(status)
     expect((await webhook(session)).status).toBe(200)
     expect((await readPurchase()).status).toBe(status)
+    expect((await readPurchase()).refundAmountInCents).toBe(before.refundAmountInCents)
     expect(await prisma.booking.count()).toBe(0)
   })
   it('ignores an unpaid package completion snapshot without promoting it', async () => {

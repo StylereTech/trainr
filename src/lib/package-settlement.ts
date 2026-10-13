@@ -30,7 +30,7 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
       }
     }
     await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${purchaseId}) FOR SHARE`
-    await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
+    const [lockedPurchase] = await tx.$queryRaw<{ id: string; reviewHeld: boolean }[]>`SELECT id, "financialReview" IS NOT NULL AS "reviewHeld" FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
     if (actor && !await tx.packagePurchase.findFirst({ where: { id: purchaseId,
       ...(actor.role === 'PARENT' ? { parentProfile: { userId: actor.id } } : { trainerProfile: { userId: actor.id } }) }, select: { id: true } })) {
       throw new PackagePurchaseError('Package purchase not found', 404)
@@ -65,24 +65,23 @@ export async function reconcilePackageCheckout(purchaseId: string, attemptId: st
     const intentId = stripeObjectId(session.payment_intent)
     if (actor && ['open', 'expired'].includes(session.status || '') && session.payment_status === 'unpaid' &&
         ['PENDING', 'FAILED'].includes(purchase.status) && !purchase.settlementVerifiedAt && !purchase.stripeChargeId && !purchase.stripeTransferId &&
-        !purchase.refundAmountInCents && !purchase.refundPendingAmountInCents && !purchase.refundFailedCount && !purchase.financialReview) return purchase
+        !purchase.refundAmountInCents && !purchase.refundPendingAmountInCents && !purchase.refundFailedCount &&
+        lockedPurchase?.id === purchase.id && lockedPurchase.reviewHeld === false) return purchase
     if (session.status !== 'complete' || session.payment_status !== 'paid' || !intentId) throw new PackagePurchaseError('Package payment is not completed.')
     if (evidence && evidence.intentId !== intentId) throw new PackagePurchaseError('Package financial event intent does not match checkout.')
     const settlement = await verifyDestinationCharge(purchase, attempt, packagePaymentIdentity(purchase.id, attempt.id),
       intentId, evidence?.chargeId, evidence?.source, session.livemode)
-    const refunds = evidence?.refunds || actor ? await reconcilePackageRefundHistory(tx, purchase, intentId, settlement.chargeId, settlement.hasRefunds, evidence?.refunds?.refundId) : null
-    const refundState = refunds || purchase
-    // A normal paid/transfer replay must not clear unresolved refund evidence.
-    const details = { ...settlement.review?.details, ...(fulfillmentReview.length ? { fulfillmentReview } : {}), packageRefunds: { refundedInCents: refundState.refundAmountInCents,
-      pendingInCents: refundState.refundPendingAmountInCents, failedCount: refundState.refundFailedCount } }
-    const review = fulfillmentReview.length || refundState.refundAmountInCents || refundState.refundPendingAmountInCents || refundState.refundFailedCount
+    // Pending and failed refunds need not change charge.amount_refunded or arrive before payment events.
+    const refunds = await reconcilePackageRefundHistory(tx, purchase, intentId, settlement.chargeId, settlement.hasRefunds, evidence?.refunds?.refundId)
+    const details = { ...settlement.review?.details, ...(fulfillmentReview.length ? { fulfillmentReview } : {}), packageRefunds: { refundedInCents: refunds.refundAmountInCents,
+      pendingInCents: refunds.refundPendingAmountInCents, failedCount: refunds.refundFailedCount } }
+    const review = fulfillmentReview.length || refunds.refundAmountInCents || refunds.refundPendingAmountInCents || refunds.refundFailedCount
       ? { key: createHash('sha256').update(JSON.stringify(details)).digest('hex'), details } : settlement.review
     await tx.packageCheckoutAttempt.update({ where: { id: attempt.id }, data: { stripeCheckoutSessionId: session.id } })
     const updated = await tx.packagePurchase.update({ where: { id: purchase.id }, data: {
       stripeCheckoutSessionId: session.id, stripePaymentIntentId: intentId, stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId,
-      status: ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(purchase.status) ? purchase.status : 'SUCCEEDED',
       settlementVerifiedAt: new Date(), financialReview: review ? JSON.parse(JSON.stringify(review)) : Prisma.DbNull,
-      ...(refunds || {}),
+      ...refunds,
     } })
     if (successEvidence) await recordPackagePaymentReceipt(tx, updated, successEvidence, session.livemode)
     await recordPackageCreditGrants(tx, updated)
