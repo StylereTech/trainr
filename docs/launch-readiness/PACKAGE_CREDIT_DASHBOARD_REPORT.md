@@ -71,3 +71,17 @@ Reviewed and preserved [parent mobile funding/panel](screenshots/credit-dashboar
 Independent guard/cleanup query confirmed the disposable database marker and zero users, bookings, payments, package purchases, grants, receipts, redemptions and sports. The local Next server stopped. Restricted PostgreSQL shutdown initially lacked permission to signal its owned process; scoped elevated shutdown succeeded. Both owned local servers are stopped.
 
 Pre-publication remote read confirms audit branch at baseline `77fdb354ccd6ac04526cd9d36991e61c25e705a7` and main unchanged at `2067e743c54ffee669cd484f26dc472b157f1881`. Source publication and post-push evidence follow; local results alone do not establish hosted or production readiness.
+
+### Published Source
+
+Application/test source **`a15a4bf71fb954967ca6965cc5313bcb61258a8d`**, `feat: expose credit funding and cancellation in dashboards`, was committed and pushed to `codex/payment-readiness-20261006`. Independent `ls-remote` matched it and confirmed main unchanged at the SHA above. A follow-on elevated `rev-parse` omitted the per-command safe-directory option and failed ownership validation after the push had already succeeded; the normal local read and remote verification resolved the SHA without a global Git configuration change.
+
+[GitHub Actions run 38369839160](https://github.com/StylereTech/trainr/actions/runs/38369839160): both `check` and `migrations` failed, **08:31:30-08:31:32 UTC**, with **zero executed steps** in the fresh jobs response. The precise cause is not freshly established. The Vercel Preview Comments check succeeded, but is not quality-gate execution. CI remains unresolved.
+
+Vercel initially reported [audit deployment B7PErxQNrJGs5DpKfZt8kb7YErCx](https://vercel.com/styleres-projects/trainr/B7PErxQNrJGs5DpKfZt8kb7YErCx) pending, then **success at approximately 08:32 UTC**. This is commit-status evidence, not independent alias/source mapping or hosted migration-log inspection.
+
+Post-push anonymous smoke: **12/12 PASS**, **08:32:45-08:32:48 UTC**, stable audit Preview, no cookies or credentials. GET health 200 with connected database; GET catalog 200 with integer eligible trainer total **0**; bookings, trainer packages, trainer wallet, package history, participant dashboard and admin bookings GETs each 401; empty checkout POST 401; unsigned webhook POST 400; anonymous booking/admin action PATCH requests each 401. Every response matched its JSON contract. Log: `.postgres-test/credit-dashboard-hosted-smoke.json`.
+
+Smoke records explicitly retain `aliasSourceIndependentlyVerified: false`; the requested commit SHA is not returned by these endpoints. No authenticated hosted action or actual provider transaction was performed. The earlier blocked browser navigation/log read was not bypassed. Zero eligible trainers remains a hosted booking prerequisite blocker, not proof that all raw trainer records are absent.
+
+The subsequent publication-note commit changes documentation only. Application/test results apply to source `a15a4bf71fb954967ca6965cc5313bcb61258a8d`, not a newly rerun suite for the documentation commit. Public credit purchase/reservation and actual hosted money-flow remain unfinished code/testing; blockers are not exclusively external. Final production decision remains **HOLD**.
