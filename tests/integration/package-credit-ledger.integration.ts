@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma, PrismaClient } from '@prisma/client'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { approvedPackageCreditPolicy } from '@/lib/package-purchase-schema'
 import { redeemPackageCredit, restoreCancelledPackageCredit } from '@/lib/package-credit-ledger'
+import { applyBookingAction } from '@/lib/booking-actions'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let parentId: string, parentProfileId: string, trainerId: string, trainerProfileId: string, otherId: string, otherProfileId: string
@@ -35,6 +36,7 @@ beforeEach(async () => {
     items: { create: { serviceOfferingId: serviceId, sessionsCount: 2 } } } })).id
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   if (!verified) return
   await prisma.booking.deleteMany({ where: { trainerProfileId } })
   await prisma.packagePurchase.deleteMany({ where: { trainerProfileId } })
@@ -72,6 +74,142 @@ const spend = (purchaseId: string, bookingId: string, actor = parentId) => prism
 const restore = (bookingId: string, actor = { id: parentId, role: 'PARENT' }) => prisma.$transaction(tx => restoreCancelledPackageCredit(tx, actor, bookingId))
 const cancel = (bookingId: string) => prisma.booking.update({ where: { id: bookingId }, data: { status: 'CANCELLED' } })
 const paymentData = (bookingId: string) => ({ bookingId, amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const })
+
+describe('credit-funded booking actions', () => {
+  it.each(['parent', 'trainer'])('atomically restores an early %s cancellation and retries without duplicate notices', async role => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const actor = role === 'parent' ? { id: parentId, role: 'PARENT' } : { id: trainerId, role: 'TRAINER' }
+    await applyBookingAction(b.id, actor, { action: 'cancel' })
+    const saved = await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })
+    expect(saved.restoredAt).toBeInstanceOf(Date)
+    expect(saved.restoredByUserId).toBe(actor.id)
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CANCELLED')
+    await applyBookingAction(b.id, actor, { action: 'cancel' })
+    expect(await independent.packageCreditRedemption.findUnique({ where: { bookingId: b.id } })).toEqual(saved)
+    expect(await independent.notification.count({ where: { userId: { in: [parentId, trainerId] } } })).toBe(2)
+    expect(await independent.payment.count()).toBe(0)
+  })
+  it.each(['complete', 'no_show'] as const)('records %s using the package receipt without a second payment', async action => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    // Only the JS outcome clock advances; SQL issuance and restoration use real database time.
+    vi.spyOn(Date, 'now').mockReturnValue(b.endsAt!.getTime() + 1)
+    await applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action })
+    await applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action })
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe(action === 'complete' ? 'COMPLETED' : 'NO_SHOW')
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })).totalSessions).toBe(action === 'complete' ? 1 : 0)
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })).restoredAt).toBeNull()
+    expect(await independent.payment.count()).toBe(0)
+    expect(await independent.walletEntry.count()).toBe(0)
+    expect(await independent.notification.count({ where: { userId: parentId } })).toBe(1)
+  })
+  it.each(['parent', 'trainer'])('applies the correct late %s cancellation policy', async role => {
+    const p = await purchase(), b = await booking({ startsAt: new Date(Date.now() + 3600000) })
+    await spend(p.id, b.id)
+    const actor = role === 'parent' ? { id: parentId, role: 'PARENT' } : { id: trainerId, role: 'TRAINER' }
+    await applyBookingAction(b.id, actor, { action: 'cancel' })
+    const credit = await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })
+    expect(!!credit.restoredAt).toBe(role === 'trainer')
+    const notice = await independent.notification.findFirstOrThrow({ where: { userId: parentId } })
+    expect(notice.message).toContain(role === 'trainer' ? 'one session credit was returned' : 'session credit remains used')
+    expect(notice.message).toContain('No cash refund was issued')
+    // Another actor's retry must not reinterpret the committed cancellation.
+    await applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action: 'cancel' })
+    expect(await independent.packageCreditRedemption.findUnique({ where: { bookingId: b.id } })).toEqual(credit)
+  })
+  it.each(['complete', 'no_show'] as const)('still rejects premature credit-funded %s', async action => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await expect(applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action })).rejects.toMatchObject({ status: 409 })
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect(await independent.notification.count({ where: { userId: parentId } })).toBe(0)
+  })
+  it.each(['complete', 'no_show'] as const)('does not permit a parent to record %s with prepaid credits', async action => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    vi.spyOn(Date, 'now').mockReturnValue(b.endsAt!.getTime() + 1)
+    await expect(applyBookingAction(b.id, { id: parentId, role: 'PARENT' }, { action })).rejects.toMatchObject({ status: 403 })
+  })
+  it('rejects a different parent before cancelling or restoring credits', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await expect(applyBookingAction(b.id, { id: otherId, role: 'PARENT' }, { action: 'cancel' })).rejects.toMatchObject({ status: 403 })
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })).restoredAt).toBeNull()
+  })
+  it('does not invent an admin cancellation/credit adjustment policy', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await prisma.user.update({ where: { id: otherId }, data: { role: 'ADMIN' } })
+    await expect(applyBookingAction(b.id, { id: otherId, role: 'ADMIN' }, { action: 'cancel' })).rejects.toMatchObject({ status: 409 })
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect(await independent.adminAction.count({ where: { adminUserId: otherId } })).toBe(0)
+  })
+  it.each(['review', 'refund', 'pending-refund', 'failed-refund', 'unverified', 'status', 'intent', 'charge', 'checkout', 'transfer'])('holds both outcomes after package %s changes', async reason => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const change: Prisma.PackagePurchaseUpdateInput = reason === 'review' ? { financialReview: { reason: 'synthetic hold' } } :
+      reason === 'refund' ? { refundAmountInCents: 1 } : reason === 'pending-refund' ? { refundPendingAmountInCents: 1 } :
+      reason === 'failed-refund' ? { refundFailedCount: 1 } : reason === 'unverified' ? { settlementVerifiedAt: null } :
+      reason === 'status' ? { status: 'REFUNDED' } : reason === 'intent' ? { stripePaymentIntentId: 'pi_changed' } :
+      reason === 'charge' ? { stripeChargeId: 'ch_changed' } : reason === 'checkout' ? { stripeCheckoutSessionId: 'cs_changed' } : { stripeTransferId: null }
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: change })
+    vi.spyOn(Date, 'now').mockReturnValue(b.endsAt!.getTime() + 1)
+    for (const action of ['complete', 'no_show'] as const) {
+      await expect(applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action })).rejects.toMatchObject({ status: 409 })
+    }
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })).totalSessions).toBe(0)
+    expect(await independent.notification.count({ where: { userId: parentId } })).toBe(0)
+  })
+  it('can cancel during review without clearing it or making the restored credit spendable', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: { reason: 'synthetic hold' } } })
+    await applyBookingAction(b.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })).restoredAt).toBeInstanceOf(Date)
+    expect((await independent.packagePurchase.findUniqueOrThrow({ where: { id: p.id } })).financialReview).toEqual({ reason: 'synthetic hold' })
+    const replacement = await booking()
+    await expect(spend(p.id, replacement.id)).rejects.toThrow('Verified clean payment')
+  })
+  it('permits recording a previously funded session after package expiry without extending validity', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const receipt = await independent.packagePaymentReceipt.findUniqueOrThrow({ where: { purchaseId: p.id } })
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100 * 86400000)
+    await applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action: 'complete' })
+    expect(await independent.packagePaymentReceipt.findUnique({ where: { purchaseId: p.id } })).toEqual(receipt)
+  })
+  it('serializes concurrent cancellations into one restoration and one set of notices', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await Promise.all([
+      applyBookingAction(b.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' }),
+      applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action: 'cancel' }),
+    ])
+    expect(await independent.packageCreditRedemption.count({ where: { purchaseId: p.id, restoredAt: { not: null } } })).toBe(1)
+    expect(await independent.notification.count({ where: { userId: { in: [parentId, trainerId] } } })).toBe(2)
+  })
+  it('rolls back cancellation and restoration when notification persistence fails', async () => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    const transaction = prisma.$transaction.bind(prisma)
+    vi.spyOn(prisma, '$transaction').mockImplementation(((run: (tx: Prisma.TransactionClient) => Promise<unknown>) => transaction(async tx => {
+      const wrapped = new Proxy(tx, { get(target, key) {
+        if (key === 'notification') return new Proxy(target.notification, { get(model, method) {
+          return method === 'createMany' ? async () => { throw new Error('Synthetic notification failure') } : Reflect.get(model, method)
+        } })
+        return Reflect.get(target, key)
+      } })
+      return run(wrapped)
+    })) as typeof prisma.$transaction)
+    await expect(applyBookingAction(b.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })).rejects.toThrow('Synthetic notification failure')
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })).restoredAt).toBeNull()
+    expect(await independent.notification.count({ where: { userId: { in: [parentId, trainerId] } } })).toBe(0)
+  })
+})
 
 describe('real SQL family credit consumption ledger (not yet exposed by booking routes)', () => {
   it('shares two credits across siblings, survives independent reload and never creates money records', async () => {

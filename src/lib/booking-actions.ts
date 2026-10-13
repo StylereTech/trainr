@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { bookingOutcomeTimeError } from '@/lib/booking-outcome-time'
 import { bookingPaymentHold } from '@/lib/booking-payment-hold'
+import { creditBookingInclude, packageCreditBookingHold } from '@/lib/package-credit-booking-hold'
+import { lockCreditBooking, PackageCreditError, restoreCancelledPackageCredit } from '@/lib/package-credit-ledger'
 
 export const bookingActionSchema = z.object({
   action: z.enum(['confirm', 'cancel', 'complete', 'no_show']),
@@ -16,6 +18,7 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
   return prisma.$transaction(async (tx) => {
     const owners = await tx.booking.findUnique({ where: { id: bookingId }, select: {
       parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
+      creditRedemption: { select: { purchaseId: true } },
     } })
     // Lock all authorities/recipients in the same order as account writers and settlement.
     const accounts = await tx.$queryRaw<Array<{ id: string; role: string; deletedAt: Date | null }>>`
@@ -27,13 +30,25 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (!currentActor || currentActor.deletedAt || currentActor.role !== actor.role) {
       throw new BookingActionError('Account access changed. Sign in again before updating a booking.', 403)
     }
-    // Keep booking/payment order consistent with checkout and webhook settlement.
+    // Credits require purchase-before-booking order, matching spending and settlement.
+    // Never acquire the purchase lock after taking a booking lock.
+    if (owners?.creditRedemption) {
+      try { await lockCreditBooking(tx, owners.creditRedemption.purchaseId, bookingId) }
+      catch (error) {
+        if (error instanceof PackageCreditError) throw new BookingActionError(error.message, error.status)
+        throw error
+      }
+    }
+    // Cash bookings retain the existing checkout/webhook lock order.
     await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
     await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
     const booking = await tx.booking.findUnique({
-      where: { id: bookingId }, include: { trainerProfile: true, parentProfile: true, payment: true },
+      where: { id: bookingId }, include: { trainerProfile: true, parentProfile: true, payment: true, ...creditBookingInclude },
     })
     if (!booking) throw new BookingActionError('Booking not found', 404)
+    if (booking.creditRedemption?.purchaseId !== owners?.creditRedemption?.purchaseId) {
+      throw new BookingActionError('Booking funding changed. Reload before updating this session.', 409)
+    }
     if (booking.parentProfile.userId !== owners?.parentProfile.userId || booking.trainerProfile.userId !== owners?.trainerProfile.userId) {
       throw new BookingActionError('Booking ownership changed. Reload before updating this session.', 409)
     }
@@ -45,6 +60,10 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     const target = { confirm: 'CONFIRMED', cancel: 'CANCELLED', complete: 'COMPLETED', no_show: 'NO_SHOW' } as const
     const status = target[input.action]
     const payment = booking.payment
+    const credit = booking.creditRedemption
+    if (credit && admin && input.action === 'cancel') {
+      throw new BookingActionError('Package credit cancellation requires the owning parent or trainer. Admin credit adjustments are not available.', 409)
+    }
     if (booking.status === status) return tx.booking.findUnique({ where: { id: booking.id } })
     const allowed = input.action === 'cancel' ? ['PENDING', 'CONFIRMED'] : input.action === 'confirm' ? ['PENDING'] : ['CONFIRMED']
     if (!allowed.includes(booking.status)) throw new BookingActionError('Booking cannot make this status transition', 409)
@@ -53,9 +72,9 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (input.action !== 'cancel' && (!activeParent || !activeTrainer)) {
       throw new BookingActionError('A parent or trainer account is unavailable. Contact support to reconcile this session.', 409)
     }
-    const paymentHold = bookingPaymentHold(booking)
+    const paymentHold = credit ? packageCreditBookingHold(booking) : bookingPaymentHold(booking)
     if (input.action !== 'cancel' && paymentHold) throw new BookingActionError(paymentHold, 409)
-    if (input.action !== 'cancel' && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
+    if (input.action !== 'cancel' && !credit && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
         payment.amountInCents !== booking.totalAmountInCents || booking.totalAmountInCents < 0)) {
       throw new BookingActionError('Verified, fully settled payment is required before confirming or completing this session', 409)
     }
@@ -66,6 +85,8 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     const updated = await tx.booking.update({ where: { id: booking.id }, data: {
       status, ...(input.action === 'cancel' ? { cancellationReason: input.reason || `Cancelled by ${admin ? 'admin' : parent ? 'parent' : 'trainer'}` } : {}),
     } })
+    const restoredCredit = credit && input.action === 'cancel'
+      ? await restoreCancelledPackageCredit(tx, { id: actor.id, role: actor.role! }, booking.id) : null
     if (input.action === 'complete') {
       await tx.trainerProfile.update({ where: { id: booking.trainerProfileId }, data: {
         totalSessions: { increment: 1 }, totalBookings: { increment: 1 },
@@ -76,7 +97,11 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
       confirm: { type: 'BOOKING_CONFIRMED', title: 'Booking confirmed', message: booking.totalAmountInCents === 0 ? 'Your session is confirmed. No payment is due.' : 'Your paid session has been confirmed.' },
       complete: { type: 'SESSION_COMPLETED', title: 'Session completed', message: 'Your training session has been marked complete. Please leave a review.' },
       no_show: { type: 'NO_SHOW', title: 'No-show recorded', message: 'A no-show has been recorded for your session. Contact support if this is incorrect.' },
-      cancel: { type: 'BOOKING_CANCELLED', title: 'Booking cancelled', message: moneyReview
+      cancel: { type: 'BOOKING_CANCELLED', title: 'Booking cancelled', message: restoredCredit
+        ? restoredCredit.restoredAt
+          ? 'This booking is cancelled and one session credit was returned to your package. Original expiry and payment review restrictions still apply. No cash refund was issued.'
+          : 'This booking is cancelled. The session credit remains used under the late-cancellation policy. No cash refund was issued.'
+        : moneyReview
         ? 'This booking is cancelled. Its payment needs reconciliation by support. Cancellation is not a refund receipt; no refund has been issued by this action.'
         : 'This booking is cancelled. This notice does not represent a Stripe refund.' },
     }[input.action]

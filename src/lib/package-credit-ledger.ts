@@ -7,7 +7,7 @@ export class PackageCreditError extends Error {
 
 // Transaction-only primitives. No public route enables redemption until booking and
 // cancellation can commit their idempotency record and this ledger together.
-async function lockCreditBooking(tx: Prisma.TransactionClient, purchaseId: string, bookingId: string) {
+export async function lockCreditBooking(tx: Prisma.TransactionClient, purchaseId: string, bookingId: string) {
   const reference = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, select: {
     parentProfileId: true, trainerProfileId: true, parentProfile: { select: { userId: true } }, trainerProfile: { select: { userId: true } },
   } })

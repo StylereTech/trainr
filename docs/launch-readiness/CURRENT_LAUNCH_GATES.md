@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Credit Action Follow-Up
+
+2026-10-13: the existing booking action handler now integrates package-credit completion/no-show funding checks and atomic policy-backed cancellation restoration. [Exact verification and remaining boundaries](PACKAGE_CREDIT_ACTION_REPORT.md). Public package sales, credit-funded reservation creation and dashboard funding/balance display remain incomplete. These actions alone do not make package booking usable or verify hosted Stripe money flow. Overall **HOLD**.
+
 ## Credit Ledger Follow-Up
 
 2026-10-13: internal credit spending/restoration is implemented with focused SQL evidence, but not exposed through public purchase/booking/cancellation routes. [Current exact test results, receipt-mismatch correction, publication state and blockers](PACKAGE_CREDIT_LEDGER_REPORT.md). Do not treat recorded grants or this ledger as a usable customer booking flow. Full money-flow and production release remain **HOLD**.
