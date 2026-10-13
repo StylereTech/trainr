@@ -1,18 +1,20 @@
 import { test, expect } from './fixtures/local-auth'
 import { createLocalCreditBooking } from './fixtures/package-credit'
+import { Prisma } from '@prisma/client'
 
 test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL || '') || !process.env.LOCAL_E2E_SECRET, 'Requires disposable loopback fixtures.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 
 for (const width of [1440, 390]) test.describe(`credit dashboard ${width}px`, () => {
   test.use({ viewport: { width, height: 1000 } })
-  for (const role of ['PARENT', 'TRAINER', 'ADMIN'] as const) for (const state of ['clean', 'held', 'restored'] as const) {
+  for (const role of ['PARENT', 'TRAINER', 'ADMIN'] as const) for (const state of ['clean', 'held', 'json-null-held', 'restored'] as const) {
     test(`${role} ${state}`, async ({ page, localAuth }, testInfo) => {
       const fixture = await createLocalCreditBooking(localAuth, { title: 'P'.repeat(150) })
       const { booking, purchase, parent, trainer } = fixture
       const db = localAuth.database
       try {
         if (state === 'held') await db.packagePurchase.update({ where: { id: purchase.id }, data: { financialReview: { detail: 'private-provider-review' } } })
+        if (state === 'json-null-held') await db.packagePurchase.update({ where: { id: purchase.id }, data: { financialReview: Prisma.JsonNull } })
         if (state === 'restored') {
           await localAuth.signIn(parent)
           expect((await page.request.patch(`/api/bookings/${booking.id}`, { data: { action: 'cancel' } })).status()).toBe(200)
@@ -40,17 +42,18 @@ for (const width of [1440, 390]) test.describe(`credit dashboard ${width}px`, ()
         const general = await (await page.request.get('/api/bookings')).json()
         expect(general.bookings[0]).not.toHaveProperty('creditRedemption')
         expect(JSON.stringify(general)).not.toContain(purchase.stripeChargeId!)
+        expect(general.bookings[0].creditFunding.hold).toBe(result.bookings[0].creditFunding.hold)
         if (state === 'restored') {
           await expect(page.getByText('Session credit returned', { exact: true })).toBeVisible()
           await expect(page.getByRole('button', { name: 'Reconcile checkout', exact: true })).toHaveCount(0)
         } else {
-          if (state === 'held') await expect(page.getByText('Package payment needs reconciliation before recording this session outcome.', { exact: true })).toBeVisible()
+          if (state === 'held' || state === 'json-null-held') await expect(page.getByText('Package payment needs reconciliation before recording this session outcome.', { exact: true })).toBeVisible()
           else await expect(page.getByText('1 session credit used', { exact: true })).toBeVisible()
           if (role !== 'PARENT') {
             // The UI clock must not override either the payment hold or server time.
             await page.clock.setFixedTime(new Date(booking.endsAt!.getTime() + 1))
             const complete = page.getByRole('button', { name: 'Complete', exact: true })
-            if (state === 'held') await expect(complete).toBeDisabled()
+            if (state === 'held' || state === 'json-null-held') await expect(complete).toBeDisabled()
             else await expect(complete).toBeEnabled()
           }
           if (role === 'ADMIN') await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled()
@@ -63,8 +66,11 @@ for (const width of [1440, 390]) test.describe(`credit dashboard ${width}px`, ()
           expect(tile!.x).toBeGreaterThanOrEqual(panel!.x)
           expect(tile!.x + tile!.width).toBeLessThanOrEqual(panel!.x + panel!.width)
         }
+        const packageTitle = page.getByText(`Package: ${'P'.repeat(150)}`, { exact: true })
+        await expect(packageTitle).toBeVisible()
+        expect(await packageTitle.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
         await page.getByText('1 session credit', { exact: true }).scrollIntoViewIfNeeded()
-        await page.screenshot({ path: testInfo.outputPath('credit-funding.png') })
+        await page.screenshot({ path: testInfo.outputPath('credit-funding.png'), fullPage: true })
         if (state !== 'restored' && role !== 'ADMIN') {
           page.once('dialog', async dialog => { expect(dialog.message()).toContain('No cash refund'); await dialog.accept() })
           await page.getByRole('button', { name: 'Cancel session', exact: true }).click()
@@ -77,6 +83,7 @@ for (const width of [1440, 390]) test.describe(`credit dashboard ${width}px`, ()
           await expect(page.getByText('Session credit returned', { exact: true })).toBeVisible()
           expect(await db.notification.count({ where: { userId: { in: [parent.id, trainer.id] } } })).toBe(2)
           expect((await db.packagePurchase.findUniqueOrThrow({ where: { id: purchase.id } })).financialReview).toEqual(state === 'held' ? { detail: 'private-provider-review' } : null)
+          if (state === 'json-null-held') expect(await db.packagePurchase.count({ where: { id: purchase.id, financialReview: { equals: Prisma.JsonNull } } })).toBe(1)
         }
         expect(await db.payment.count({ where: { bookingId: booking.id } })).toBe(0)
         expect(await db.walletEntry.count({ where: { bookingId: booking.id } })).toBe(0)
@@ -91,17 +98,20 @@ for (const width of [1440, 390]) test.describe(`credit dashboard ${width}px`, ()
       await page.goto('/parent/dashboard')
       await expect(page.getByRole('button', { name: 'Cancel session', exact: true })).toBeVisible()
       let intercepted = false
+      let interceptedStatus: number | null = null
       if (recovery !== 'normal') await page.route(`**/api/bookings/${fixture.booking.id}`, async route => {
         if (intercepted || route.request().method() !== 'PATCH') return route.continue()
         intercepted = true
         const response = await route.fetch()
-        expect(response.status()).toBe(200)
+        interceptedStatus = response.status()
+        if (interceptedStatus !== 200) return route.fulfill({ response })
         if (recovery === 'lost-response') await route.abort('failed')
         else await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>private-gateway-diagnostic</html>' })
       })
       page.once('dialog', async dialog => { expect(dialog.message()).toContain('Later cancellations use the credit'); await dialog.accept() })
       await page.getByRole('button', { name: 'Cancel session', exact: true }).click()
       if (recovery !== 'normal') {
+        await expect.poll(() => interceptedStatus).toBe(200)
         const warning = page.getByRole('alert').filter({ has: page.getByRole('button', { name: 'Refresh booking state', exact: true }) })
         await expect(warning).toBeVisible()
         if (recovery === 'invalid-json') await expect(warning).toContainText('Cancellation could not be verified. Refresh before another action.')

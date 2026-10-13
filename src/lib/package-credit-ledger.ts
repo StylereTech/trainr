@@ -52,11 +52,22 @@ export async function restoreCancelledPackageCredit(tx: Prisma.TransactionClient
   if (actor.id !== ownerId || !locked.accounts.some(user => user.id === actor.id && user.role === actor.role && !user.deletedAt)) {
     throw new PackageCreditError('Only the owning parent or trainer can restore cancellation credits', 403)
   }
-  if (locked.booking.status !== 'CANCELLED') throw new PackageCreditError('Only a cancelled booking can restore a session credit')
-  const saved = await tx.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId } })
+  return restoreLockedCancelledPackageCredit(tx, actor, { ...locked.booking,
+    parentUserId: locked.reference.parentProfile.userId, trainerUserId: locked.reference.trainerProfile.userId,
+  })
+}
+
+// Caller holds lockCreditBooking's locks and has validated the active actor.
+// Booking actions already own these locks; do not repeat that entire read/lock pass.
+export async function restoreLockedCancelledPackageCredit(tx: Prisma.TransactionClient, actor: { id: string; role: string },
+  booking: { id: string; status: string; startsAt: Date | null; parentUserId: string; trainerUserId: string }) {
+  const ownerId = actor.role === 'PARENT' ? booking.parentUserId : actor.role === 'TRAINER' ? booking.trainerUserId : null
+  if (actor.id !== ownerId) throw new PackageCreditError('Only the owning parent or trainer can restore cancellation credits', 403)
+  if (booking.status !== 'CANCELLED') throw new PackageCreditError('Only a cancelled booking can restore a session credit')
+  const saved = await tx.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: booking.id } })
   if (saved.restoredAt) return saved
   const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`
-  const reason = creditRestorationReason(actor.role, locked.booking.startsAt, clock.now)
+  const reason = creditRestorationReason(actor.role, booking.startsAt, clock.now)
   if (!reason) return saved
-  return tx.packageCreditRedemption.update({ where: { bookingId }, data: { restoredAt: clock.now, restoredByUserId: actor.id, restorationReason: reason } })
+  return tx.packageCreditRedemption.update({ where: { bookingId: booking.id }, data: { restoredAt: clock.now, restoredByUserId: actor.id, restorationReason: reason } })
 }

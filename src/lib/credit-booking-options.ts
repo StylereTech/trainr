@@ -5,6 +5,7 @@ import { creditPurchaseInclude, creditServiceInclude, creditServiceAvailable, re
 import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 import { packageValidity } from '@/lib/package-validity'
 import { canonicalTimeZone } from '@/lib/time-zone'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
 
 export async function readCreditBookingOptions(userId: string, purchaseId: string) {
   return prisma.$transaction(async tx => {
@@ -19,7 +20,8 @@ export async function readCreditBookingOptions(userId: string, purchaseId: strin
     const terms = packagePurchaseTermsSchema.safeParse(purchase.terms)
     if (!terms.success) throw new BookingCreationError('Package terms need support review.', 409)
     let hold: string | null = null
-    try { requireCreditPayment(purchase) }
+    const held = await readPackageReviewHolds(tx, [purchase.id])
+    try { requireCreditPayment(purchase, held.has(purchase.id)) }
     catch (error) { if (error instanceof BookingCreationError) hold = error.message; else throw error }
     const validity = packageValidity(terms.data, purchase.paymentReceipt?.paidAt ?? null)
     const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`

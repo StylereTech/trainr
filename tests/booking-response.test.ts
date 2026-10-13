@@ -4,12 +4,14 @@ const mocks = vi.hoisted(() => ({
   user: vi.fn(),
   parent: { findUnique: vi.fn() },
   booking: { findMany: vi.fn(), count: vi.fn() },
+  transaction: vi.fn(),
 }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mocks.user }))
-vi.mock('@/lib/prisma', () => ({ prisma: { parentProfile: mocks.parent, booking: mocks.booking } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { parentProfile: mocks.parent, booking: mocks.booking, $transaction: mocks.transaction } }))
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.transaction.mockImplementation(async callback => callback({ booking: mocks.booking }))
   mocks.parent.findUnique.mockResolvedValue({ id: 'parent' })
   mocks.booking.count.mockResolvedValue(1)
   mocks.booking.findMany.mockImplementation(async (query) => {
@@ -28,6 +30,7 @@ it('returns booking contact fields without parent credentials', async () => {
   const body = await response.json()
   expect(body.bookings[0].parentProfile.user).toEqual({ id: 'user', email: 'parent@example.test' })
   expect(mocks.booking.findMany.mock.calls[0][0].where).toEqual({ parentProfileId: 'parent' })
+  expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead' })
 })
 
 it('rejects a session without a recognized role before querying bookings', async () => {

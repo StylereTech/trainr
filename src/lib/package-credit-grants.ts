@@ -1,12 +1,14 @@
 import type { Prisma, PackagePurchase } from '@prisma/client'
 import { packagePurchaseTermsSchema } from '@/lib/package-purchase-schema'
 import { PackagePurchaseError } from '@/lib/package-purchases'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
 
 // Caller holds the purchase lock and has just verified current Stripe receipts.
 export async function recordPackageCreditGrants(tx: Prisma.TransactionClient, purchase: PackagePurchase) {
   if (purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt || !purchase.stripePaymentIntentId ||
-      !purchase.stripeChargeId || !purchase.stripeTransferId || purchase.financialReview || purchase.refundAmountInCents ||
+      !purchase.stripeChargeId || !purchase.stripeTransferId || purchase.financialReview !== null || purchase.refundAmountInCents ||
       purchase.refundPendingAmountInCents || purchase.refundFailedCount) return
+  if ((await readPackageReviewHolds(tx, [purchase.id])).has(purchase.id)) return
   const terms = packagePurchaseTermsSchema.parse(purchase.terms)
   const existing = await tx.packageCreditGrant.findMany({ where: { purchaseId: purchase.id } })
   if (existing.some(grant => !terms.items.some(item => item.serviceOfferingId === grant.serviceOfferingId && item.sessionsCount === grant.sessionsCount))) {

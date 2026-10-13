@@ -6,10 +6,10 @@ export const creditPurchaseInclude = { paymentReceipt: true,
   creditGrants: { include: { _count: { select: { redemptions: { where: { restoredAt: null } } } } } },
 } satisfies Prisma.PackagePurchaseInclude
 
-export function requireCreditPayment(purchase: Prisma.PackagePurchaseGetPayload<{ include: typeof creditPurchaseInclude }>) {
+export function requireCreditPayment(purchase: Prisma.PackagePurchaseGetPayload<{ include: typeof creditPurchaseInclude }>, reviewHeld: boolean) {
   const terms = packagePurchaseTermsSchema.safeParse(purchase.terms), receipt = purchase.paymentReceipt
   if (!terms.success || terms.data.version !== 2 || purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt ||
-      purchase.financialReview !== null || purchase.refundAmountInCents || purchase.refundPendingAmountInCents || purchase.refundFailedCount ||
+      reviewHeld || purchase.financialReview !== null || purchase.refundAmountInCents || purchase.refundPendingAmountInCents || purchase.refundFailedCount ||
       !purchase.stripeTransferId || !purchase.stripePaymentIntentId || !purchase.stripeChargeId || !purchase.stripeCheckoutSessionId ||
       !receipt || receipt.stripePaymentIntentId !== purchase.stripePaymentIntentId || receipt.stripeChargeId !== purchase.stripeChargeId ||
       receipt.stripeCheckoutSessionId !== purchase.stripeCheckoutSessionId) {

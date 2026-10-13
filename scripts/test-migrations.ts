@@ -63,8 +63,8 @@ async function verifyHistory(client: PrismaClient) {
       'package_purchases_refund_totals_valid', 'package_refunds_amount_currency_valid', 'package_credit_grants_quantity_valid', 'account_checkout_closures_state_valid',
       'package_payment_receipts_time_valid', 'package_payment_receipts_ids_valid', 'package_credit_redemptions_restoration_valid')`
   assert.equal(constraints.length, 18)
-  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable', 'package_refunds_identity_immutable', 'package_credit_grants_immutable', 'package_payment_receipts_immutable', 'package_credit_redemptions_guard', 'payments_credit_funding_exclusive', 'bookings_credit_funding_immutable') AND NOT tgisinternal`
-  assert.equal(triggers.length, 9)
+  const triggers = await client.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE tgname IN ('bookings_time_snapshot_immutable', 'package_purchases_snapshot_immutable', 'package_checkout_attempts_immutable', 'package_refunds_identity_immutable', 'package_credit_grants_immutable', 'package_payment_receipts_immutable', 'package_credit_redemptions_guard', 'payments_credit_funding_exclusive', 'bookings_credit_funding_immutable', 'package_credit_grants_review_present', 'package_credit_redemptions_review_present') AND NOT tgisinternal`
+  assert.equal(triggers.length, 11)
   const indexes = await client.$queryRaw<Array<{ indexdef: string }>>`
     SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'checkout_attempts_one_active_payment'`
   assert.equal(indexes.length, 1)

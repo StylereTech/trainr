@@ -10,20 +10,20 @@ type CreditBooking = Pick<Prisma.BookingGetPayload<{ include: typeof creditBooki
   'id' | 'parentProfileId' | 'trainerProfileId' | 'serviceOfferingId' | 'packageId' | 'packageSessionNumber' |
   'totalAmountInCents' | 'platformFeeInCents' | 'trainerPayoutInCents' | 'startsAt' | 'endsAt' | 'creditRedemption'>
 
-export function packageCreditFunding(booking: CreditBooking & { payment: unknown }): PackageCreditFunding | null {
+export function packageCreditFunding(booking: CreditBooking & { payment: unknown }, reviewHeld: boolean): PackageCreditFunding | null {
   const credit = booking.creditRedemption
   if (!credit) return null
   const terms = packagePurchaseTermsSchema.safeParse(credit.grant.purchase.terms)
   return { kind: 'PACKAGE_CREDIT', purchaseId: credit.purchaseId,
     packageTitle: terms.success ? terms.data.title : 'Package',
     restoredAt: credit.restoredAt?.toISOString() ?? null,
-    hold: credit.restoredAt ? null : packageCreditBookingHold(booking),
+    hold: credit.restoredAt ? null : packageCreditBookingHold(booking, reviewHeld),
   }
 }
 
 // A previously reserved session keeps its funding after expiry, but never after a
 // refund/review hold. Read this under the purchase lock, not from a cached DTO.
-export function packageCreditBookingHold(booking: CreditBooking & { payment: unknown }) {
+export function packageCreditBookingHold(booking: CreditBooking & { payment: unknown }, reviewHeld: boolean) {
   const credit = booking.creditRedemption
   if (!credit) return 'Package credit funding is missing. Contact support.'
   const purchase = credit.grant.purchase, receipt = purchase.paymentReceipt
@@ -43,7 +43,7 @@ export function packageCreditBookingHold(booking: CreditBooking & { payment: unk
       !booking.endsAt || booking.endsAt.getTime() - startsAt !== item.durationMinutes * 60000) {
     return 'Package credit funding needs reconciliation before recording this session outcome.'
   }
-  if (purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt || purchase.financialReview !== null ||
+  if (purchase.status !== 'SUCCEEDED' || !purchase.settlementVerifiedAt || reviewHeld || purchase.financialReview !== null ||
       purchase.refundAmountInCents !== 0 || purchase.refundPendingAmountInCents !== 0 || purchase.refundFailedCount !== 0 ||
       !purchase.stripePaymentIntentId || !purchase.stripeChargeId || !purchase.stripeCheckoutSessionId || !purchase.stripeTransferId ||
       receipt?.stripePaymentIntentId !== purchase.stripePaymentIntentId || receipt.stripeChargeId !== purchase.stripeChargeId ||

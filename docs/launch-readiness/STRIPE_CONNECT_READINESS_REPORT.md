@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-13 credit review-presence correction: six failing reproductions proved a JSON-null review bypass in credit issuance, booking and outcomes. Fixed the hold checks and removed redundant cancellation locking after reproducing a transaction timeout. Final local verification: **1,604 units and full quality gate, 994 SQL cases, four migration rehearsals, 56 browser/API cases without retries**. Independent cleanup found zero fixture records; desktop/mobile screenshots are retained. [Exact failures, retests, source/publication status and remaining boundaries](CREDIT_REVIEW_PRESENCE_REPORT.md). Fresh hosted parent reload succeeded; the catalog and sandbox connected-account list were empty when inspected. Trainer credentials/terms handoff and actual Stripe payment/transfer/payout proof remain pending. Main/Production/Story unchanged; **HOLD**.
+
 2026-10-13 package sales API follow-up: new checkout orchestration reuses current Connect readiness and server-selected destination-charge parameters. [Exact local simulated-provider evidence](PACKAGE_SALES_API_REPORT.md). No new real connected account, onboarding completion or hosted transfer was performed; overall **HOLD**.
 
 2026-10-13 credit-ledger pass: [local SQL/browser verification](PACKAGE_CREDIT_LEDGER_REPORT.md) uses synthetic receipts and intercepted Checkout responses. No connected account was created, onboarded or newly verified. Actual hosted Connect and money-flow gates remain **HOLD**; this pass does not supersede the dated provider account evidence below.

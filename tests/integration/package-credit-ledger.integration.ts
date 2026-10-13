@@ -14,6 +14,7 @@ import { createBooking } from '@/lib/booking-creation'
 import { POST as creditPOST } from '@/app/api/bookings/credits/route'
 import { readCreditBookingOptions } from '@/lib/credit-booking-options'
 import { creditBookingOptions } from '@/lib/package-credit-booking-schema'
+import { recordPackageCreditGrants } from '@/lib/package-credit-grants'
 
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let parentId: string, parentProfileId: string, trainerId: string, trainerProfileId: string, otherId: string, otherProfileId: string
@@ -55,7 +56,7 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 // These are explicit synthetic SQL receipts, not evidence of a Stripe payment.
-async function purchase(options: { sessions?: number; version?: 1 | 2; paidAt?: Date; receipt?: boolean; type?: 'INDIVIDUAL' | 'GROUP' } = {}) {
+async function purchase(options: { sessions?: number; version?: 1 | 2; paidAt?: Date; receipt?: boolean; grant?: boolean; type?: 'INDIVIDUAL' | 'GROUP' } = {}) {
   const key = randomUUID().replaceAll('-', ''), sessions = options.sessions ?? 2, version = options.version ?? 2
   const paidAt = options.paidAt ?? new Date(Date.now() - 1000)
   const saved = await prisma.packagePurchase.create({ data: {
@@ -66,7 +67,7 @@ async function purchase(options: { sessions?: number; version?: 1 | 2; paidAt?: 
     stripePaymentIntentId: `pi_${key}`, stripeChargeId: `ch_${key}`, stripeTransferId: `tr_${key}`, stripeCheckoutSessionId: `cs_${key}`,
     createdAt: new Date(paidAt.getTime() - 1000),
   } })
-  await prisma.packageCreditGrant.create({ data: { purchaseId: saved.id, serviceOfferingId: serviceId, sessionsCount: sessions } })
+  if (options.grant !== false) await prisma.packageCreditGrant.create({ data: { purchaseId: saved.id, serviceOfferingId: serviceId, sessionsCount: sessions } })
   if (options.receipt !== false) await prisma.packagePaymentReceipt.create({ data: { purchaseId: saved.id, stripeEventId: `evt_${key}`,
     stripePaymentIntentId: `pi_${key}`, stripeChargeId: `ch_${key}`, stripeCheckoutSessionId: `cs_${key}`, livemode: false, paidAt } })
   return saved
@@ -256,6 +257,36 @@ describe('atomic parent credit reservation endpoint', () => {
     expect(options.services[0].availableCredits).toBe(0)
     expect((await post(request(p.id))).status).toBe(409)
     await assertEmpty()
+  })
+  it('blocks JSON-null review in options and the reservation endpoint', async () => {
+    const p = await purchase()
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    const options = await readCreditBookingOptions(parentId, p.id)
+    expect(options.services[0].availableCredits).toBe(0)
+    expect(options.hold).toContain('reconciliation')
+    expect((await post(request(p.id))).status).toBe(409)
+    await assertEmpty()
+  })
+  it('rejects JSON-null review through the reservation endpoint independently of display', async () => {
+    const p = await purchase()
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    expect((await post(request(p.id))).status).toBe(409)
+    await assertEmpty()
+  })
+  it('preserves same-request recovery and cancellation history under JSON-null review', async () => {
+    const p = await purchase(), body = request(p.id), first = await createCreditBooking(parentId, body)
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    const replay = await createCreditBooking(parentId, body)
+    expect(replay.id).toBe(first.id)
+    expect(replay.creditFunding?.hold).toContain('reconciliation')
+    await applyBookingAction(first.id, { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: first.id } })).restoredAt).not.toBeNull()
+    expect((await readCreditBookingOptions(parentId, p.id)).services[0].availableCredits).toBe(0)
+    expect((await post({ ...body, requestId: randomUUID() })).status).toBe(409)
+    expect(await independent.packagePurchase.count({ where: { id: p.id, financialReview: { equals: Prisma.JsonNull } } })).toBe(1)
+    expect(await independent.booking.count()).toBe(1)
+    expect(await independent.packageCreditRedemption.count()).toBe(1)
+    expect(await independent.payment.count()).toBe(0)
   })
   it.each(['inactive-service', 'duration', 'type', 'trainer-inactive', 'trainer-deleted', 'sport-inactive', 'child-sport', 'time-zone', 'unavailable'])('revalidates %s', async state => {
     const p = await purchase()
@@ -492,6 +523,57 @@ describe('credit-funded booking actions', () => {
     expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
     expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: b.id } })).restoredAt).toBeNull()
     expect(await independent.notification.count({ where: { userId: { in: [parentId, trainerId] } } })).toBe(0)
+  })
+})
+
+describe('SQL-null financial review distinction', () => {
+  it.each([Prisma.JsonNull, false, 0, '', { reason: 'synthetic review' }])('does not issue grants from an application review hold %j', async financialReview => {
+    const p = await purchase({ grant: false })
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview } })
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${p.id} FOR UPDATE`
+      await recordPackageCreditGrants(tx, await tx.packagePurchase.findUniqueOrThrow({ where: { id: p.id } }))
+    })
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId: p.id } })).toBe(0)
+  })
+  it('allows SQL-null review credit issuance and spending without changing history', async () => {
+    const p = await purchase({ grant: false })
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.DbNull } })
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${p.id} FOR UPDATE`
+      await recordPackageCreditGrants(tx, await tx.packagePurchase.findUniqueOrThrow({ where: { id: p.id } }))
+    })
+    const b = await booking()
+    await rawSpend(p.id, b.id)
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId: p.id } })).toBe(1)
+    expect(await independent.packageCreditRedemption.count({ where: { purchaseId: p.id } })).toBe(1)
+    expect((await readDashboardBookings({ id: parentId, role: 'PARENT' }, 'upcoming', 1, 10)).bookings[0].creditFunding?.hold).toBeNull()
+  })
+  it('rejects JSON-null review on direct credit issuance', async () => {
+    const p = await purchase({ grant: false })
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    await expect(independent.packageCreditGrant.create({ data: { purchaseId: p.id, serviceOfferingId: serviceId, sessionsCount: 2 } })).rejects.toThrow()
+    expect(await independent.packageCreditGrant.count({ where: { purchaseId: p.id } })).toBe(0)
+  })
+  it('rejects JSON-null review on direct credit spending', async () => {
+    const p = await purchase(), b = await booking()
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    await expect(rawSpend(p.id, b.id)).rejects.toThrow()
+    expect(await independent.packageCreditRedemption.count({ where: { purchaseId: p.id } })).toBe(0)
+  })
+  it.each(['complete', 'no_show'] as const)('holds JSON-null review before %s and in both dashboards', async action => {
+    const p = await purchase(), b = await booking()
+    await spend(p.id, b.id)
+    await prisma.packagePurchase.update({ where: { id: p.id }, data: { financialReview: Prisma.JsonNull } })
+    vi.spyOn(Date, 'now').mockReturnValue(b.endsAt!.getTime() + 1)
+    await expect(applyBookingAction(b.id, { id: trainerId, role: 'TRAINER' }, { action })).rejects.toMatchObject({ status: 409 })
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+      const data = await readDashboardBookings(actor, actor.role === 'PARENT' ? 'upcoming' : 'confirmed', 1, 10)
+      expect(data.bookings[0].creditFunding?.hold).toContain('reconciliation')
+    }
+    expect((await independent.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('CONFIRMED')
+    expect((await independent.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })).totalSessions).toBe(0)
+    expect(await independent.notification.count()).toBe(0)
   })
 })
 

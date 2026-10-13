@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { bookingOutcomeTimeError } from '@/lib/booking-outcome-time'
 import { bookingPaymentHold } from '@/lib/booking-payment-hold'
 import { creditBookingInclude, packageCreditBookingHold } from '@/lib/package-credit-booking-hold'
-import { lockCreditBooking, PackageCreditError, restoreCancelledPackageCredit } from '@/lib/package-credit-ledger'
+import { lockCreditBooking, PackageCreditError, restoreLockedCancelledPackageCredit } from '@/lib/package-credit-ledger'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
 
 export const bookingActionSchema = z.object({
   action: z.enum(['confirm', 'cancel', 'complete', 'no_show']),
@@ -72,8 +73,11 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     if (input.action !== 'cancel' && (!activeParent || !activeTrainer)) {
       throw new BookingActionError('A parent or trainer account is unavailable. Contact support to reconcile this session.', 409)
     }
-    const paymentHold = credit ? packageCreditBookingHold(booking) : bookingPaymentHold(booking)
-    if (input.action !== 'cancel' && paymentHold) throw new BookingActionError(paymentHold, 409)
+    if (input.action !== 'cancel') {
+      const held = await readPackageReviewHolds(tx, credit ? [credit.purchaseId] : [])
+      const paymentHold = credit ? packageCreditBookingHold(booking, held.has(credit.purchaseId)) : bookingPaymentHold(booking)
+      if (paymentHold) throw new BookingActionError(paymentHold, 409)
+    }
     if (input.action !== 'cancel' && !credit && (!payment || payment.status !== 'SUCCEEDED' || payment.refundAmountInCents !== 0 || payment.refundPendingAmountInCents > 0 ||
         payment.amountInCents !== booking.totalAmountInCents || booking.totalAmountInCents < 0)) {
       throw new BookingActionError('Verified, fully settled payment is required before confirming or completing this session', 409)
@@ -86,7 +90,9 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
       status, ...(input.action === 'cancel' ? { cancellationReason: input.reason || `Cancelled by ${admin ? 'admin' : parent ? 'parent' : 'trainer'}` } : {}),
     } })
     const restoredCredit = credit && input.action === 'cancel'
-      ? await restoreCancelledPackageCredit(tx, { id: actor.id, role: actor.role! }, booking.id) : null
+      ? await restoreLockedCancelledPackageCredit(tx, { id: actor.id, role: actor.role! }, { ...updated,
+        parentUserId: booking.parentProfile.userId, trainerUserId: booking.trainerProfile.userId,
+      }) : null
     if (input.action === 'complete') {
       await tx.trainerProfile.update({ where: { id: booking.trainerProfileId }, data: {
         totalSessions: { increment: 1 }, totalBookings: { increment: 1 },

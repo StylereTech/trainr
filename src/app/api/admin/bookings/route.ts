@@ -7,6 +7,8 @@ import { applyBookingAction, BookingActionError, bookingActionSchema } from '@/l
 import { closeCancelledCheckout } from '@/lib/checkout-attempts'
 import { z } from 'zod'
 import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
+import { Prisma } from '@prisma/client'
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -37,29 +39,32 @@ export async function GET(req: NextRequest) {
     if (dateTo) where.date.lte = new Date(dateTo)
   }
 
-  const [bookings, total] = await Promise.all([
-    prisma.booking.findMany({
-      where,
-      include: {
-        ...creditBookingInclude,
-        trainerProfile: { select: { firstName: true, lastName: true, slug: true } },
-        parentProfile: { include: { user: { select: { email: true } } } },
-        athleteProfile: { select: { firstName: true, lastName: true } },
-        serviceOffering: { select: { title: true, priceInCents: true } },
-        payment: true,
-        review: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.booking.count({ where }),
-  ])
-
-  return NextResponse.json({
-    bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking, creditFunding: packageCreditFunding({ ...booking, creditRedemption }) })),
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  }, { headers: { 'Cache-Control': 'private, no-store' } })
+  const payload = await prisma.$transaction(async tx => {
+    const [bookings, total] = await Promise.all([
+      tx.booking.findMany({
+        where,
+        include: {
+          ...creditBookingInclude,
+          trainerProfile: { select: { firstName: true, lastName: true, slug: true } },
+          parentProfile: { include: { user: { select: { email: true } } } },
+          athleteProfile: { select: { firstName: true, lastName: true } },
+          serviceOffering: { select: { title: true, priceInCents: true } },
+          payment: true,
+          review: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      tx.booking.count({ where }),
+    ])
+    const held = await readPackageReviewHolds(tx, bookings.flatMap(booking => booking.creditRedemption ? [booking.creditRedemption.purchaseId] : []))
+    return {
+      bookings: bookings.map(({ creditRedemption, ...booking }) => ({ ...booking, creditFunding: packageCreditFunding({ ...booking, creditRedemption }, held.has(creditRedemption?.purchaseId || '')) })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
+  return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 // PATCH /api/admin/bookings — Admin booking actions

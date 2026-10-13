@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/local-auth'
 import { createLocalCreditBooking } from './fixtures/package-credit'
+import { Prisma } from '@prisma/client'
 
 test.skip(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_URL || '') || !process.env.LOCAL_E2E_SECRET, 'Requires disposable loopback fixtures.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
@@ -94,10 +95,11 @@ for (const width of [1440, 390]) test.describe(`credit reservation ${width}px`, 
       expect(await db.walletEntry.count({ where: { booking: { trainerProfileId: fixture.purchase.trainerProfileId } } })).toBe(0)
     } finally { await fixture.cleanup() }
   })
-  for (const mode of ['held', 'retired', 'read-failure', 'other-parent'] as const) test(`options ${mode}`, async ({ page, localAuth }) => {
+  for (const mode of ['held', 'json-null-held', 'retired', 'read-failure', 'other-parent'] as const) test(`options ${mode}`, async ({ page, localAuth }) => {
     const fixture = await createLocalCreditBooking(localAuth), db = localAuth.database
     try {
       if (mode === 'held') await db.packagePurchase.update({ where: { id: fixture.purchase.id }, data: { financialReview: { detail: 'private-provider-review' } } })
+      if (mode === 'json-null-held') await db.packagePurchase.update({ where: { id: fixture.purchase.id }, data: { financialReview: Prisma.JsonNull } })
       if (mode === 'retired') await db.serviceOffering.update({ where: { id: fixture.booking.serviceOfferingId }, data: { isActive: false } })
       await localAuth.signIn(mode === 'other-parent' ? await localAuth.create('PARENT') : fixture.parent)
       if (mode === 'read-failure') await page.route('**/api/bookings/credits?**', route => route.fulfill({ status: 503, json: { error: 'Synthetic failure' } }))

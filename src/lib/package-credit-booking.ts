@@ -6,6 +6,7 @@ import { creditBookingSchema } from '@/lib/package-credit-booking-schema'
 import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
 import { creditPurchaseInclude, creditServiceInclude, creditServiceAvailable, requireCreditPayment } from '@/lib/credit-purchase-state'
 import { packageValidity } from '@/lib/package-validity'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
 
 export async function createCreditBooking(userId: string, raw: unknown) {
   const { requestId, ...input } = creditBookingSchema.parse(raw)
@@ -22,7 +23,8 @@ export async function createCreditBooking(userId: string, raw: unknown) {
     const readSaved = async (id: string) => {
       const saved = await tx.booking.findFirst({ where: { id, parentProfileId: reference.parentProfileId }, include: { ...creditBookingInclude, payment: true } })
       if (!saved || saved.creditRedemption?.purchaseId !== owned.id) throw new BookingCreationError('Saved booking is unavailable. Check your dashboard.', 409)
-      return { id: saved.id, status: saved.status, creditFunding: packageCreditFunding(saved) }
+      const held = await readPackageReviewHolds(tx, [owned.id])
+      return { id: saved.id, status: saved.status, creditFunding: packageCreditFunding(saved, held.has(owned.id)) }
     }
     if (previous) {
       if (previous.payloadHash !== payloadHash || !previous.bookingId) throw new BookingCreationError('This booking request was already used. Check your dashboard before reserving again.', 409)
@@ -32,7 +34,8 @@ export async function createCreditBooking(userId: string, raw: unknown) {
       throw new BookingCreationError('Trainer is not available for booking', 409)
     }
     const purchase = await tx.packagePurchase.findUniqueOrThrow({ where: { id: owned.id }, include: creditPurchaseInclude })
-    const { terms, receipt } = requireCreditPayment(purchase)
+    const held = await readPackageReviewHolds(tx, [purchase.id])
+    const { terms, receipt } = requireCreditPayment(purchase, held.has(purchase.id))
     const item = terms.items.find(item => item.serviceOfferingId === input.serviceOfferingId)
     const grant = purchase.creditGrants.find(grant => grant.serviceOfferingId === input.serviceOfferingId)
     if (!item || !grant || grant.sessionsCount !== item.sessionsCount) throw new BookingCreationError('This service has no verified credits in this purchase.', 409)

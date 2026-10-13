@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { bookingStates, viewStates, type DashboardView } from '@/lib/dashboard-contract'
 import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
 
 export class DashboardReadError extends Error {
   constructor(message: string, public status: number) { super(message) }
@@ -29,12 +30,13 @@ export async function readDashboardBookings(actor: { id: string; role?: string }
           settlementVerifiedAt: true, financialReview: true } } },
       orderBy: [{ date: view === 'past' || view === 'completed' || view === 'all' ? 'desc' : 'asc' }, { startTime: 'asc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit })
     const reviewsToLeave = actor.role === 'PARENT' ? await tx.booking.count({ where: { ...scope, status: 'COMPLETED', review: null } }) : 0
+    const held = await readPackageReviewHolds(tx, rows.flatMap(row => row.creditRedemption ? [row.creditRedemption.purchaseId] : []))
     return { bookings: rows.map(row => ({
       id: row.id, date: row.date, startTime: row.startTime, endTime: row.endTime, timeZone: row.timeZone,
       startsAt: row.startsAt, endsAt: row.endsAt, status: row.status, totalAmountInCents: row.totalAmountInCents,
       trainerPayoutInCents: row.trainerPayoutInCents, notes: row.notes, serviceOffering: row.serviceOffering,
       parentProfile: row.parentProfile, athleteProfile: row.athleteProfile, review: row.review,
-      creditFunding: packageCreditFunding(row),
+      creditFunding: packageCreditFunding(row, held.has(row.creditRedemption?.purchaseId || '')),
       payment: row.payment ? { ...row.payment, financialReview: !!row.payment.financialReview } : null,
       trainerProfile: { firstName: row.trainerProfile.firstName, lastName: row.trainerProfile.lastName,
       paymentReady: !!row.trainerProfile.stripeAccountId && row.trainerProfile.stripeOnboardingComplete } })), counts, reviewsToLeave, pagination: { page, limit, total, totalPages } }

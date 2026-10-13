@@ -70,9 +70,10 @@ describe('isolated audit preview initializer', () => {
   it('rejects duplicate migration records', () => {
     expect(() => verifyMigrationLedger([...ledger, ...ledger], manifest)).toThrow('STAGING_MIGRATION_COUNT_MISMATCH')
   })
-  it('reads all twenty-two committed migrations with SHA256 hashes', () => {
+  it('reads all twenty-four committed migrations with SHA256 hashes', () => {
     const migrations = migrationManifest()
-    expect(migrations).toHaveLength(23)
+    expect(migrations).toHaveLength(24)
+    expect(migrations.at(-1)?.name).toBe('20261013113000_preserve_credit_review_holds')
     expect(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.checksum))).toBe(true)
   })
   it('runs only migrate deploy with the guarded connection and captures diagnostics', () => {

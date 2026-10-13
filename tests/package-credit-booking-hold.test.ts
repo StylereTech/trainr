@@ -36,46 +36,46 @@ beforeEach(() => {
 describe('credit booking outcome funding', () => {
   it.each([false, 0, ''])('holds non-null falsy review %j consistently with the SQL debit guard', review => {
     booking.creditRedemption!.grant.purchase.financialReview = review
-    expect(packageCreditBookingHold(booking)).toContain('reconciliation')
-    expect(packageCreditFunding(booking)?.hold).toContain('reconciliation')
+    expect(packageCreditBookingHold(booking, false)).toContain('reconciliation')
+    expect(packageCreditFunding(booking, false)?.hold).toContain('reconciliation')
   })
   it('projects only safe funding fields and enables funded outcome controls', () => {
-    const creditFunding = packageCreditFunding(booking)
+    const creditFunding = packageCreditFunding(booking, false)
     expect(creditFunding).toEqual({ kind: 'PACKAGE_CREDIT', purchaseId: 'purchase', packageTitle: 'Shared sessions', restoredAt: null, hold: null })
     expect(packageCreditFundingSchema.parse(creditFunding)).toEqual(creditFunding)
     expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toBeNull()
   })
   it('does not expose raw review or Stripe receipt details', () => {
     booking.creditRedemption!.grant.purchase.financialReview = { secret: 'private-review-detail' }
-    const creditFunding = packageCreditFunding(booking)
+    const creditFunding = packageCreditFunding(booking, false)
     expect(creditFunding!.hold).toContain('reconciliation')
     expect(JSON.stringify(creditFunding)).not.toMatch(/private-review-detail|pi_test|ch_test|cs_test|tr_test/)
     expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toEqual(creditFunding!.hold)
   })
   it('keeps restoration history distinct from usable booking funding', () => {
     booking.creditRedemption!.restoredAt = new Date('2026-01-01T12:00:00Z')
-    const creditFunding = packageCreditFunding(booking)
+    const creditFunding = packageCreditFunding(booking, false)
     expect(creditFunding).toMatchObject({ restoredAt: '2026-01-01T12:00:00.000Z', hold: null })
     expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null, creditFunding })).toContain('returned')
   })
   it('does not infer credits from a missing cash payment', () => {
     booking.creditRedemption = null
-    expect(packageCreditFunding(booking)).toBeNull()
+    expect(packageCreditFunding(booking, false)).toBeNull()
     expect(bookingPaymentHold({ totalAmountInCents: 0, payment: null })).not.toBeNull()
   })
   it.each([{ restoredAt: 'invalid' }, { hold: undefined }, { kind: 'CASH' }, { stripePaymentIntentId: 'pi_private' }])('rejects malformed projected credit fields %j', change => {
-    expect(packageCreditFundingSchema.safeParse({ ...packageCreditFunding(booking), ...change }).success).toBe(false)
+    expect(packageCreditFundingSchema.safeParse({ ...packageCreditFunding(booking, false), ...change }).success).toBe(false)
   })
   it('does not enable outcomes on a contradictory dual-funded display record', () => {
-    expect(bookingPaymentHold({ totalAmountInCents: 1, payment: null, creditFunding: packageCreditFunding(booking) })).toContain('reconciliation')
-    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: { status: 'SUCCEEDED', refundAmountInCents: 0 }, creditFunding: packageCreditFunding(booking) })).toContain('reconciliation')
+    expect(bookingPaymentHold({ totalAmountInCents: 1, payment: null, creditFunding: packageCreditFunding(booking, false) })).toContain('reconciliation')
+    expect(bookingPaymentHold({ totalAmountInCents: 0, payment: { status: 'SUCCEEDED', refundAmountInCents: 0 }, creditFunding: packageCreditFunding(booking, false) })).toContain('reconciliation')
   })
   it('accepts historically valid funding without requiring a second payment or current unexpired balance', () => {
-    expect(packageCreditBookingHold(booking)).toBeNull()
+    expect(packageCreditBookingHold(booking, false)).toBeNull()
   })
   it.each(['totalAmountInCents', 'platformFeeInCents', 'trainerPayoutInCents'] as const)('rejects second %s', field => {
     booking[field] = 1
-    expect(packageCreditBookingHold(booking)).not.toBeNull()
+    expect(packageCreditBookingHold(booking, false)).not.toBeNull()
   })
   it.each(['payment', 'legacy-package', 'legacy-number', 'missing', 'restored', 'owner', 'trainer', 'service', 'booking', 'purchase', 'grant-count',
     'terms', 'policy', 'no-receipt', 'paid-after-spent', 'spent-after-start', 'spent-at-expiry', 'start-at-expiry', 'no-start', 'no-end', 'duration'])('holds malformed %s evidence', reason => {
@@ -101,6 +101,12 @@ describe('credit booking outcome funding', () => {
     if (reason === 'no-start') booking.startsAt = null
     if (reason === 'no-end') booking.endsAt = null
     if (reason === 'duration') booking.endsAt = new Date('2026-01-02T12:00:00Z')
-    expect(packageCreditBookingHold(booking)).not.toBeNull()
+    expect(packageCreditBookingHold(booking, false)).not.toBeNull()
+  })
+  it('retains SQL-present JSON null despite Prisma decoding it as null', () => {
+    expect(booking.creditRedemption!.grant.purchase.financialReview).toBeNull()
+    expect(packageCreditBookingHold(booking, true)).toContain('reconciliation')
+    expect(packageCreditFunding(booking, true)?.hold).toContain('reconciliation')
+    expect(packageCreditBookingHold(booking, false)).toBeNull()
   })
 })
