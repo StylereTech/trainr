@@ -1,6 +1,6 @@
 # Checkout And Account Closure Review Holds
 
-Status at **2026-10-13 14:13 UTC**: focused/full SQL, repository quality gate and 46 browser cases pass locally; publication pending. Overall launch readiness remains **HOLD**.
+Status at **2026-10-13 14:17 UTC**: source `d6b26d83641f13b5b5ed4238bc80073f9fa70c82` is pushed and verified Ready in Preview. Full local checks, 46 browser cases and 18 anonymous hosted probes pass. Overall launch readiness remains **HOLD**.
 
 ## Baseline And Scope
 
@@ -42,4 +42,11 @@ Capture `financialReview IS NOT NULL` within existing financial-row locks and fa
 
 ## Remaining Work
 
-Audit-Preview publication/retest is pending for this source change. Actual hosted Stripe checkout, trainer Connect, transfer/payout and email remain unproven; owner trainer signup handoff is still pending (fresh UI check: blank credential fields and unchecked terms). Package-settlement replay and dependency advisory reachability remain separate audit work. GitHub CI was previously proven unable to start due account billing; no current-pass CI result is claimed here. Fresh GitHub read confirms main remains `2067e743c54ffee669cd484f26dc472b157f1881`.
+Actual hosted Stripe checkout, trainer Connect, transfer/payout and email remain unproven; owner trainer signup handoff is still pending (fresh UI check: blank credential fields and unchecked terms). Package-settlement replay and dependency advisory reachability remain separate audit work. Fresh GitHub read confirms main remains `2067e743c54ffee669cd484f26dc472b157f1881`.
+
+## Published Preview
+
+- Source `d6b26d83641f13b5b5ed4238bc80073f9fa70c82` committed and pushed only to `codex/payment-readiness-20261006`. No main or production promotion and no migration change.
+- [Vercel deployment](https://vercel.com/styleres-projects/trainr/HhujbqH3kXgFW5YceFccsHkRJuo8) verified in normal UI as Ready / Latest / Preview, completed **14:16:52 UTC**, duration 51 seconds. The displayed source is `d6b26d8`; domains are the stable audit alias and `trainr-5na5c8v20-styleres-projects.vercel.app`.
+- Anonymous hosted smoke: **18/18 PASS**, **14:17:01-14:17:05 UTC**, terminal exit 0. Health/database and catalog contract pass, catalog total zero trainers; protected endpoints including both closure methods return 401; unsigned webhook returns 400. No credentials or valid payment mutations sent. [Raw timestamped methods, routes and outcomes](CHECKOUT_REVIEW_HOLD_HOSTED_SMOKE.json). The script's source SHA is a label, not provenance (`aliasSourceIndependentlyVerified: false`); Vercel UI independently establishes the source mapping above.
+- [GitHub CI run 38411872394](https://github.com/StylereTech/trainr/actions/runs/38411872394): both check and migrations failed before starting. Fresh UI annotations state: `The job was not started because your account is locked due to a billing issue.` No billing or runner setting was changed. Local checks are not hosted CI proof.
