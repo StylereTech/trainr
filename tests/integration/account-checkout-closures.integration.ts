@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { closeAccount } from '@/lib/account-closure'
@@ -67,6 +67,19 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('durable account checkout closure with real SQL and simulated provider', () => {
+  for (const kind of ['BOOKING', 'PACKAGE']) {
+    it.each([Prisma.JsonNull, false, 0, '', { reason: 'synthetic review' }])(`${kind} checkout financial hold %j remains in review after expiry`, async financialReview => {
+      if (kind === 'BOOKING') await prisma.payment.update({ where: { id: paymentId }, data: { financialReview } })
+      else await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+      await close(parentId)
+      expect(await processTask(kind)).toMatchObject({ status: 'REVIEW', outcome: 'payment_review_required' })
+      expect(provider.expire).toHaveBeenCalledTimes(1)
+      expect((await task(kind)).status).toBe('REVIEW')
+      const count = kind === 'BOOKING' ? await independent.payment.count({ where: { id: paymentId, financialReview: { not: Prisma.DbNull } } })
+        : await independent.packagePurchase.count({ where: { id: purchaseId, financialReview: { not: Prisma.DbNull } } })
+      expect(count).toBe(1)
+    })
+  }
   it.each(['parent-role', 'trainer-role', 'suspend', 'reject', 'inactive'])('retires existing checkouts after %s revocation without deleting the account', async action => {
     if (action.endsWith('-role')) {
       const user = await prisma.user.findUniqueOrThrow({ where: { id: action === 'parent-role' ? parentId : trainerId } })

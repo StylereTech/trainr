@@ -33,12 +33,13 @@ export async function processAccountCheckoutClosure(id: string, authority: { adm
       throw new CheckoutClosureAccessError('Account checkout not found')
     }
     // Same profile -> financial record -> queue order as checkout preparation/revocation.
+    let lockedFinancial: { id: string; reviewHeld: boolean } | undefined
     if (reference.kind === 'BOOKING') {
       await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT b."trainerProfileId" FROM bookings b JOIN payments p ON p."bookingId" = b.id WHERE p.id = ${reference.targetId}) FOR SHARE`
-      await tx.$queryRaw`SELECT id FROM payments WHERE id = ${reference.targetId} FOR UPDATE`
+      ;[lockedFinancial] = await tx.$queryRaw<{ id: string; reviewHeld: boolean }[]>`SELECT id, "financialReview" IS NOT NULL AS "reviewHeld" FROM payments WHERE id = ${reference.targetId} FOR UPDATE`
     } else {
       await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${reference.targetId}) FOR SHARE`
-      await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${reference.targetId} FOR UPDATE`
+      ;[lockedFinancial] = await tx.$queryRaw<{ id: string; reviewHeld: boolean }[]>`SELECT id, "financialReview" IS NOT NULL AS "reviewHeld" FROM package_purchases WHERE id = ${reference.targetId} FOR UPDATE`
     }
     await tx.$queryRaw`SELECT id FROM account_checkout_closures WHERE id = ${id} FOR UPDATE`
     const task = await tx.accountCheckoutClosure.findUnique({ where: { id } })
@@ -59,8 +60,8 @@ export async function processAccountCheckoutClosure(id: string, authority: { adm
         knownId = attempt?.stripeCheckoutSessionId || payment.stripeCheckoutSessionId
         intentId = payment.stripePaymentIntentId
         if (attempt?.stripeCheckoutSessionId && payment.stripeCheckoutSessionId && attempt.stripeCheckoutSessionId !== payment.stripeCheckoutSessionId) throw new Error('identity')
-        financialActivity = !['PENDING', 'FAILED'].includes(payment.status) || !!(payment.stripeChargeId || payment.stripeTransferId || payment.settlementVerifiedAt ||
-          payment.financialReview || payment.refundAmountInCents || payment.refundPendingAmountInCents || payment.refundFailedCount)
+        financialActivity = lockedFinancial?.id !== payment.id || lockedFinancial.reviewHeld !== false || !['PENDING', 'FAILED'].includes(payment.status) || !!(payment.stripeChargeId || payment.stripeTransferId || payment.settlementVerifiedAt ||
+          payment.refundAmountInCents || payment.refundPendingAmountInCents || payment.refundFailedCount)
         validate = session => {
           if (session.metadata?.bookingId !== booking.id || session.metadata?.paymentId !== payment.id ||
               (attempt && session.metadata?.checkoutAttemptId !== attempt.id) || session.metadata?.packagePurchaseId ||
@@ -74,8 +75,8 @@ export async function processAccountCheckoutClosure(id: string, authority: { adm
         const attempt = purchase.checkoutAttempts[0]
         knownId = attempt?.stripeCheckoutSessionId || purchase.stripeCheckoutSessionId
         intentId = purchase.stripePaymentIntentId
-        financialActivity = !['PENDING', 'FAILED'].includes(purchase.status) || !!(purchase.stripeChargeId || purchase.stripeTransferId || purchase.settlementVerifiedAt ||
-          purchase.financialReview || purchase.refundAmountInCents || purchase.refundPendingAmountInCents || purchase.refundFailedCount)
+        financialActivity = lockedFinancial?.id !== purchase.id || lockedFinancial.reviewHeld !== false || !['PENDING', 'FAILED'].includes(purchase.status) || !!(purchase.stripeChargeId || purchase.stripeTransferId || purchase.settlementVerifiedAt ||
+          purchase.refundAmountInCents || purchase.refundPendingAmountInCents || purchase.refundFailedCount)
         validate = session => { if (!attempt) throw new Error('identity'); assertPackageSession(purchase, attempt, session) }
       }
       if (!knownId) outcome = 'missing_session_identity'

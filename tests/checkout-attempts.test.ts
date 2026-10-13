@@ -24,14 +24,19 @@ let failAfterAccept: boolean
 
 function pendingPayment() {
   return { id: 'payment', status: 'PENDING', amountInCents: 10000, platformFeeInCents: 1500, trainerPayoutInCents: 8500,
-    refundAmountInCents: 0, stripeCheckoutSessionId: null, stripePaymentIntentId: null, stripeChargeId: null, stripeTransferId: null }
+    refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0, settlementVerifiedAt: null, financialReview: null,
+    stripeCheckoutSessionId: null, stripePaymentIntentId: null, stripeChargeId: null, stripeTransferId: null }
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mock.query.mockImplementation(async (sql: TemplateStringsArray) => sql.join('').includes('SELECT id, role, "deletedAt"') ? [
-    { id: 'parent', ...structuredClone(state.buyer) }, { id: 'trainer-user', role: 'TRAINER', deletedAt: null },
-  ] : [])
+  mock.query.mockImplementation(async (sql: TemplateStringsArray) => {
+    const query = sql.join('')
+    if (query.includes('AS "reviewHeld"')) return state.payment ? [{ id: state.payment.id, reviewHeld: state.payment.financialReview !== null }] : []
+    return query.includes('SELECT id, role, "deletedAt"') ? [
+      { id: 'parent', ...structuredClone(state.buyer) }, { id: 'trainer-user', role: 'TRAINER', deletedAt: null },
+    ] : []
+  })
   failSave = false
   failAfterAccept = false
   sessions = new Map()
@@ -506,7 +511,7 @@ describe('durable checkout attempts', () => {
     expect(mock.query.mock.calls[0][0].join('?')).toBe('SELECT id FROM users WHERE id = ? FOR SHARE')
     expect(mock.query.mock.calls[1][0].join('?')).toBe('SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ?) FOR SHARE')
     expect(mock.query.mock.calls[2][0].join('?')).toBe('SELECT id FROM bookings WHERE id = ? FOR UPDATE')
-    expect(mock.query.mock.calls[3][0].join('?')).toBe('SELECT id FROM payments WHERE "bookingId" = ? FOR UPDATE')
+    expect(mock.query.mock.calls[3][0].join('?')).toBe('SELECT id, "financialReview" IS NOT NULL AS "reviewHeld" FROM payments WHERE "bookingId" = ? FOR UPDATE')
   })
 
   it('resumes an existing open session without expiring or creating another session', async () => {

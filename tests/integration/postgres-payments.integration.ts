@@ -9,7 +9,7 @@ vi.mock('@/lib/stripe-settlement', async (importOriginal) => ({
     transferId: 'tr_synthetic', hasRefunds: false, requiresReview: false,
   }),
 }))
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { createBooking } from '@/lib/booking-creation'
 import { applyBookingAction } from '@/lib/booking-actions'
@@ -124,6 +124,61 @@ async function pendingPayment(bookingId: string) {
 }
 
 describe('real PostgreSQL money-flow persistence', () => {
+  for (const [reason, data] of [
+    ['json-null', { financialReview: Prisma.JsonNull }], ['false', { financialReview: false }],
+    ['zero', { financialReview: 0 }], ['empty', { financialReview: '' }],
+    ['object', { financialReview: { reason: 'synthetic review' } }],
+    ['pending-refund', { refundPendingAmountInCents: 1 }], ['failed-refund', { refundFailedCount: 1 }],
+    ['verified-receipt', { settlementVerifiedAt: new Date('2026-01-01') }],
+  ] as const) {
+    it(`checkout financial hold ${reason} blocks saved-session retry before provider access`, async () => {
+      const booking = await reserve()
+      await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+      await prisma.payment.update({ where: { bookingId: booking.id }, data })
+      const before = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+      provider.create.mockClear(); provider.retrieve.mockClear()
+      await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('financial activity')
+      expect(provider.create).not.toHaveBeenCalled(); expect(provider.retrieve).not.toHaveBeenCalled()
+      expect(await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })).toEqual(before)
+      expect(await independent.checkoutAttempt.count({ where: { paymentId: before.id } })).toBe(1)
+    })
+    it(`checkout financial hold ${reason} arriving during creation retains identity but withholds and expires link`, async () => {
+      const booking = await reserve()
+      const create = provider.create.getMockImplementation()!
+      provider.create.mockImplementationOnce(async (...args) => {
+        const session = await create(...args)
+        await independent.payment.update({ where: { bookingId: booking.id }, data })
+        return session
+      })
+      await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('financial activity')
+      const saved = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+      expect(saved.stripeCheckoutSessionId).toEqual(expect.any(String))
+      expect(saved).toMatchObject({ status: 'PENDING', ...data, ...(reason === 'json-null' ? { financialReview: null } : {}) })
+      expect(provider.expire).toHaveBeenCalledTimes(1)
+      expect((await provider.retrieve(saved.stripeCheckoutSessionId)).status).toBe('expired')
+      expect(await independent.checkoutAttempt.count({ where: { paymentId: saved.id } })).toBe(1)
+    })
+    it(`checkout financial hold ${reason} prevents claiming cancelled checkout is closed`, async () => {
+      const booking = await reserve()
+      await startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')
+      await prisma.payment.update({ where: { bookingId: booking.id }, data })
+      await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+      const before = await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })
+      expect(await closeCancelledCheckout(booking.id)).toBe('review_required')
+      expect(provider.expire).toHaveBeenCalledTimes(1)
+      expect(await independent.payment.findUniqueOrThrow({ where: { bookingId: booking.id } })).toEqual(before)
+    })
+    it(`checkout financial hold ${reason} prevents blind create during cancellation recovery`, async () => {
+      const booking = await reserve()
+      provider.create.mockRejectedValueOnce(new Error('synthetic lost request'))
+      await expect(startOrResumeCheckout(booking.id, { id: fixture.parent }, 'acct_synthetic')).rejects.toThrow('synthetic lost request')
+      await prisma.payment.update({ where: { bookingId: booking.id }, data })
+      await applyBookingAction(booking.id, { id: fixture.parent, role: 'PARENT' }, { action: 'cancel' })
+      provider.create.mockClear()
+      expect(await closeCancelledCheckout(booking.id)).toBe('review_required')
+      expect(provider.create).not.toHaveBeenCalled()
+    })
+  }
   it('persists immutable instants and rejects overlapping sessions across civil dates', async () => {
     const saved = await reserve()
     expect(await independent.booking.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ timeZone: 'UTC', startsAt: new Date('2030-11-04T09:00:00Z'), endsAt: new Date('2030-11-04T10:00:00Z') })

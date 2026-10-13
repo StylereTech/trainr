@@ -23,14 +23,21 @@ async function lockCurrentBuyer(tx: Prisma.TransactionClient, buyerId: string) {
 async function lockedBooking(tx: Prisma.TransactionClient, bookingId: string) {
   await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM bookings WHERE id = ${bookingId}) FOR SHARE`
   await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId} FOR UPDATE`
-  await tx.$queryRaw`SELECT id FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
-  return tx.booking.findUnique({
+  const [lockedPayment] = await tx.$queryRaw<{ id: string; reviewHeld: boolean }[]>`SELECT id, "financialReview" IS NOT NULL AS "reviewHeld" FROM payments WHERE "bookingId" = ${bookingId} FOR UPDATE`
+  const booking = await tx.booking.findUnique({
     where: { id: bookingId },
     include: { parentProfile: true, trainerProfile: true, athleteProfile: true, serviceOffering: true, payment: true },
   })
+  return booking ? { ...booking, paymentReviewHeld: !!booking.payment && (lockedPayment?.id !== booking.payment.id || lockedPayment.reviewHeld !== false) } : null
 }
 
 type CheckoutBooking = NonNullable<Awaited<ReturnType<typeof lockedBooking>>>
+
+function hasFinancialActivity(booking: CheckoutBooking) {
+  const payment = booking.payment
+  return !!payment && (booking.paymentReviewHeld || !!payment.stripeChargeId || !!payment.stripeTransferId || !!payment.settlementVerifiedAt ||
+    payment.refundAmountInCents > 0 || payment.refundPendingAmountInCents > 0 || payment.refundFailedCount > 0)
+}
 
 function assertPayable(booking: CheckoutBooking | null, buyer: Buyer, accountId: string) {
   if (!booking || booking.parentProfile.userId !== buyer.id) throw new CheckoutConflict('Booking ownership changed. Refresh before retrying.')
@@ -39,7 +46,7 @@ function assertPayable(booking: CheckoutBooking | null, buyer: Buyer, accountId:
   if (timeError) throw new CheckoutConflict(timeError)
   if (booking.trainerProfile.stripeAccountId !== accountId) throw new CheckoutConflict('Trainer payment account changed. Refresh before retrying.')
   const payment = booking.payment
-  if (payment && (!['PENDING', 'FAILED'].includes(payment.status) || payment.stripeChargeId || payment.stripeTransferId || payment.refundAmountInCents > 0)) {
+  if (payment && (!['PENDING', 'FAILED'].includes(payment.status) || hasFinancialActivity(booking))) {
     throw new CheckoutConflict('Payment already has financial activity. Refresh your booking or contact support.')
   }
   if (payment && (payment.amountInCents !== booking.totalAmountInCents || payment.platformFeeInCents !== booking.platformFeeInCents || payment.trainerPayoutInCents !== booking.trainerPayoutInCents)) {
@@ -182,7 +189,8 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
   const timeError = checkoutTimeError(recorded)
   const boundedSession = !session.after_expiration?.recovery?.enabled && (session.status !== 'open' || (Number.isSafeInteger(session.expires_at) && session.expires_at * 1000 > Date.now() &&
     !!recorded.startsAt && session.expires_at * 1000 <= recorded.startsAt.getTime()))
-  if (!buyerAllowed || !trainerAllowed || closurePending || timeError || !boundedSession) {
+  const financialActivity = hasFinancialActivity(recorded) || !['PENDING', 'FAILED'].includes(recorded.payment!.status)
+  if (!buyerAllowed || !trainerAllowed || closurePending || timeError || !boundedSession || financialActivity) {
     // Retain the returned identity before best-effort expiry. No refund or closure is implied.
     if (session.status === 'open' && session.payment_status === 'unpaid') {
       try {
@@ -193,7 +201,7 @@ async function rememberSession(bookingId: string, buyer: Buyer, accountId: strin
         }
       } catch { console.error('Withheld checkout expiry could not be verified; reconciliation required') }
     }
-    throw new CheckoutConflict(timeError || (closurePending ? 'A previous checkout requires retirement or review before another payment link can be released.' : !boundedSession ? 'Checkout expiry requires reconciliation. No payment link was released; contact support.' : !buyerAllowed
+    throw new CheckoutConflict(timeError || (financialActivity ? 'Payment already has financial activity. No payment link was released; contact support.' : closurePending ? 'A previous checkout requires retirement or review before another payment link can be released.' : !boundedSession ? 'Checkout expiry requires reconciliation. No payment link was released; contact support.' : !buyerAllowed
       ? 'Parent account access changed. Checkout was withheld; contact support to reconcile any payment.'
       : 'Trainer is no longer available for checkout. Checkout was withheld; contact support to reconcile any payment.'))
   }
@@ -213,7 +221,7 @@ export async function closeCancelledCheckout(bookingId: string): Promise<Checkou
     const { booking, attempt } = snapshot
     const payment = booking.payment
     if (!payment) return 'not_required'
-    if (payment.amountInCents === 0 && !payment.stripeCheckoutSessionId && !payment.stripePaymentIntentId && !attempt) return 'not_required'
+    if (payment.amountInCents === 0 && !payment.stripeCheckoutSessionId && !payment.stripePaymentIntentId && !attempt) return hasFinancialActivity(booking) ? 'review_required' : 'not_required'
     const knownId = attempt?.stripeCheckoutSessionId || payment.stripeCheckoutSessionId
     if (attempt?.stripeCheckoutSessionId && payment.stripeCheckoutSessionId && attempt.stripeCheckoutSessionId !== payment.stripeCheckoutSessionId) return 'review_required'
     const saved = attempt?.parameters as unknown as Stripe.Checkout.SessionCreateParams | undefined
@@ -224,7 +232,7 @@ export async function closeCancelledCheckout(bookingId: string): Promise<Checkou
     else {
       // Recover only the original durable request, never a replacement or an aged-out key.
       if (!attempt || attempt.retiredAt || !expectedAttemptId || Date.now() - attempt.createdAt.getTime() >= RECOVERY_WINDOW_MS ||
-          !['PENDING', 'FAILED'].includes(payment.status) || payment.stripePaymentIntentId || payment.stripeChargeId || payment.stripeTransferId ||
+          !['PENDING', 'FAILED'].includes(payment.status) || payment.stripePaymentIntentId || hasFinancialActivity(booking) ||
           saved?.metadata?.bookingId !== bookingId || saved.metadata.paymentId !== payment.id || saved.mode !== 'payment' ||
           saved.line_items?.length !== 1 || saved.line_items[0].quantity !== 1 || saved.line_items[0].price_data?.unit_amount !== payment.amountInCents ||
           saved.line_items[0].price_data?.currency !== 'usd' || saved.payment_intent_data?.application_fee_amount !== payment.platformFeeInCents ||
@@ -243,8 +251,8 @@ export async function closeCancelledCheckout(bookingId: string): Promise<Checkou
       const latest = await tx.checkoutAttempt.findFirst({ where: { paymentId: payment.id }, orderBy: { sequence: 'desc' } })
       if (latest?.id !== attempt?.id || (latest?.stripeCheckoutSessionId && latest.stripeCheckoutSessionId !== session.id) ||
           (current.payment.stripeCheckoutSessionId && current.payment.stripeCheckoutSessionId !== session.id)) throw new CheckoutConflict('Checkout identity changed')
-      if (latest) await tx.checkoutAttempt.update({ where: { id: latest.id }, data: { stripeCheckoutSessionId: session.id } })
-      await tx.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } })
+      if (latest && latest.stripeCheckoutSessionId !== session.id) await tx.checkoutAttempt.update({ where: { id: latest.id }, data: { stripeCheckoutSessionId: session.id } })
+      if (current.payment.stripeCheckoutSessionId !== session.id) await tx.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } })
     })
     const sessionId = session.id
     if (session.status === 'open' && session.payment_status === 'unpaid') {
@@ -268,8 +276,8 @@ export async function closeCancelledCheckout(bookingId: string): Promise<Checkou
       const latest = await lockedBooking(tx, bookingId)
       const current = latest?.payment
       if (latest?.status !== 'CANCELLED' || !current || current.id !== payment.id || current.stripeCheckoutSessionId !== sessionId ||
-          current.amountInCents !== payment.amountInCents || !['PENDING', 'FAILED'].includes(current.status) || current.stripeChargeId || current.stripeTransferId ||
-          current.refundAmountInCents > 0 || current.refundPendingAmountInCents > 0 || (current.stripePaymentIntentId && current.stripePaymentIntentId !== intentId)) return 'review_required'
+          current.amountInCents !== payment.amountInCents || !['PENDING', 'FAILED'].includes(current.status) || hasFinancialActivity(latest) ||
+          (current.stripePaymentIntentId && current.stripePaymentIntentId !== intentId)) return 'review_required'
       return 'closed'
     })
   } catch {
