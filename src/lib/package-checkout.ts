@@ -19,7 +19,8 @@ async function lockedPurchase(tx: Prisma.TransactionClient, purchaseId: string, 
   await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR SHARE`
   const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true, deletedAt: true, role: true } })
   await tx.$queryRaw`SELECT id FROM trainer_profiles WHERE id = (SELECT "trainerProfileId" FROM package_purchases WHERE id = ${purchaseId}) FOR SHARE`
-  await tx.$queryRaw`SELECT id FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
+  // Prisma maps both SQL NULL and JSON null to null; preserve SQL hold presence.
+  const [locked] = await tx.$queryRaw<Array<{ reviewHeld: boolean }>>`SELECT ("financialReview" IS NOT NULL) AS "reviewHeld" FROM package_purchases WHERE id = ${purchaseId} FOR UPDATE`
   const purchase = await tx.packagePurchase.findUnique({ where: { id: purchaseId }, include: {
     parentProfile: true, package: true, trainerProfile: { include: { sports: true, user: { select: { role: true, deletedAt: true } } } },
   } })
@@ -27,19 +28,21 @@ async function lockedPurchase(tx: Prisma.TransactionClient, purchaseId: string, 
   const terms = packagePurchaseTermsSchema.parse(purchase.terms)
   const services = await tx.serviceOffering.findMany({ where: { id: { in: terms.items.map(item => item.serviceOfferingId) } }, include: { sport: true } })
   const closure = await tx.accountCheckoutClosure.findFirst({ where: { kind: 'PACKAGE', targetId: purchaseId, status: { not: 'CLOSED' } } })
-  return { purchase, user, terms, services, closure }
+  return { purchase, user, terms, services, closure, reviewHeld: locked?.reviewHeld ?? true }
 }
 type Snapshot = Awaited<ReturnType<typeof lockedPurchase>>
 
-function assertPayable({ purchase, user, terms, services, closure }: Snapshot, accountId?: string) {
+function assertPayable({ purchase, user, terms, services, closure, reviewHeld }: Snapshot, accountId?: string) {
   if (user?.role !== 'PARENT' || user.deletedAt) throw new PackagePurchaseError('Parent access is required', 403)
+  if (terms.version !== 2) throw new PackagePurchaseError('Legacy package terms require support review before payment.')
   if (closure) throw new PackagePurchaseError('A previous checkout requires retirement or review before another payment link can be released.')
   const trainer = purchase.trainerProfile
   if (!trainer.isActive || trainer.approvalStatus !== 'APPROVED' || trainer.user.deletedAt || trainer.user.role !== 'TRAINER') {
     throw new PackagePurchaseError('Trainer is not available for package checkout.')
   }
   if (!trainer.stripeAccountId || (accountId && trainer.stripeAccountId !== accountId)) throw new PackagePurchaseError('Trainer payment account needs reconnection.')
-  if (!['PENDING', 'FAILED'].includes(purchase.status) || purchase.stripeChargeId || purchase.stripeTransferId || purchase.settlementVerifiedAt || purchase.financialReview) {
+  if (!['PENDING', 'FAILED'].includes(purchase.status) || purchase.stripeChargeId || purchase.stripeTransferId || purchase.settlementVerifiedAt ||
+      reviewHeld || purchase.refundAmountInCents || purchase.refundPendingAmountInCents || purchase.refundFailedCount) {
     throw new PackagePurchaseError('Package purchase already has financial activity. Review it before paying again.')
   }
   if (!purchase.package.isActive || purchase.package.updatedAt.getTime() !== purchase.catalogRevision.getTime() ||

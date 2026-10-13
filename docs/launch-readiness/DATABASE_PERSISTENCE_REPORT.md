@@ -1,5 +1,7 @@
 # Database Persistence Report
 
+2026-10-13 package sales API pass: final expanded disposable SQL suite passes **953 tests**, including checkout API -> signed synthetic success event -> receipt/grants -> two sibling reservations -> cancellation restoration. [Exact run boundaries, failures and independent readbacks](PACKAGE_SALES_API_REPORT.md). Provider responses are simulated; this is not hosted Stripe payment or production persistence proof. **HOLD**.
+
 2026-10-13: complete corrected local SQL regression passed **920/920** after implementing atomic credit reservation creation and reproducing/fixing falsy non-null financial-review handling. Tests cover sibling spending, concurrent retries/last credit, cash-credit group capacity, cancellation restoration, ownership, expiry and complete rollback if the request record fails. [Exact steps, failure/retest evidence and cleanup](PACKAGE_CREDIT_RESERVATION_REPORT.md). No schema/migration change or actual Stripe receipt was produced; hosted proof remains **HOLD**.
 
 2026-10-13: credit dashboard reads now serialize transaction-consistent, role-scoped funding projections. Complete disposable SQL regression passed **860/860**; new cases check ownership, immutable purchased titles, early/late cancellation readback and payment holds. [Exact environment, steps, cleanup and subsequent UI evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Synthetic receipts are not hosted Stripe evidence. No migration or production database change; **HOLD**.

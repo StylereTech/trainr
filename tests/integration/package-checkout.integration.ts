@@ -9,16 +9,24 @@ import { reconcilePackageCheckout } from '@/lib/package-settlement'
 import { reconcileRefundEvent } from '@/lib/refund-reconciliation'
 import { readPackageHistory, refreshPackageHistory } from '@/lib/package-history'
 import { packageHistoryResponse } from '@/lib/package-history-schema'
+import { NextRequest } from 'next/server'
+import { encode } from 'next-auth/jwt'
+import { POST as checkoutPOST } from '@/app/api/package-purchases/checkout/route'
+import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { POST as creditPOST } from '@/app/api/bookings/credits/route'
+import { readCreditBookingOptions } from '@/lib/credit-booking-options'
+import { applyBookingAction } from '@/lib/booking-actions'
 import { POST } from '@/app/api/payments/webhook/route'
 import { settlementFixture, settlementDispute } from '../helpers/stripe-settlement-fixture'
 
 const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), account: vi.fn(), intent: vi.fn(), charge: vi.fn(),
-  transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), signature: '' }))
+  transfer: vi.fn(), fee: vi.fn(), disputes: vi.fn(), refunds: vi.fn(), signature: '', secretConfigured: true, webhookConfigured: true }))
 const secret = 'whsec_synthetic_package_checkout'
+const authSecret = 'local-package-sales-only-not-a-real-secret'
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'stripe-signature': provider.signature }) }))
 vi.mock('@/lib/stripe', async () => {
   const { default: SDK } = await import('stripe')
-  return { stripeRuntimeStatus: () => ({ secretConfigured: true, webhookConfigured: true }),
+  return { stripeRuntimeStatus: () => ({ secretConfigured: provider.secretConfigured, webhookConfigured: provider.webhookConfigured }),
     verifyWebhookSignature: (body: string, signature: string) => SDK.webhooks.constructEvent(body, signature, 'whsec_synthetic_package_checkout'),
     stripe: { accounts: { retrieve: provider.account }, checkout: { sessions: { create: provider.create, retrieve: provider.retrieve, expire: provider.expire } },
       paymentIntents: { retrieve: provider.intent }, charges: { retrieve: provider.charge }, transfers: { retrieve: provider.transfer },
@@ -63,12 +71,14 @@ async function successWebhook(changes: Record<string, unknown> = {}, intentChang
   return POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body }) as any)
 }
 beforeAll(async () => {
+  vi.stubEnv('NEXTAUTH_SECRET', authSecret)
   expect(await prisma.$queryRaw`SELECT purpose FROM trainr_test_guard`).toEqual([{ purpose: 'disposable integration database' }])
   expect(await prisma.$queryRaw`SELECT current_database() AS name`).toEqual([{ name: expect.stringMatching(/^trainr_audit_/) }])
   verified = true
 })
 beforeEach(async () => {
   vi.resetAllMocks(); sessions = new Map(); f = settlementFixture(); refunds = []; historyUsers = []
+  provider.secretConfigured = true; provider.webhookConfigured = true
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `package-checkout-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
@@ -92,11 +102,182 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   if (!verified) return
+  await prisma.rateLimitBucket.deleteMany({ where: { keyHash: { in: [parentId, trainerId, ...historyUsers].map(id => rateLimitKey(`package-checkout:${id}`, 5, 60000)) } } })
+  await prisma.booking.deleteMany({ where: { trainerProfileId } })
   await prisma.packagePurchase.deleteMany({ where: { trainerProfileId } })
   await prisma.user.deleteMany({ where: { id: { in: [parentId, trainerId, ...historyUsers] } } })
   await prisma.sport.delete({ where: { id: sportId } })
 })
-afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
+afterAll(async () => { vi.unstubAllEnvs(); await prisma.$disconnect(); await independent.$disconnect() })
+
+describe('public package checkout route with local SQL and simulated provider', () => {
+  async function post(body: unknown, userId: string | null = parentId, raw = false) {
+    const user = userId ? await prisma.user.findUniqueOrThrow({ where: { id: userId } }) : null
+    const token = user ? await encode({ secret: authSecret, token: { sub: user.id, role: user.role, sessionVersion: user.sessionVersion } }) : null
+    return checkoutPOST(new NextRequest('http://localhost/api/package-purchases/checkout', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { cookie: `next-auth.session-token=${token}` } : {}) },
+      body: raw ? String(body) : JSON.stringify(body) }))
+  }
+  async function request() {
+    const purchase = await readPurchase()
+    return { requestId: purchase.requestId, packageId: purchase.packageId, catalogRevision: purchase.catalogRevision.toISOString(), expectedTotalInCents: purchase.amountInCents }
+  }
+  async function noProvider() {
+    expect(provider.account).not.toHaveBeenCalled(); expect(provider.create).not.toHaveBeenCalled()
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(0)
+  }
+  it('creates a reviewed purchase and returns only an unpaid owned checkout; retries and resume reuse it', async () => {
+    const input = { ...await request(), requestId: randomUUID() }
+    const response = await post(input), result = await response.json()
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(Object.keys(result).sort()).toEqual(['checkoutUrl', 'purchaseId'])
+    expect(result.purchaseId).not.toBe(purchaseId)
+    expect(result.checkoutUrl).toMatch(/^https:\/\/checkout.stripe.com\//)
+    expect(await (await post(input)).json()).toEqual(result)
+    expect(await (await post({ purchaseId: result.purchaseId })).json()).toEqual(result)
+    expect(await independent.packagePurchase.count({ where: { parentProfile: { userId: parentId } } })).toBe(2)
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId: result.purchaseId } })).toBe(1)
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    expect((await independent.packagePurchase.findUniqueOrThrow({ where: { id: result.purchaseId } })).status).toBe('PENDING')
+    expect(await independent.packageCreditGrant.count()).toBe(0)
+    expect(await independent.booking.count()).toBe(0); expect(await independent.payment.count()).toBe(0); expect(await independent.walletEntry.count()).toBe(0)
+  })
+  it('recovers a lost provider response with exactly the same purchase and durable Stripe key', async () => {
+    const input = await request()
+    provider.create.mockImplementationOnce(async parameters => { createSession(parameters); throw new Error('provider secret detail') })
+    const failed = await post(input)
+    expect(failed.status).toBe(503); expect(await failed.text()).not.toContain('provider secret detail')
+    expect((await post(input)).status).toBe(200)
+    expect(provider.create.mock.calls[1]).toEqual(provider.create.mock.calls[0])
+    expect(sessions.size).toBe(1)
+    expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(1)
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(1)
+  })
+  it('serializes concurrent initial submissions through the same purchase and checkout attempt', async () => {
+    const input = { ...await request(), requestId: randomUUID() }
+    const responses = await Promise.all([post(input), post(input)])
+    expect(responses.map(response => response.status)).toEqual([200, 200])
+    expect(await responses[0].json()).toEqual(await responses[1].json())
+    expect(sessions.size).toBe(1)
+    expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(2)
+    expect(await independent.packageCheckoutAttempt.count()).toBe(1)
+  })
+  it.each(['anonymous', 'trainer', 'admin', 'foreign', 'deleted', 'role-changed'])('denies %s without provider access', async mode => {
+    let actor: string | null = parentId
+    if (mode === 'anonymous') actor = null
+    if (mode === 'trainer') actor = trainerId
+    if (mode === 'admin') await prisma.user.update({ where: { id: parentId }, data: { role: 'ADMIN' } })
+    if (mode === 'role-changed') await prisma.user.update({ where: { id: parentId }, data: { role: 'TRAINER' } })
+    if (mode === 'deleted') await prisma.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
+    if (mode === 'foreign') {
+      const other = await prisma.user.create({ data: { email: `foreign-${randomUUID()}@example.test`, passwordHash: 'not-a-login', role: 'PARENT', parentProfile: { create: {} } } })
+      historyUsers.push(other.id); actor = other.id
+    }
+    const response = await post({ purchaseId }, actor)
+    expect(response.status).toBe(mode === 'anonymous' || mode === 'deleted' ? 401 : mode === 'foreign' ? 404 : 403)
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    await noProvider()
+  })
+  it.each(['malformed', 'unknown-field', 'mixed', 'amount', 'changed-request', 'stale-price', 'missing-purchase'])('rejects %s requests before provider access', async mode => {
+    let input: unknown = await request()
+    if (mode === 'malformed') input = '{'
+    if (mode === 'unknown-field') input = { ...await request(), parentId: 'other' }
+    if (mode === 'mixed') input = { ...await request(), purchaseId }
+    if (mode === 'amount') input = { ...await request(), expectedTotalInCents: 0 }
+    if (mode === 'changed-request') input = { ...await request(), expectedTotalInCents: 6500 }
+    if (mode === 'stale-price') input = { ...await request(), requestId: randomUUID(), expectedTotalInCents: 6500 }
+    if (mode === 'missing-purchase') input = { purchaseId: 'nonexistent' }
+    const response = await post(input, parentId, mode === 'malformed')
+    expect(response.status).toBe(mode === 'missing-purchase' ? 404 : ['changed-request', 'stale-price'].includes(mode) ? 409 : 400)
+    await noProvider()
+    expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(1)
+  })
+  it.each(['secretConfigured', 'webhookConfigured'] as const)('fails closed without %s', async field => {
+    provider[field] = false
+    expect((await post({ ...await request(), requestId: randomUUID() })).status).toBe(503)
+    await noProvider()
+    expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(1)
+  })
+  it('rate limits before purchase creation or provider access', async () => {
+    for (let i = 0; i < 5; i++) expect((await rateLimit(`package-checkout:${parentId}`, 5, 60000)).allowed).toBe(true)
+    const response = await post({ ...await request(), requestId: randomUUID() })
+    expect(response.status).toBe(429); expect(Number(response.headers.get('retry-after'))).toBeGreaterThan(0)
+    await noProvider()
+    expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(1)
+  })
+  it('does not release a paid checkout or create another attempt when payment completes before retry', async () => {
+    const { session } = await paidSession()
+    expect((await post({ purchaseId })).status).toBe(409)
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(1)
+    expect(provider.create).toHaveBeenCalledTimes(1)
+    expect((await readPurchase()).stripeCheckoutSessionId).toBe(session.id)
+  })
+  it('fails closed when the durable rate limit cannot persist', async () => {
+    const failure = vi.spyOn(prisma, '$executeRaw').mockRejectedValueOnce(new Error('private persistence details'))
+    try {
+      const response = await post({ ...await request(), requestId: randomUUID() })
+      expect(response.status).toBe(503); expect(await response.text()).not.toContain('private persistence details')
+      await noProvider()
+      expect(await independent.packagePurchase.count({ where: { trainerProfileId } })).toBe(1)
+    } finally { failure.mockRestore() }
+  })
+  it('requires current credit policy before charging legacy purchases', async () => {
+    const current = await readPurchase(), terms = current.terms as any
+    const { creditPolicy: _policy, ...legacy } = terms
+    const old = await prisma.packagePurchase.create({ data: { parentProfileId: current.parentProfileId, trainerProfileId, packageId: current.packageId,
+      requestId: randomUUID(), payloadHash: current.payloadHash, catalogRevision: current.catalogRevision, terms: { ...legacy, version: 1 },
+      amountInCents: current.amountInCents, platformFeeInCents: current.platformFeeInCents, trainerPayoutInCents: current.trainerPayoutInCents } })
+    const response = await post({ purchaseId: old.id })
+    expect(response.status).toBe(409); expect((await response.json()).error).toContain('Legacy')
+    await noProvider()
+  })
+  it('joins checkout, signed synthetic payment, sibling reservations and cancellation without a second charge', async () => {
+    const checkout = await post(await request())
+    expect(checkout.status).toBe(200)
+    const result = await checkout.json(), attempt = await readAttempt(), session = sessions.get(attempt.stripeCheckoutSessionId!)
+    expect(result.purchaseId).toBe(purchaseId)
+    expect(await independent.packageCreditGrant.count()).toBe(0)
+    f.intent.metadata = f.charge.metadata = structuredClone(session.metadata)
+    Object.assign(session, { status: 'complete', payment_status: 'paid', payment_intent: f.intent.id, url: null })
+    expect((await webhook(session)).status).toBe(200)
+    expect(await independent.packagePaymentReceipt.count()).toBe(0)
+    expect((await successWebhook()).status).toBe(200)
+    const paid = await readPurchase()
+    expect(paid).toMatchObject({ status: 'SUCCEEDED', stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
+    expect(await independent.packagePaymentReceipt.count()).toBe(1)
+    expect(await independent.packageCreditGrant.findMany({ where: { purchaseId } })).toMatchObject([{ sessionsCount: 2 }])
+    for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+      const history = packageHistoryResponse.parse(await readPackageHistory(actor, { view: 'all', page: 1, limit: 10 }))
+      expect(history.purchases[0]).toMatchObject({ id: purchaseId, status: 'SUCCEEDED', creditsGranted: 2 })
+    }
+    await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { timeZone: 'UTC' } })
+    await prisma.availabilitySlot.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ trainerProfileId, dayOfWeek, startTime: '08:00', endTime: '18:00' })) })
+    const service = await prisma.serviceOffering.findFirstOrThrow({ where: { trainerProfileId } })
+    const children = await Promise.all(['One', 'Two'].map(firstName => prisma.athleteProfile.create({ data: { parentProfileId: paid.parentProfileId,
+      firstName, lastName: 'Synthetic', dateOfBirth: new Date('2015-01-01'), goals: [], sports: { create: { sportId } } } })))
+    const actor = await prisma.user.findUniqueOrThrow({ where: { id: parentId } })
+    const token = await encode({ secret: authSecret, token: { sub: parentId, role: 'PARENT', sessionVersion: actor.sessionVersion } })
+    const reserve = (body: unknown) => creditPOST(new NextRequest('http://localhost/api/bookings/credits', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: `next-auth.session-token=${token}` }, body: JSON.stringify(body) }))
+    const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    const bookings: string[] = []
+    for (const [i, child] of children.entries()) {
+      const body = { requestId: randomUUID(), purchaseId, serviceOfferingId: service.id, athleteProfileId: child.id, date,
+        startTime: i === 0 ? '09:00' : '11:00', timeZone: 'UTC' }
+      const response = await reserve(body), saved = await response.json()
+      expect(response.status).toBe(201); expect(saved.status).toBe('CONFIRMED')
+      expect(await (await reserve(body)).json()).toEqual(saved)
+      bookings.push(saved.id)
+    }
+    expect((await readCreditBookingOptions(parentId, purchaseId)).services[0].availableCredits).toBe(0)
+    await applyBookingAction(bookings[0], { id: parentId, role: 'PARENT' }, { action: 'cancel' })
+    expect((await readCreditBookingOptions(parentId, purchaseId)).services[0].availableCredits).toBe(1)
+    expect((await independent.packageCreditRedemption.findUniqueOrThrow({ where: { bookingId: bookings[0] } })).restoredAt).not.toBeNull()
+    expect(await independent.booking.count()).toBe(2)
+    expect(await independent.payment.count()).toBe(0); expect(await independent.walletEntry.count()).toBe(0)
+    expect(provider.create).toHaveBeenCalledTimes(1); expect(sessions.size).toBe(1)
+  })
+})
 
 describe('package checkout with real SQL, signatures and simulated Stripe receipts', () => {
   it('anchors payment time only to a signed success event and preserves it across all replays', async () => {
@@ -713,6 +894,20 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
     expect(provider.charge).not.toHaveBeenCalled(); expect(provider.transfer).not.toHaveBeenCalled()
     expect((await readPurchase()).status).toBe('PENDING')
   })
+  it.each([false, 0, '', Prisma.JsonNull])('blocks checkout for a non-null financial review value %j', async financialReview => {
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview } })
+    await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow('financial activity')
+    expect(provider.account).not.toHaveBeenCalled()
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(0)
+  })
+  it.each(['refundAmountInCents', 'refundPendingAmountInCents', 'refundFailedCount'] as const)('blocks checkout when %s records financial activity', async field => {
+    await prisma.packagePurchase.update({ where: { id: purchaseId }, data: { [field]: 1 } })
+    await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow('financial activity')
+    expect(provider.account).not.toHaveBeenCalled()
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(await independent.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(0)
+  })
   it('saves a distinct immutable package destination charge request and resumes its session', async () => {
     const result = await startOrResumePackageCheckout(purchaseId, parentId)
     expect(result).toMatchObject({ purchaseId, checkoutUrl: expect.stringMatching(/^https:\/\/checkout.stripe.com\//) })
@@ -772,7 +967,7 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
     expect(provider.create).not.toHaveBeenCalled()
     expect(await prisma.packageCheckoutAttempt.count({ where: { purchaseId } })).toBe(0)
   })
-  it.each(['parent', 'trainer', 'account', 'package', 'service'])('withholds checkout when %s access changes during the provider call, retaining identity', async mode => {
+  it.each(['parent', 'trainer', 'account', 'package', 'service', 'review-null', 'review-false', 'refund'])('withholds checkout when %s access changes during the provider call, retaining identity', async mode => {
     provider.create.mockImplementationOnce(async parameters => {
       const session = createSession(parameters)
       if (mode === 'parent') await independent.user.update({ where: { id: parentId }, data: { deletedAt: new Date() } })
@@ -780,6 +975,8 @@ describe('package checkout with real SQL, signatures and simulated Stripe receip
       if (mode === 'account') await independent.trainerProfile.update({ where: { id: trainerProfileId }, data: { stripeAccountId: 'acct_changed' } })
       if (mode === 'package') await independent.package.update({ where: { id: (await readPurchase()).packageId }, data: { isActive: false } })
       if (mode === 'service') await independent.serviceOffering.updateMany({ where: { trainerProfileId }, data: { isActive: false } })
+      if (mode === 'review-null' || mode === 'review-false') await independent.packagePurchase.update({ where: { id: purchaseId }, data: { financialReview: mode === 'review-null' ? Prisma.JsonNull : false } })
+      if (mode === 'refund') await independent.packagePurchase.update({ where: { id: purchaseId }, data: { refundPendingAmountInCents: 1 } })
       return session
     })
     await expect(startOrResumePackageCheckout(purchaseId, parentId)).rejects.toThrow()

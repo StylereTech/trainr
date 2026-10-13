@@ -1,5 +1,7 @@
 # Role Permission Audit Report
 
+2026-10-13: added package checkout role/ownership and strict request-boundary cases, including anonymous, trainer, admin, deleted/changed parent and foreign purchase access. [Exact execution and publication evidence](PACKAGE_SALES_API_REPORT.md). Provider access must not occur for rejected requests. Audit Preview only; broader launch **HOLD** remains.
+
 2026-10-13: new GET/POST `/api/bookings/credits` requires current parent access and owned purchases/children. Option reads expose safe fields only; mutations recheck locked accounts, ownership, credit/payment and schedule state. [Exact authorization, private/no-store and readback evidence](PACKAGE_CREDIT_RESERVATION_REPORT.md). Signed-in hosted role coverage is not inferred from local tests; **HOLD**.
 
 2026-10-13: credit funding reads expose a bounded DTO instead of nested purchase/receipt records. Different-parent dashboard access remains empty; participant actions remain server-authoritative. Admin credit cancellation stays disabled pending an adjustment policy. [Exact local role, response and post-publication verification](PACKAGE_CREDIT_DASHBOARD_REPORT.md). This is not a complete fresh hosted role audit; **HOLD**.

@@ -1,5 +1,7 @@
 # Trainer Flow Validation Report
 
+2026-10-13 package sales API pass: joined local lifecycle reads the verified synthetic package purchase and recorded credits from both parent and trainer history after signed-event processing. [Exact steps and test scope](PACKAGE_SALES_API_REPORT.md). No new trainer Connect onboarding, real transfer or bank payout occurred; full hosted trainer money-flow remains **HOLD**.
+
 2026-10-13: parent credit reservations now create confirmed sessions and participant notifications using the same trainer capacity constraints as cash bookings. Current service duration/type/sport, account eligibility and immutable paid terms are rechecked. [Exact tests, dashboard readback and limits](PACKAGE_CREDIT_RESERVATION_REPORT.md). No new payment/payout is created for redemption; actual hosted trainer/Stripe proof remains **HOLD**.
 
 2026-10-13: trainer dashboards recognize existing credit-funded sessions, retain financial holds on outcome controls, and expose policy-backed cancellation with saved restoration history. Package allocation is not represented as a new booking payment or payout. [Exact local verification and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Actual hosted trainer login, Connect, checkout and payout remain unverified; **HOLD**.

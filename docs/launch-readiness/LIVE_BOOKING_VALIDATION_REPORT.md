@@ -1,5 +1,7 @@
 # Live Booking Validation Report
 
+2026-10-13 package sales API pass: joined local lifecycle verifies the checkout endpoint, signed synthetic payment, shared sibling reservations, exact-request replay and cancellation restoration without a second charge. [Exact steps and boundaries](PACKAGE_SALES_API_REPORT.md). This does not establish the missing customer purchase screen or actual hosted Stripe booking; **HOLD**.
+
 2026-10-13: the audit branch now connects shared package credits to a parent reservation form and atomic booking API. [Exact local SQL/browser verification, failures and publication evidence](PACKAGE_CREDIT_RESERVATION_REPORT.md). Its prerequisite payment receipts are synthetic local fixtures; these tests do not establish a new hosted Stripe purchase or transfer. Public package sales and actual hosted money-flow validation remain **HOLD**.
 
 2026-10-13 credit-ledger pass: final 823 SQL cases, 1,501 units, build/static checks, four migration rehearsals and 64 selected local browser cases passed. [Exact failures/retests and evidence boundary](PACKAGE_CREDIT_LEDGER_REPORT.md). These use disposable accounts and simulated payment evidence, not a new hosted booking. Public package redemption and actual live/sandbox money-flow validation remain **HOLD**.

@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+2026-10-13 package checkout API pass: new initial/resume orchestration and corrected financial-review/refund guards have local synthetic-provider verification. [Exact failed baselines, retests and remaining requirements](PACKAGE_SALES_API_REPORT.md). A checkout URL is not payment success, credit issuance, destination transfer or bank payout. Customer purchase UI and actual hosted money flow remain unverified; **NOT SIGNED OFF**.
+
 2026-10-13: credit-funded reservation creation is now connected to the parent form and transaction ledger. It consumes an existing verified package credit, never initiates a second charge or payout, and blocks new spending under financial holds. [Exact synthetic SQL/browser proof and remaining boundaries](PACKAGE_CREDIT_RESERVATION_REPORT.md). Public package sales and actual hosted Stripe Checkout/Connect/transfer/payout proof are still missing; signoff **HOLD**.
 
 2026-10-13: credit dashboard integration distinguishes consumed/restored session credits from cash payments and avoids implying a new payout. [Exact local verification and remaining boundaries](PACKAGE_CREDIT_DASHBOARD_REPORT.md). No actual Stripe Checkout, Connect, transfer or payout proof was produced by these synthetic tests. Public package sales and credit reservation remain incomplete. Money-flow signoff stays **HOLD**.

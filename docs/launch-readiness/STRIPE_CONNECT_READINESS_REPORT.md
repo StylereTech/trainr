@@ -1,5 +1,7 @@
 # Stripe Connect Readiness Report
 
+2026-10-13 package sales API follow-up: new checkout orchestration reuses current Connect readiness and server-selected destination-charge parameters. [Exact local simulated-provider evidence](PACKAGE_SALES_API_REPORT.md). No new real connected account, onboarding completion or hosted transfer was performed; overall **HOLD**.
+
 2026-10-13 credit-ledger pass: [local SQL/browser verification](PACKAGE_CREDIT_LEDGER_REPORT.md) uses synthetic receipts and intercepted Checkout responses. No connected account was created, onboarded or newly verified. Actual hosted Connect and money-flow gates remain **HOLD**; this pass does not supersede the dated provider account evidence below.
 
 2026-10-12 13:23-13:26 UTC, read-only existing sandbox session (`acct_1RAkm8PvdPuIlEw5`): connected accounts still show All 0 / Enabled 0. Existing TRAINR audit Preview platform destination `we_1UOVC2PvdPuIlEw5lmUAZkMN` is Active and includes `payment_intent.succeeded` among 22 event subscriptions. No settings or accounts changed. [Payment-time implementation, tests and publication evidence](PACKAGE_PAYMENT_TIME_REPORT.md). Subscription presence is not actual Checkout/Connect/transfer/payout proof; trainer setup and full hosted money flow remain **HOLD**.

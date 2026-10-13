@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Package Sales API Follow-Up
+
+2026-10-13: added a parent-only package checkout API using immutable reviewed purchases and recoverable Stripe attempts. Fixed reproduced review/refund hold bypasses, including SQL-vs-JSON null ambiguity. [Exact failures, retests and publication evidence](PACKAGE_SALES_API_REPORT.md). Customer purchase UI and actual hosted Stripe proof remain incomplete; this does not make package sales end-to-end ready. **HOLD**.
+
 ## Credit Reservation Follow-Up
 
 2026-10-13: added the parent-owned credit reservation API, live balance/options read and linked booking form. Booking, credit debit, notifications and retry identity share one transaction; cash and credit reservations share scheduling/capacity checks. This supersedes the missing credit reservation/balance/form statements below, but does not complete public package sales or hosted Stripe proof. [Current exact tests, failures, publication and remaining boundaries](PACKAGE_CREDIT_RESERVATION_REPORT.md). Expiry interpretation and prepaid service retirement/replacement policy remain open; **HOLD**.
