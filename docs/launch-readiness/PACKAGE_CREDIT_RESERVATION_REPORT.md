@@ -72,6 +72,37 @@ Reviewed full-page screenshots: [1440px](screenshots/credit-reservation-1440.png
 
 Independent SQL readback after the suite confirmed the disposable guard and **zero users, bookings, payments, purchases, grants, receipts, redemptions and sports**. No unknown rows were deleted. The owned local application server and disposable PostgreSQL cluster were stopped after browser verification. No schema/migration/dependency/environment-secret change was made.
 
+## Published Source
+
+Source **`52698d97868bbe895d6756e66361606f4ee89b7b`** (`feat: book shared package credits through parent flow`) was committed and pushed to `codex/payment-readiness-20261006`. Remote readback matched; main remained **`2067e743c54ffee669cd484f26dc472b157f1881`**. The local tests above ran on this application tree before its commit, not on a later documentation-only commit.
+
+[GitHub Actions run 38377044299](https://github.com/StylereTech/trainr/actions/runs/38377044299): `check` and `migrations` both failed **09:32:26-09:32:28 UTC**; fresh jobs metadata contains **zero steps** for both. This is not a CI pass or a newly executed migration test. Prior account/billing evidence is not fresh proof of this run's cause. Vercel Preview Comments succeeded, but that check does not execute application tests. No billing or workflow setting was changed.
+
+At **09:33:50 UTC**, the source commit's Vercel status reported **success** for [deployment G5gqsrYYXhgoou24UkZQkxvaHrzp](https://vercel.com/styleres-projects/trainr/G5gqsrYYXhgoou24UkZQkxvaHrzp). No manual deployment, Production alias change or hosted migration-log access was performed.
+
+### Anonymous Preview Retest
+
+**14/14 PASS**, **09:34:00-09:34:03 UTC**, no cookies or account, on `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`:
+
+| Method and route | Expected | Actual |
+| --- | --- | --- |
+| GET `/api/health` | 200, ok and database connected | PASS |
+| GET `/api/trainers?limit=1&page=1` | 200, valid paginated catalog | PASS; **0 trainers** |
+| GET `/api/bookings` | 401 | PASS |
+| GET `/api/trainer/packages` | 401 | PASS |
+| GET `/api/trainer/wallet` | 401 | PASS |
+| GET `/api/package-purchases` | 401 | PASS |
+| POST `/api/payments/checkout`, empty JSON | 401 | PASS |
+| POST `/api/payments/webhook`, unsigned empty JSON | 400 | PASS |
+| PATCH `/api/bookings/audit-anonymous-probe`, empty JSON | 401 | PASS |
+| PATCH `/api/admin/bookings`, empty JSON | 401 | PASS |
+| GET `/api/dashboard/bookings?view=upcoming` | 401 | PASS |
+| GET `/api/admin/bookings` | 401 | PASS |
+| GET `/api/bookings/credits?purchaseId=audit-anonymous-probe` | 401 | PASS |
+| POST `/api/bookings/credits`, empty JSON | 401 | PASS |
+
+All responses were JSON with the expected contracts. Log: `.postgres-test/credit-reservation-hosted-smoke.json`. The script's source SHA is a requested label, not an independently returned runtime version; stable-alias-to-source mapping was **not independently verified**. These negative-access/health checks do not prove signed-in hosted reservation or payment functionality. Hosted browser actions remain unavailable due the previously observed approval-service limit; no alternate browser/API bypass was attempted. No Stripe transaction, connected-account onboarding, transfer or payout was performed in this pass.
+
 ## Remaining Gates
 
-This makes paid credits usable for reservation through the tested API/form, but does not establish purchase through public Stripe Checkout. Actual signed-in hosted checkout, webhook delivery, trainer Connect onboarding, destination transfer and payout proof remain unverified. Email setup is deferred. The most recent anonymous Preview catalog had zero eligible trainers; this pass must recheck it after publication. CI execution, dependency findings, pending expiry/retirement policy and other release gates remain open. Overall production status: **HOLD**.
+This makes paid credits usable for reservation through the locally tested API/form, but does not establish purchase through public Stripe Checkout. Actual signed-in hosted checkout, webhook delivery, trainer Connect onboarding, destination transfer and payout proof remain unverified. Email setup is deferred. Fresh anonymous Preview catalog again has zero eligible trainers. CI execution, dependency findings, pending expiry/retirement policy and other release gates remain open. Remaining work includes unfinished application code, not only external dependencies. Overall production status: **HOLD**.
