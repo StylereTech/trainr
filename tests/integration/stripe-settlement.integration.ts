@@ -193,6 +193,128 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     users.push(actor.id)
     return actor.id
   }
+  for (const status of ['PENDING', 'REVIEW']) {
+    it.each(['confirm', 'complete', 'no_show'] as const)(`refund refresh retains checkout retirement ${status} before %s`, async action => {
+      const operator = await admin()
+      await prisma.accountCheckoutClosure.create({ data: { userId: trainerId, kind: 'BOOKING', targetId: f.booking.payment.id, status } })
+      expect((await webhook()).status).toBe(200)
+      const held = (await payment()).financialReview
+      if (action !== 'confirm') await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CONFIRMED' } })
+      await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+      const before = await booking()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(new Date('2031-01-01').getTime())
+      try {
+        for (const actor of [{ id: trainerId, role: 'TRAINER' }, { id: operator, role: 'ADMIN' }]) {
+          await expect(applyBookingAction(f.booking.id, actor, { action })).rejects.toMatchObject({ status: 409 })
+        }
+      } finally { clock.mockRestore() }
+      expect(await booking()).toEqual(before)
+      expect((await payment()).financialReview).toEqual(held)
+      for (const actor of [{ id: parentId, role: 'PARENT' }, { id: trainerId, role: 'TRAINER' }]) {
+        const current = await readDashboardBookings(actor, actor.role === 'PARENT' ? 'upcoming' : 'all', 1, 10)
+        expect(current.bookings[0].payment?.financialReview).toBe(true)
+      }
+    })
+  }
+  it.each(['pending', 'requires_action', 'failed', 'canceled', 'succeeded'])('refund review identity remains stable across paid and refresh replay: %s', async status => {
+    const operator = await admin()
+    provider.refunds.mockResolvedValue({ data: [{ id: `re_${randomUUID()}`, charge: f.charge.id, payment_intent: f.intent.id,
+      status, amount: 1000, currency: 'usd', created: 1791440000 }], has_more: false })
+    expect((await webhook()).status).toBe(200)
+    const held = (await payment()).financialReview
+    const firstNotices = await notices()
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    expect((await payment()).financialReview).toEqual(held)
+    expect((await webhook()).status).toBe(200)
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    expect((await payment()).financialReview).toEqual(held)
+    expect(await notices()).toEqual(firstNotices)
+    expect((await booking()).status).toBe('PENDING')
+    expect(await independent.adminAction.count({ where: { adminUserId: operator, actionType: 'RECONCILE_REFUNDS' } })).toBe(0)
+  })
+  it.each(['parent-deleted', 'trainer-deleted', 'both-deleted', 'parent-role', 'trainer-role'])('refund participant review preserves revoked authority: %s', async mode => {
+    const operator = await admin()
+    const revoked = mode.startsWith('parent') ? [parentId] : mode.startsWith('trainer') ? [trainerId] : [parentId, trainerId]
+    await prisma.user.updateMany({ where: { id: { in: revoked } }, data: mode.endsWith('role')
+      ? { role: mode.startsWith('parent') ? 'TRAINER' : 'PARENT' } : { deletedAt: new Date() } })
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    provider.refunds.mockResolvedValue({ data: [{ id: `re_${randomUUID()}`, charge: f.charge.id, payment_intent: f.intent.id,
+      status: 'pending', amount: 1000, currency: 'usd', created: 1791440000 }], has_more: false })
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    const held = (await payment()).financialReview
+    expect(held).toMatchObject({ details: { participantReview: revoked.map(id => id === parentId ? 'parent_account_unavailable' : 'trainer_account_unavailable') } })
+    expect(await independent.notification.count({ where: { userId: { in: revoked } } })).toBe(0)
+    expect(await independent.notification.count({ where: { userId: operator, type: 'PAYMENT_REVIEW_REQUIRED' } })).toBe(1)
+    await reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    expect((await payment()).financialReview).toEqual(held)
+    expect(await independent.notification.count({ where: { userId: { in: revoked } } })).toBe(0)
+    expect(await independent.adminAction.count({ where: { adminUserId: operator, actionType: 'RECONCILE_REFUNDS' } })).toBe(1)
+  })
+  it.each(['parent', 'trainer', 'admin'])('refund participant locks recheck %s revocation committed while waiting', async participant => {
+    const operator = await admin()
+    const userId = participant === 'parent' ? parentId : participant === 'trainer' ? trainerId : operator
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    let release!: () => void, ready!: (pid: number) => void
+    const locked = new Promise<number>(resolve => { ready = resolve })
+    const writer = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      await tx.user.update({ where: { id: userId }, data: { deletedAt: new Date() } })
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready(backend.pid)
+      await untilReleased
+    }, { timeout: 15000 })
+    const holder = await locked
+    const delivery = reconcilePaymentRefunds(f.booking.id, { adminUserId: operator }).then(() => null, error => error as Error & { status?: number })
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE ${holder} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBeGreaterThan(0)
+      expect(provider.charge).not.toHaveBeenCalled()
+    } finally { release(); await writer }
+    const result = await delivery
+    expect((await booking()).status).toBe('PENDING')
+    if (participant === 'admin') {
+      expect(result?.status).toBe(403)
+      expect(await payment()).toMatchObject({ status: 'PENDING', stripeChargeId: null, stripeTransferId: null })
+    } else {
+      expect(result).toBeNull()
+      expect((await payment()).financialReview).toMatchObject({ details: { participantReview: [`${participant}_account_unavailable`] } })
+    }
+    expect(await independent.notification.count({ where: { userId } })).toBe(0)
+  })
+  it.each(['parent', 'trainer', 'admin'])('refund participant locks hold %s authority through provider verification', async participant => {
+    const operator = await admin()
+    const userId = participant === 'parent' ? parentId : participant === 'trainer' ? trainerId : operator
+    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { stripePaymentIntentId: f.intent.id } })
+    let release!: () => void, ready!: () => void
+    const verifying = new Promise<void>(resolve => { ready = resolve })
+    provider.fee.mockImplementationOnce(async () => {
+      const untilReleased = new Promise<void>(resolve => { release = resolve })
+      ready()
+      await untilReleased
+      return structuredClone(f.fee)
+    })
+    const delivery = reconcilePaymentRefunds(f.booking.id, { adminUserId: operator })
+    await verifying
+    let writerReady!: (pid: number) => void
+    const started = new Promise<number>(resolve => { writerReady = resolve })
+    const writer = independent.$transaction(async tx => {
+      const [backend] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`
+      writerReady(backend.pid)
+      await tx.user.update({ where: { id: userId }, data: { deletedAt: new Date() } })
+    }, { timeout: 15000 })
+    const writerPid = await started
+    try {
+      await expect.poll(async () => {
+        const [waiting] = await independent.$queryRaw<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE pid = ${writerPid} AND wait_event_type = 'Lock'`
+        return waiting.count
+      }, { timeout: 3000 }).toBe(1)
+    } finally { release(); await delivery; await writer }
+    expect((await booking()).status).toBe('PENDING')
+    expect((await payment()).status).toBe('SUCCEEDED')
+    expect(await independent.adminAction.count({ where: { adminUserId: operator, actionType: 'RECONCILE_REFUNDS' } })).toBe(1)
+  })
   it.each(['PENDING', 'FAILED'] as const)('refund refresh cannot promote %s without the agreed destination receipt', async status => {
     await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status, stripePaymentIntentId: f.intent.id } })
     f.transfer.destination = 'acct_wrong'

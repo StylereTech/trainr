@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { verifyDestinationSettlement, type SettlementSource } from '@/lib/stripe-settlement'
 import { reconcilePaymentRefundHistory } from '@/lib/payment-refunds'
-import { createHash } from 'node:crypto'
+import { paymentFinancialReview } from '@/lib/payment-financial-review'
 import { Prisma } from '@prisma/client'
 
 export class PaymentEventConflict extends Error {}
@@ -95,7 +95,6 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
     // A delayed success cannot undo a refund or a terminal booking decision.
     const settlement = await verifyDestinationSettlement({ ...booking, payment }, attempt, evidence.intentId, evidence.chargeId, source)
     const refunds = await reconcilePaymentRefundHistory(tx, payment, evidence.intentId, settlement.chargeId, settlement.hasRefunds)
-    const refundActivity = refunds.succeeded > 0 || refunds.pending > 0 || refunds.failed > 0
     const parent = accounts.find(account => account.id === booking.parentProfile.userId)
     const trainer = accounts.find(account => account.id === booking.trainerProfile.userId)
     const retirement = await tx.accountCheckoutClosure.findFirst({ where: { kind: 'BOOKING', targetId: payment.id, status: { not: 'CLOSED' } } })
@@ -104,12 +103,7 @@ export async function applyPaymentEvidence(evidence: PaymentEvidence, source?: S
       ...(!parent || parent.deletedAt || parent.role !== 'PARENT' ? ['parent_account_unavailable'] : []),
       ...(!trainer || trainer.deletedAt || trainer.role !== 'TRAINER' ? ['trainer_account_unavailable'] : []),
     ]
-    const reviewDetails = participantReview.length || refundActivity ? { ...settlement.review?.details, participantReview,
-      paymentRefunds: { refundedInCents: refunds.succeeded, pendingInCents: refunds.pending, failedCount: refunds.failed } } : null
-    const review = reviewDetails ? {
-      key: createHash('sha256').update(JSON.stringify({ bookingId: booking.id, ...reviewDetails })).digest('hex'), details: reviewDetails,
-    } : settlement.review
-    const requiresReview = settlement.requiresReview || participantReview.length > 0 || refundActivity
+    const { review, refundActivity, requiresReview } = paymentFinancialReview(booking.id, settlement, refunds, participantReview)
     const partiallyRefunded = refunds.status === 'PARTIALLY_REFUNDED'
     const newlyPaid = !['SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(payment.status)
     await tx.payment.update({

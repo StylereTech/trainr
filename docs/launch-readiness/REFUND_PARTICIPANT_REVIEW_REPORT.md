@@ -1,0 +1,38 @@
+# Refund Refresh Participant Review Audit
+
+Status at **2026-10-14 03:03 UTC**: reproduced booking-action bypass corrected; **1,188 SQL, 1,613 unit and 31 selected browser cases pass**, static checks and production build pass. Publication and hosted retest pending. Overall **HOLD**.
+
+## Baseline And Scope
+
+- Baseline **`81749878c1317faf5ef576156fa9bf0b6b5fac30`**, clean `codex/payment-readiness-20261006`. Previous turn made verified progress: admin refund layout fixed, all eleven reports updated, Preview source mapping and 21 hosted probes verified. Main remains `2067e743c54ffee669cd484f26dc472b157f1881`.
+- Environment: owned loopback PostgreSQL `trainr_audit_timezone_20261011`, port 55439, disposable marker required. Random synthetic `example.test` parent/trainer/admin accounts; Stripe reads and signed events simulated locally. No hosted account credentials, real funds, Production, Story or provider settings changed.
+- **P1 finding**: direct/admin/refund-event reconciliation wrote only the provider settlement review, discarding participant and unresolved checkout-retirement restrictions already recorded by paid-event processing. A clean provider receipt could therefore remove the hold and let a trainer confirm, complete or mark no-show while retirement remained pending/review. Refund refresh also did not lock parent/trainer authority through verification and sent refund notices to both saved participants without checking their current role/deletion state.
+
+## Reproduction And Correction
+
+| Paths | Exact steps / expected result | Actual baseline |
+| --- | --- | --- |
+| Signed paid webhook, refund refresh, booking actions, dashboards | Seed unresolved BOOKING closure in PENDING or REVIEW. Deliver verified simulated paid event; save the resulting review. Refresh refunds with clean provider history. Trainer/admin confirm, complete and no-show must reject with 409; booking and financial review must remain unchanged; both participant dashboards must show the hold. | Six cases failed: trainer actions returned successful CONFIRMED, COMPLETED or NO_SHOW transitions after refresh erased review. |
+| Paid/refresh replay | Observe each of pending, requires-action, failed, canceled and succeeded refund states, then alternate paid processing and refresh. Same evidence must keep the same review identity, no new confirmation or duplicate review/audit effects. | Added regression coverage after the fix. |
+| Refund refresh authority | Close/change parent/trainer roles and race account revocation before/after provider verification. Preserve current participant restrictions, exclude unavailable recipients, reject a revoked admin before provider reads, and retain authority locks through commit. | Added five revocation-state and six real SQL-lock cases after the fix. |
+
+- Baseline six-case command: `npm run test:postgres -- tests/integration/stripe-settlement.integration.ts -t 'refund refresh retains checkout retirement'`. **6 failed**, 201 filtered, start **02:38:37 UTC**, **9.32 seconds**, terminal exit 1. `.postgres-test/refund-participant-baseline.log`. Failure: expected rejection; actual booking status changed. Assertions were not weakened.
+- Fix: share the existing paid-event review computation with refund refresh, including retirement/participant reasons and current refund totals. Refund refresh now follows the existing user -> trainer profile -> booking -> payment lock order, rechecks actor/ownership after locking, and filters notification recipients using locked active roles. Existing refund totals, cancellation rules and provider receipt verification remain intact; no new money movement, migration or timeout increase.
+- Initial retest: **6/6 PASS**, 201 filtered, **02:40:35 UTC**, **4.66 seconds**, terminal exit 0. `.postgres-test/refund-participant-focused.log`. Both trainer and admin actions rejected; dashboard review remained present.
+- Expanded focused retest: **22/22 PASS**, 201 filtered, **02:41:57 UTC**, **5.75 seconds**, terminal exit 0. `.postgres-test/refund-participant-expanded.log`. Includes stable refund review identities, notification/audit replay and six SQL-lock observations. Test users are synthetic and provider receipts mocked; this is not evidence of a hosted Stripe checkout or payout.
+- Added seven focused unit cases for clean/provider-only/participant/refund review identity and changes. All seven passed within the full **1,613/1,613** unit suite (76 files, start **02:52:50 UTC**, **128.74 seconds**).
+
+## Verification And Publication
+
+- Full SQL regression **1,188/1,188 PASS**, 16 files, start **2026-10-14 02:43:43 UTC**, **278.32 seconds**, terminal exit 0. `.postgres-test/refund-participant-postgres.log`. Includes all 22 new cases and existing payment/package/refund/role/concurrency contracts.
+- Complete `npm run check` **PASS**, terminal exit 0: ESLint 0 errors/42 existing warnings, type generation/TypeScript, **1,613 units**, production build **84 generated pages**. Disposable loopback database and dummy provider credentials only. Build retains the existing middleware deprecation warning. `.postgres-test/refund-participant-check.log`.
+- Browser regression **31/31 PASS**, one worker, **zero retries**, **3.7 minutes**, terminal exit 0. Command: `npm run test:e2e -- e2e/refund-local-regression.spec.ts e2e/payment-hold-local-regression.spec.ts e2e/payment-reconciliation-local-regression.spec.ts --workers=1 --retries=0`. Rebuilt loopback app at port 3108, installed Chrome, synthetic parent/trainer/admin accounts. Payment-hold/refund UI responses are mocked; recovery cases use real local persistence with simulated provider responses. `.postgres-test/refund-participant-browser.log`.
+- Expected and actual browser results: review/unverified warnings keep unsafe controls disabled at 1440/390px; refund success/pending/failure amounts stay distinct after reload at 1440/1280/390px; failed/malformed/lost recovery responses require reload before further action. All pass. Reviewed parent refund, admin recovery/refund and mobile hold captures. Retained [admin 1280px](screenshots/refund-participant-admin-1280.png) and [mobile hold text](screenshots/refund-participant-mobile-hold.png).
+- Independent SQL inspection after browser completion confirmed the disposable database marker, no other active connections, and **zero rows in all ten fixture tables**. Local Next stopped; owned PostgreSQL stopped at **03:03 UTC**. No test server left running.
+- Commit/push, Preview source mapping and hosted smoke are pending. The source must not be called production-ready based on local suites alone.
+
+## Remaining Launch Gates
+
+Actual hosted trainer signup, Stripe Connect, customer paid checkout, transfer and payout remain unverified. Email is deferred. CI was last blocked before execution by account billing lock; recheck the new source after publication. Cold-load/connection reliability investigation, dependency/security work and the broader production-readiness scope remain open. Main and Production must remain unchanged during this isolated audit.
+
+Fresh hosted access check during this pass: navigation to the audit alias `/dashboard` redirected to `/auth/signin` with blank credentials and a Sign In action. This independently confirms the current Preview session is signed out; cached signup content alone was not used as evidence. No credentials or agreement were submitted.
