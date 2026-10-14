@@ -2,6 +2,8 @@
 
 ## Webhook Mode Follow-Up
 
+Published runtime **`6d22bc6fc60b5001d289414dc2c467fcc0508b05`**, independently Ready in audit Preview at **2026-10-14 05:47:29 UTC**. **21 hosted health/auth and 13 header probes pass**; catalog remains 0 and current CI remains billing-blocked. Exact attribution and raw probes are in the report below; actual money-flow gates remain open.
+
 **2026-10-14 05:44 UTC**, baseline `d05a1461c2e496e20259f299ac70aabe3a601a33`: reproduced and fixed opposite-mode signed Stripe events reaching application handlers. Signature/scope verification now precedes mode filtering; valid opposite-mode events are explicitly acknowledged without dispatch. **1,709 unit, 1,208 SQL, 10 built HTTP and 46 selected browser cases pass**, plus lint/types/build; fixtures cleaned and local services stopped. [Exact failures, fix, scope, cleanup and publication](WEBHOOK_MODE_ISOLATION_REPORT.md). The latest full gate passes; preceding timeout evidence below remains historical and its root cause is not proven resolved. Actual hosted money flow and other launch gates remain **HOLD**.
 
 ## Unit Timing Follow-Up
