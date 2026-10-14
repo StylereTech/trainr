@@ -49,7 +49,60 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Stripe not started', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start Stripe setup' })).toBeEnabled()
   })
+  test(`payout profile uses a safe fallback for malformed setup errors ${width}px`, async ({ page, localAuth }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await localAuth.signIn(await localAuth.create('TRAINER'))
+    let failure = 'html'
+    await page.route('**/api/payments/connect', route => {
+      if (route.request().method() === 'POST') return failure === 'html'
+        ? route.fulfill({ status: 503, contentType: 'text/html', body: '<html>Temporarily unavailable</html>' })
+        : route.fulfill({ status: 409, json: { error: { internal: 'not-displayable' } } })
+      return route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true, stripeAccountId: null,
+        stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, transfersEnabled: null,
+        providerError: '', dashboardSupported: false, onboardingSupported: true } })
+    })
+    for (const kind of ['html', 'object']) {
+      failure = kind
+      await page.goto('/trainer/profile?tab=payouts')
+      await page.getByRole('button', { name: 'Start Stripe setup', exact: true }).click()
+      await expect(page.getByText('Unable to open Stripe. Refresh your account status and try again.', { exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Start Stripe setup', exact: true })).toBeEnabled()
+      await expect(page.getByText('Payments ready', { exact: true })).toHaveCount(0)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    }
+  })
   for (const path of ['/trainer/dashboard', '/trainer/profile?tab=payouts']) {
+    test(`package history requires reconciliation before new Stripe setup on ${path} ${width}px`, async ({ page, localAuth }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 })
+      const trainer = await localAuth.create('TRAINER'), parent = await localAuth.create('PARENT')
+      const db = localAuth.database
+      const trainerProfile = await db.trainerProfile.findUniqueOrThrow({ where: { userId: trainer.id } })
+      const parentProfile = await db.parentProfile.findUniqueOrThrow({ where: { userId: parent.id } })
+      const catalog = await db.package.create({ data: { trainerProfileId: trainerProfile.id, title: 'Historical package', totalSessions: 1, priceInCents: 3000 } })
+      const purchase = await db.packagePurchase.create({ data: { parentProfileId: parentProfile.id, trainerProfileId: trainerProfile.id,
+        packageId: catalog.id, requestId: catalog.id, payloadHash: 'a'.repeat(64), catalogRevision: catalog.updatedAt,
+        amountInCents: 3000, platformFeeInCents: 450, trainerPayoutInCents: 2550, stripePaymentIntentId: `pi_${catalog.id}`,
+        terms: { version: 1, title: 'Historical package', description: '', validForDays: 90, totalSessions: 1,
+          items: [{ serviceOfferingId: 'historical-service', title: 'Training', sportId: 'historical-sport', durationMinutes: 60, type: 'INDIVIDUAL', sessionsCount: 1 }] },
+      } })
+      try {
+        await localAuth.signIn(trainer)
+        await page.goto(path)
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const response = page.waitForResponse(result => result.url().endsWith('/api/payments/connect') && result.request().method() === 'POST')
+          await page.getByRole('button', { name: 'Start Stripe setup', exact: true }).click()
+          expect((await response).status()).toBe(409)
+          await expect(page.getByText('Stripe setup unavailable', { exact: true })).toBeVisible()
+          await expect(page.getByText('Existing package payment history has no connected account. Contact support for reconciliation before setup.', { exact: true })).toBeVisible()
+          expect((await db.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfile.id } })).stripeAccountId).toBeNull()
+          expect(await db.connectAccountAttempt.count({ where: { trainerProfileId: trainerProfile.id } })).toBe(0)
+          expect(await db.packagePurchase.findUniqueOrThrow({ where: { id: purchase.id } })).toEqual(purchase)
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+          if (attempt === 0) await page.reload()
+        }
+        await page.screenshot({ path: testInfo.outputPath('package-history-reconciliation.png') })
+      } finally { await db.packagePurchase.delete({ where: { id: purchase.id } }) }
+    })
     test(`transfer capability gates ready status on ${path} ${width}px`, async ({ page, localAuth }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 })
       await localAuth.signIn(await localAuth.create('TRAINER'))

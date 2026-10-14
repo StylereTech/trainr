@@ -34,9 +34,10 @@ export function TrainerPayouts() {
     setOpening(true)
     try {
       const response = await fetch('/api/payments/connect', { method: 'POST', signal: AbortSignal.timeout(20000) })
-      if (!response.ok) throw new Error('Unable to open Stripe. Refresh your account status and try again.')
-      const data = await response.json()
-      const url = stripeRedirect(data.dashboardUrl || data.onboardingUrl)
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(typeof data?.error === 'string' && data.error.trim()
+        ? data.error : 'Unable to open Stripe. Refresh your account status and try again.')
+      const url = stripeRedirect(data?.dashboardUrl || data?.onboardingUrl)
       if (!url) throw new Error('Stripe did not return a valid account link.')
       window.location.href = url
     } catch (error) {

@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Connect Identity Follow-Up
+
+2026-10-14 04:59 UTC: package payment/checkout history now blocks automatic creation of a replacement Stripe account when the trainer link is missing, and the profile payout panel retains the API's reconciliation message. **50 focused Connect, 1,208 full SQL and 46 selected browser cases pass**; final build passes. Final full-unit attempts each had one timeout, so the final quality gate is **not green**. [Exact failures, focused retests, screenshots and publication](CONNECT_PACKAGE_IDENTITY_REPORT.md). No provider account was created. The requirement audit below remains the baseline; actual hosted money flow and other launch gates remain **HOLD**.
+
 Reviewed **2026-10-14 04:09-04:16 UTC**, clean baseline **`aa5a0753e03970ed84a309edd3a4120406654f8e`**, branch `codex/payment-readiness-20261006`. **NOT PRODUCTION READY.** This is a requirement-level reconciliation, not a new implementation or a full signed-in hosted test run.
 
 Scope: isolated TRAINR audit Preview and previously verified owned disposable local tests. Main, Production/trainr.cc, Story, Replit, provider settings, credentials and real funds remain unchanged. Broad approval does not supply missing accounts, policy definitions, agreements or provider receipts. [Historical checklist and dated follow-ups](LAUNCH_GATES_20261012_HISTORY.md) are preserved separately; superseded missing-feature statements are not current blockers.

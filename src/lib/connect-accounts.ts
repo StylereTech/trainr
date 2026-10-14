@@ -28,6 +28,12 @@ export async function ensureConnectAccount(userId: string) {
       { amountInCents: { gt: 0 }, status: { in: ['SUCCEEDED', 'REFUNDED', 'PARTIALLY_REFUNDED'] } },
     ] }, select: { id: true } })
     if (history) throw new ConnectAccountError('Existing payment history has no connected account. Contact support for reconciliation before setup.')
+    const packageHistory = await tx.packagePurchase.findFirst({ where: { trainerProfileId: current.id, OR: [
+      { stripeCheckoutSessionId: { not: null } }, { stripePaymentIntentId: { not: null } }, { stripeChargeId: { not: null } },
+      { stripeTransferId: { not: null } }, { checkoutAttempts: { some: {} } },
+      { amountInCents: { gt: 0 }, status: { in: ['SUCCEEDED', 'REFUNDED', 'PARTIALLY_REFUNDED'] } },
+    ] }, select: { id: true } })
+    if (packageHistory) throw new ConnectAccountError('Existing package payment history has no connected account. Contact support for reconciliation before setup.')
     const attempt = await tx.connectAccountAttempt.upsert({ where: { trainerProfileId: current.id }, update: {},
       create: { trainerProfileId: current.id, email: current.user.email } })
     if (!attempt.email || attempt.stripeAccountId || Date.now() - attempt.createdAt.getTime() >= 23 * 60 * 60 * 1000) {

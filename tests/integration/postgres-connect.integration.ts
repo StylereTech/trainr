@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ensureConnectAccount } from '@/lib/connect-accounts'
 import { refreshConnectReadiness } from '@/lib/connect-readiness'
@@ -17,6 +17,7 @@ vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `https://c
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let userId: string
 let trainerId: string
+let historyParentIds: string[] = []
 let verified = false
 const request = () => new NextRequest('https://attacker.example.test/api/payments/connect', { headers: { 'x-forwarded-host': 'attacker.example.test' } })
 const ready = (id = 'acct_existing', type = 'express') => ({ id, type, details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
@@ -30,6 +31,7 @@ beforeAll(async () => {
 })
 beforeEach(async () => {
   vi.resetAllMocks()
+  historyParentIds = []
   const id = randomUUID()
   const user = await prisma.user.create({ data: { email: `connect-${id}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
     trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: `connect-${id}` } } }, include: { trainerProfile: true } })
@@ -46,10 +48,62 @@ beforeEach(async () => {
   provider.link.mockResolvedValue({ url: 'https://connect.stripe.com/synthetic-onboarding' })
   provider.dashboard.mockResolvedValue({ url: 'https://connect.stripe.com/synthetic-dashboard' })
 })
-afterEach(async () => { if (verified && userId) await prisma.user.deleteMany({ where: { id: userId } }) })
+afterEach(async () => {
+  if (!verified || !userId) return
+  await prisma.packagePurchase.deleteMany({ where: { trainerProfileId: trainerId } })
+  await prisma.user.deleteMany({ where: { id: { in: [userId, ...historyParentIds] } } })
+})
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('real PostgreSQL Connect identity', () => {
+  async function packageHistory(changes: Partial<Prisma.PackagePurchaseUncheckedCreateInput> = {}) {
+    const key = randomUUID()
+    const parent = await prisma.user.create({ data: { email: `connect-history-${key}@example.test`, passwordHash: 'not-a-login',
+      role: 'PARENT', parentProfile: { create: {} } }, include: { parentProfile: true } })
+    historyParentIds.push(parent.id)
+    const catalog = await prisma.package.create({ data: { trainerProfileId: trainerId, title: 'Historical package', totalSessions: 1, priceInCents: 3000 } })
+    return prisma.packagePurchase.create({ data: { parentProfileId: parent.parentProfile!.id, trainerProfileId: trainerId,
+      packageId: catalog.id, requestId: key, payloadHash: 'a'.repeat(64), catalogRevision: catalog.updatedAt,
+      amountInCents: 3000, platformFeeInCents: 450, trainerPayoutInCents: 2550,
+      terms: { version: 1, title: 'Historical package', description: '', validForDays: 90, totalSessions: 1,
+        items: [{ serviceOfferingId: 'historical-service', title: 'Training', sportId: 'historical-sport', durationMinutes: 60, type: 'INDIVIDUAL', sessionsCount: 1 }] },
+      ...changes } })
+  }
+  const packageEvidence = [
+    { stripeCheckoutSessionId: 'cs_historical' }, { stripePaymentIntentId: 'pi_historical' },
+    { stripeChargeId: 'ch_historical' }, { stripeTransferId: 'tr_historical' },
+    { status: 'SUCCEEDED' }, { status: 'REFUNDED' }, { status: 'PARTIALLY_REFUNDED' },
+    { checkoutAttempts: { create: { sequence: 1, parameters: { destination: 'acct_historical' } } } },
+  ] satisfies Array<Partial<Prisma.PackagePurchaseUncheckedCreateInput>>
+  describe.each([['canonical', POST], ['legacy', legacyPost]] as const)('%s package identity guard', (_name, handler) => {
+    it.each(packageEvidence)('does not create a replacement account when package history exists: %j', async evidence => {
+      const purchase = await packageHistory(evidence)
+      const response = await handler(request())
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({ error: expect.stringContaining('reconciliation') })
+      expect(provider.create).not.toHaveBeenCalled()
+      expect(provider.retrieve).not.toHaveBeenCalled()
+      expect(provider.link).not.toHaveBeenCalled()
+      expect(provider.dashboard).not.toHaveBeenCalled()
+      expect((await read()).stripeAccountId).toBeNull()
+      expect(await independent.connectAccountAttempt.count({ where: { trainerProfileId: trainerId } })).toBe(0)
+      expect(await independent.packagePurchase.findUniqueOrThrow({ where: { id: purchase.id } })).toEqual(purchase)
+    })
+    it('permits first-time setup with only an unsubmitted pending package quote', async () => {
+      const purchase = await packageHistory()
+      expect((await handler(request())).status).toBe(200)
+      expect(provider.create).toHaveBeenCalledTimes(1)
+      expect((await read()).stripeAccountId).toBeTruthy()
+      expect(await independent.packagePurchase.findUniqueOrThrow({ where: { id: purchase.id } })).toEqual(purchase)
+    })
+    it('preserves access to an already linked account with package payment history', async () => {
+      await packageHistory({ status: 'SUCCEEDED', stripePaymentIntentId: 'pi_historical' })
+      await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing' } })
+      expect((await handler(request())).status).toBe(200)
+      expect(provider.dashboard).toHaveBeenCalledWith('acct_existing')
+      expect(provider.create).not.toHaveBeenCalled()
+    })
+  })
   it.each(['inactive', 'pending', undefined])('revokes cached readiness and offers onboarding when transfers are %s', async transfers => {
     await prisma.trainerProfile.update({ where: { id: trainerId }, data: { stripeAccountId: 'acct_existing', stripeOnboardingComplete: true } })
     provider.retrieve.mockResolvedValue({ ...ready(), capabilities: { transfers } })
