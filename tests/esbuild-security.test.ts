@@ -42,12 +42,22 @@ describe.each(['tsx', 'vite'])('%s resolved esbuild', consumer => {
   const esbuild: typeof import('esbuild') = loader('esbuild')
 
   it('bundles TypeScript with imports and source maps', async () => {
+    const started = performance.now()
+    const timing = (phase: string) => {
+      if (process.env.TRAINR_TEST_TIMINGS === '1') {
+        console.info(JSON.stringify({ diagnostic: 'esbuild-bundle', consumer, phase, elapsedMs: Math.round(performance.now() - started) }))
+      }
+    }
     const root = directory()
     writeFileSync(join(root, 'value.ts'), 'export const amount: number = 2400')
     writeFileSync(join(root, 'entry.ts'), "import { amount } from './value'; console.log(amount / 2)")
+    timing('fixture-ready')
     const result = await esbuild.build({ entryPoints: [join(root, 'entry.ts')], bundle: true, platform: 'node', format: 'cjs',
       write: false, sourcemap: 'inline', logLevel: 'silent' })
-    expect(execFileSync(process.execPath, ['-e', result.outputFiles![0].text], { encoding: 'utf8', timeout: 10000 }).trim()).toBe('1200')
+    timing('bundle-ready')
+    const output = execFileSync(process.execPath, ['-e', result.outputFiles![0].text], { encoding: 'utf8', timeout: 10000 }).trim()
+    timing('child-complete')
+    expect(output).toBe('1200')
     expect(result.outputFiles![0].text).toContain('sourceMappingURL=data:application/json')
   })
 

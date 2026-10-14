@@ -1,5 +1,9 @@
 # Connect Package Identity Report
 
+Final diagnostic retest **2026-10-14 05:19 UTC**: logging-disabled focused **15/17 FAIL**, compilation and traversal-security timeouts. The preceding 17/17 focused success was not stable; see the diagnostic report linked below.
+
+Follow-up **2026-10-14 05:15 UTC**: the default unit configuration already used one worker, so the explicit one-worker retry below did not reduce parallelism. The latest full diagnostic run failed two esbuild timeouts (1,614/1,616); focused 17/17 passed. Root cause remains unproven. [Diagnostic evidence and correction](UNIT_TIMING_DIAGNOSTIC_REPORT.md).
+
 Status **2026-10-14 05:03 UTC**: two reproduced issues corrected, locally verified and published as **`0e5f4cdbce2e63c56ebe1f00a4bb20a384ab8085`**; **50 focused Connect / 1,208 full SQL / 46 selected browser cases pass**, final build passes. Preview independently Ready; **21 API and 13 header probes pass**. Final full unit runs retain timeout failures; no green final quality-gate or production signoff claim.
 
 Baseline **`4dfa55d871e50c2f9430525e919b7ac7d485ba7f`**, clean audit branch `codex/payment-readiness-20261006`, reviewed **2026-10-14**. Scope: owned disposable local PostgreSQL and synthetic parent/trainer accounts; simulated Stripe in integration tests. No credentials, financial accounts, provider settings, real funds, main, Production or Story changed. Overall release remains **HOLD**.

@@ -1,5 +1,11 @@
 # Current Launch Gates
 
+## Unit Timing Follow-Up
+
+**Final retest 2026-10-14 05:19 UTC:** with logging disabled, focused suite **15/17 FAIL**, compilation and traversal-security tests timed out. The earlier 17/17 success below was not stable; reliability remains OPEN.
+
+**2026-10-14 05:15 UTC:** latest full diagnostic run **1,614/1,616**, two existing 5s esbuild compilation timeouts; unchanged focused retest **17/17**. Full gate remains **FAIL**, not repaired by the focused pass. Default configuration already used one worker; the earlier explicit one-worker retry changed no parallelism. Optional phase logs added without changing assertions or time budgets. One aggregate host sample showed 100% CPU / 993 MB free RAM, but causation remains unproven. [Exact steps, timings and limitations](UNIT_TIMING_DIAGNOSTIC_REPORT.md).
+
 ## Connect Identity Follow-Up
 
 Published runtime source `0e5f4cdbce2e63c56ebe1f00a4bb20a384ab8085`, independently Ready in isolated Preview; 21 health/auth and 13 security-header probes pass at 2026-10-14 05:03 UTC. Exact source/deployment and CI billing evidence are in the linked report. This does not clear the final full-unit timing failures or hosted money-flow gates.

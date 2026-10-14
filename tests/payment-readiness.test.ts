@@ -86,9 +86,19 @@ describe('Stripe account readiness', () => {
 
 describe('Stripe webhook payment guards', () => {
   async function send(type: string, object: object) {
+    const started = performance.now()
+    const timing = (phase: string) => {
+      if (process.env.TRAINR_TEST_TIMINGS === '1') {
+        console.info(JSON.stringify({ diagnostic: 'payment-readiness', type, phase, elapsedMs: Math.round(performance.now() - started) }))
+      }
+    }
     mocks.event.mockResolvedValue({ type, data: { object } })
+    timing('import-start')
     const { POST } = await import('@/app/api/payments/webhook/route')
-    return POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body: '{}' }) as any)
+    timing('import-complete')
+    const response = await POST(new Request('http://localhost/api/payments/webhook', { method: 'POST', body: '{}' }) as any)
+    timing('handler-complete')
+    return response
   }
 
   it('does not confirm or credit an unpaid completed checkout', async () => {
