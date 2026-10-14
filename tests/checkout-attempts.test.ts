@@ -12,7 +12,7 @@ import { closeCancelledCheckout, startOrResumeCheckout } from '@/lib/checkout-at
 
 const mock = vi.hoisted(() => ({ transaction: vi.fn(), create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), intent: vi.fn(), query: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
-vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: mock.create, retrieve: mock.retrieve, expire: mock.expire } }, paymentIntents: { retrieve: mock.intent } } }))
+vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: mock.create, retrieve: mock.retrieve, expire: mock.expire } }, paymentIntents: { retrieve: mock.intent }, refunds: { list: async () => ({ data: [], has_more: false }) } } }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `https://trainr.test${path}` }))
 
 const buyer = { id: 'parent', email: 'parent@example.test' }
@@ -61,6 +61,7 @@ beforeEach(() => {
       return await run({
         $queryRaw: mock.query,
         accountCheckoutClosure: { findFirst: async () => state.closure || null },
+        paymentRefund: { findMany: async () => [] },
         user: { findUnique: async () => structuredClone(state.buyer) },
         booking: {
           findUnique: async () => structuredClone({ ...state.booking, payment: state.payment }),

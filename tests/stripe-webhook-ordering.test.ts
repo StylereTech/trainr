@@ -12,6 +12,10 @@ import { applyPaymentEvidence, type PaymentEvidence } from '@/lib/stripe-payment
 
 const mock = vi.hoisted(() => ({ transaction: vi.fn(), query: vi.fn(), notify: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
+vi.mock('@/lib/stripe', () => ({ stripe: { refunds: { list: async () => ({ data: state.refunds.map((row: any) => ({
+  id: row.id, charge: row.stripeChargeId, payment_intent: row.stripePaymentIntentId, currency: row.currency,
+  amount: row.amountInCents, status: row.status.toLowerCase(), created: row.stripeCreatedAt.getTime() / 1000,
+})), has_more: false }) } } }))
 
 const paid: PaymentEvidence = {
   bookingId: 'booking', paymentId: 'payment', sessionId: 'cs_current', intentId: 'pi_current',
@@ -28,12 +32,12 @@ beforeEach(() => {
     id: 'booking', status: 'PENDING', totalAmountInCents: 7500, date: new Date('2026-11-01'),
     payment: {
       id: 'payment', status: 'PENDING', amountInCents: 7500, platformFeeInCents: 1000,
-      trainerPayoutInCents: 6500, refundAmountInCents: 0, stripeCheckoutSessionId: 'cs_current',
+      trainerPayoutInCents: 6500, refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0, stripeCheckoutSessionId: 'cs_current',
       stripePaymentIntentId: null, stripeChargeId: null,
     },
     parentProfile: { userId: 'parent' },
     trainerProfile: { userId: 'trainer', firstName: 'Test', lastName: 'Trainer' },
-    notifications: [],
+    notifications: [], refunds: [],
   }
   // This models transaction rollback; actual PostgreSQL locking is a separate integration gate.
   mock.transaction.mockImplementation(async (run) => {
@@ -56,7 +60,13 @@ beforeEach(() => {
           },
         },
         payment: { update: async ({ data }: any) => Object.assign(state.payment, data) },
-        notification: { findFirst: async () => null, createMany: async ({ data }: any) => {
+        paymentRefund: { findMany: async () => structuredClone(state.refunds), upsert: async ({ create, update }: any) => {
+          const old = state.refunds.find((row: any) => row.id === create.id)
+          if (old) { Object.assign(old, update, { paymentId: old.paymentId }); return old }
+          state.refunds.push(create); return create
+        } },
+        notification: { findFirst: async ({ where }: any) => state.notifications.find((item: any) =>
+          item.type === where.type && item.data.financialReviewKey === where.AND[1].data.equals) || null, createMany: async ({ data }: any) => {
           await mock.notify(data)
           state.notifications.push(...data)
         } },
@@ -135,25 +145,30 @@ describe('transactional Stripe payment evidence', () => {
     await applyPaymentEvidence(paid)
     state.payment.status = 'REFUNDED'
     state.payment.refundAmountInCents = 7500
+    state.refunds = [{ id: 're_full', paymentId: 'payment', stripeChargeId: 'ch_current', stripePaymentIntentId: 'pi_current',
+      amountInCents: 7500, currency: 'usd', status: 'SUCCEEDED', stripeCreatedAt: new Date('2026-10-01') }]
     state.status = 'CANCELLED'
     await applyPaymentEvidence(paid)
     await applyPaymentEvidence({ ...paid, outcome: 'failed' })
     expect(state.status).toBe('CANCELLED')
     expect(state.payment.status).toBe('REFUNDED')
     expect(state.payment.refundAmountInCents).toBe(7500)
-    expect(state.notifications).toHaveLength(2)
+    expect(state.notifications).toHaveLength(4)
   })
 
   it('retains a partial refund when success arrives later', async () => {
     state.payment.status = 'PARTIALLY_REFUNDED'
     state.payment.refundAmountInCents = 1000
+    state.refunds = [{ id: 're_partial', paymentId: 'payment', stripeChargeId: 'ch_current', stripePaymentIntentId: 'pi_current',
+      amountInCents: 1000, currency: 'usd', status: 'SUCCEEDED', stripeCreatedAt: new Date('2026-10-01') }]
     await applyPaymentEvidence(paid)
     expect(state.payment.status).toBe('PARTIALLY_REFUNDED')
     expect(state.payment.refundAmountInCents).toBe(1000)
     expect(state.status).toBe('PENDING')
-    expect(state.notifications).toHaveLength(0)
+    expect(state.notifications).toHaveLength(2)
+    expect(state.notifications.every((item: any) => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
     await applyPaymentEvidence(paid)
-    expect(state.notifications).toHaveLength(0)
+    expect(state.notifications).toHaveLength(2)
   })
 
   it.each([

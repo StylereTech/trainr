@@ -33,7 +33,7 @@ vi.mock('next/headers', () => ({ headers: async () => new Headers({ 'stripe-sign
 vi.mock('@/lib/stripe', () => ({
   stripeRuntimeStatus: () => ({ secretConfigured: true, webhookConfigured: true }),
   verifyWebhookSignature: mocks.event,
-  stripe: { accounts: { retrieve: mocks.account } },
+  stripe: { accounts: { retrieve: mocks.account }, refunds: { list: async () => ({ data: [], has_more: false }) } },
   createConnectedAccount: vi.fn(), createAccountLink: vi.fn(),
 }))
 
@@ -48,6 +48,7 @@ beforeEach(() => {
     trainerProfile: mocks.trainer,
     accountCheckoutClosure: { findFirst: async () => null },
     checkoutAttempt: { findFirst: async () => null },
+    paymentRefund: { findMany: async () => [] },
   }))
   mocks.booking.updateMany.mockResolvedValue({ count: 1 })
   mocks.session.mockResolvedValue({ user: { id: 'trainer-user', role: 'TRAINER' } })
@@ -118,7 +119,8 @@ describe('Stripe webhook payment guards', () => {
     mocks.booking.findUnique.mockResolvedValue({
       id: 'booking', status: 'PENDING',
       totalAmountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500,
-      payment: { id: 'payment', status: 'PENDING', amountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500 },
+      payment: { id: 'payment', status: 'PENDING', amountInCents: 7500, platformFeeInCents: 1000, trainerPayoutInCents: 6500,
+        refundAmountInCents: 0, refundPendingAmountInCents: 0, refundFailedCount: 0 },
       trainerProfileId: 'trainer', trainerProfile: { userId: 'trainer-user', firstName: 'Test', lastName: 'Trainer' },
       parentProfile: { userId: 'parent-user' }, date: new Date('2026-11-01'),
     })

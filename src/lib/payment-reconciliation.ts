@@ -39,7 +39,7 @@ export async function reconcileBookingPayment(bookingId: string, adminUserId: st
   }
   if (!intentId) throw new PaymentReconciliationError('No saved Stripe payment identity. Review the original provider request; do not charge again.')
   // Current actor, attempt, money and receipt chain are rechecked under settlement locks.
-  // An empty source forces a fresh check even for previously fully refunded payments.
+  // This also verifies current refunds for previously fully refunded payments.
   await applyPaymentEvidence({ bookingId, paymentId: payment.id, attemptId: attempt.id,
     ...(sessionId ? { sessionId } : {}), intentId, amount: payment.amountInCents, currency: 'usd', outcome: 'paid' }, {}, { adminUserId })
   return { reconciled: true }

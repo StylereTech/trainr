@@ -1,13 +1,13 @@
-import { Prisma, type RefundStatus } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
 import { SettlementConflict, verifyDestinationSettlement } from '@/lib/stripe-settlement'
-import { loadRefunds, RefundReconciliationError } from '@/lib/stripe-refund-history'
+import { RefundReconciliationError } from '@/lib/stripe-refund-history'
+import { reconcilePaymentRefundHistory } from '@/lib/payment-refunds'
 import { reconcilePackageCharge } from '@/lib/package-settlement'
 
 export { RefundReconciliationError } from '@/lib/stripe-refund-history'
 const requestOptions = { timeout: 4000, maxNetworkRetries: 0 }
-const statuses: Record<string, RefundStatus> = { pending: 'PENDING', requires_action: 'REQUIRES_ACTION', succeeded: 'SUCCEEDED', failed: 'FAILED', canceled: 'CANCELED' }
 function objectId(value: string | { id: string } | null | undefined) { return typeof value === 'string' ? value : value?.id || null }
 
 export async function reconcilePaymentRefunds(bookingId: string, options: { adminUserId?: string; chargeId?: string; refundId?: string } = {}) {
@@ -49,45 +49,12 @@ export async function reconcilePaymentRefunds(bookingId: string, options: { admi
       if (error instanceof SettlementConflict) throw new RefundReconciliationError(error.message)
       throw error
     }
-    const providerRefunds = await loadRefunds(chargeId)
-    if (settlement.hasRefunds && !providerRefunds.length) throw new RefundReconciliationError('Refund history is not available; retry reconciliation')
-    if (options.refundId && !providerRefunds.some(refund => refund.id === options.refundId)) throw new RefundReconciliationError('The triggering refund is missing from current Stripe history')
-    const previous = await tx.paymentRefund.findMany({ where: { paymentId: payment.id } })
-    if (previous.some(refund => !providerRefunds.some(current => current.id === refund.id))) throw new RefundReconciliationError('Previously recorded refund is missing from Stripe history')
-    let succeeded = 0
-    let pending = 0
-    let failed = 0
-    const observedAt = new Date()
-    const rows = providerRefunds.map(refund => {
-      const status = refund.status ? statuses[refund.status] : undefined
-      if (typeof status !== 'string' || objectId(refund.charge) !== chargeId || objectId(refund.payment_intent) !== payment.stripePaymentIntentId || refund.currency !== 'usd' ||
-          !Number.isSafeInteger(refund.amount) || refund.amount <= 0 || refund.amount > payment.amountInCents ||
-          !Number.isSafeInteger(refund.created) || refund.created < 0 || !Number.isFinite(new Date(refund.created * 1000).getTime())) {
-        throw new RefundReconciliationError('Stripe refund identity, amount or status requires review')
-      }
-      const old = previous.find(item => item.id === refund.id)
-      if (old && (old.amountInCents !== refund.amount || old.stripeChargeId !== chargeId || old.stripePaymentIntentId !== payment.stripePaymentIntentId || old.currency !== refund.currency)) {
-        throw new RefundReconciliationError('A refund changed immutable financial identity')
-      }
-      if (status === 'SUCCEEDED') succeeded += refund.amount
-      else if (status === 'PENDING' || status === 'REQUIRES_ACTION') pending += refund.amount
-      else failed++
-      return { id: refund.id, paymentId: payment.id, stripeChargeId: chargeId!, stripePaymentIntentId: payment.stripePaymentIntentId!,
-        amountInCents: refund.amount, currency: refund.currency, status,
-        transferReversalId: objectId(refund.transfer_reversal), sourceTransferReversalId: objectId(refund.source_transfer_reversal),
-        failureBalanceTransactionId: objectId(refund.failure_balance_transaction), failureReason: refund.failure_reason || null,
-        stripeCreatedAt: new Date(refund.created * 1000), observedAt }
-    })
-    if (!Number.isSafeInteger(succeeded + pending) || succeeded + pending > payment.amountInCents) throw new RefundReconciliationError('Refund totals exceed the recorded payment')
-    const status = succeeded === payment.amountInCents ? 'REFUNDED' : succeeded > 0 ? 'PARTIALLY_REFUNDED' : 'SUCCEEDED'
+    const { rows, previous, succeeded, pending, failed, status, observedAt } = await reconcilePaymentRefundHistory(
+      tx, payment, payment.stripePaymentIntentId, chargeId, settlement.hasRefunds, options.refundId)
     const changed = payment.stripeChargeId !== settlement.chargeId || payment.stripeTransferId !== settlement.transferId ||
       !payment.settlementVerifiedAt || (payment.financialReview as { key?: string } | null)?.key !== settlement.review?.key ||
       payment.status !== status || payment.refundAmountInCents !== succeeded || payment.refundPendingAmountInCents !== pending || payment.refundFailedCount !== failed ||
       rows.some(row => { const old = previous.find(item => item.id === row.id); return !old || old.status !== row.status || old.transferReversalId !== row.transferReversalId || old.failureBalanceTransactionId !== row.failureBalanceTransactionId })
-    for (const row of rows) {
-      const saved = await tx.paymentRefund.upsert({ where: { id: row.id }, create: row, update: { ...row, paymentId: undefined } })
-      if (saved.paymentId !== payment.id) throw new RefundReconciliationError('Refund is already linked to a different payment')
-    }
     await tx.payment.update({ where: { id: payment.id }, data: { stripeChargeId: settlement.chargeId, stripeTransferId: settlement.transferId, status,
       settlementVerifiedAt: observedAt, financialReview: settlement.review ? JSON.parse(JSON.stringify(settlement.review)) : Prisma.DbNull,
       refundAmountInCents: succeeded, refundPendingAmountInCents: pending, refundFailedCount: failed, refundsVerifiedAt: observedAt } })

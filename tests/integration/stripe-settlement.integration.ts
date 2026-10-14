@@ -94,6 +94,48 @@ afterAll(async () => {
 })
 
 describe('real settlement verifier, signatures, SQL and refund reconciliation with simulated Stripe receipts', () => {
+  const inventoryEvents = ['checkout.session.completed', 'payment_intent.succeeded', 'transfer.created', 'application_fee.created', 'charge.updated']
+  for (const entry of ['paid', 'refund'] as const) {
+    it.each([{ refundAmountInCents: 1000 }, { refundPendingAmountInCents: 1000 }, { refundFailedCount: 1 },
+      { status: 'REFUNDED' as const }, { status: 'PARTIALLY_REFUNDED' as const }])(`cash refund ledger ${entry} rejects unexplained state %j`, async patch => {
+      await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { ...patch, stripePaymentIntentId: f.intent.id } })
+      const before = await payment()
+      if (entry === 'paid') expect((await webhook()).status).toBe(409)
+      else await expect(reconcilePaymentRefunds(f.booking.id)).rejects.toMatchObject({ status: 409 })
+      expect(await payment()).toEqual(before)
+      expect((await booking()).status).toBe('PENDING')
+      expect(await notices()).toHaveLength(0)
+    })
+  }
+  for (const type of inventoryEvents) {
+    it.each(['pending', 'requires_action', 'failed', 'canceled', 'succeeded'])(`cash current refund inventory ${type} retains %s before confirmation`, async status => {
+      const refund = { id: `re_${randomUUID()}`, charge: f.charge.id, payment_intent: f.intent.id,
+        status, amount: 1000, currency: 'usd', created: 1791440000 }
+      provider.refunds.mockResolvedValue({ data: [refund], has_more: false })
+      const response = await webhook(type, undefined, financialTypes.includes(type) ? financialObject(type) : undefined)
+      expect(response.status).toBe(200)
+      expect(provider.refunds).toHaveBeenCalled()
+      expect(await payment()).toMatchObject({
+        refundAmountInCents: status === 'succeeded' ? 1000 : 0,
+        refundPendingAmountInCents: ['pending', 'requires_action'].includes(status) ? 1000 : 0,
+        refundFailedCount: ['failed', 'canceled'].includes(status) ? 1 : 0,
+        financialReview: expect.any(Object), refundsVerifiedAt: expect.any(Date),
+      })
+      expect((await booking()).status).toBe('PENDING')
+      expect(await independent.paymentRefund.count({ where: { paymentId: f.booking.payment.id } })).toBe(1)
+      expect((await notices()).some(item => ['BOOKING_CONFIRMED', 'PAYMENT_RECEIVED'].includes(item.type))).toBe(false)
+      expect((await notices()).filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
+    })
+    it(`cash current refund inventory ${type} rolls back on provider outage`, async () => {
+      provider.refunds.mockRejectedValue(new Error('synthetic refund inventory unavailable'))
+      const before = await payment()
+      const response = await webhook(type, undefined, financialTypes.includes(type) ? financialObject(type) : undefined)
+      expect(response.status).toBe(503)
+      expect(await payment()).toEqual(before)
+      expect((await booking()).status).toBe('PENDING')
+      expect(await notices()).toHaveLength(0)
+    })
+  }
   for (const review of [Prisma.JsonNull, false, 0, '', { reason: 'synthetic review' }]) {
     it(`allows owner cancellation without clearing cash review presence ${JSON.stringify(review)}`, async () => {
       await webhook()
@@ -324,10 +366,9 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
   it('refreshes full refund and reversal evidence without restoring settlement or booking', async () => {
     const actor = await admin()
     await webhook()
-    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
-    await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
     f.charge.refunded = true; f.charge.amount_refunded = 6000; f.transfer.amount_reversed = 6000
     provider.refunds.mockResolvedValue({ data: [{ id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id, amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }], has_more: false })
+    await reconcilePaymentRefunds(f.booking.id)
     await reconcileBookingPayment(f.booking.id, actor)
     expect((await payment()).status).toBe('REFUNDED')
     expect((await booking()).status).toBe('CANCELLED')
@@ -406,11 +447,10 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
   })
   it('continues transfer review after a full customer refund without undoing the refund or cancellation', async () => {
     await webhook()
-    await prisma.payment.update({ where: { id: f.booking.payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
-    await prisma.booking.update({ where: { id: f.booking.id }, data: { status: 'CANCELLED' } })
     f.charge.refunded = true; f.charge.amount_refunded = 6000; f.transfer.amount_reversed = 6000
     provider.refunds.mockResolvedValue({ data: [{ id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id,
       amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }], has_more: false })
+    await reconcilePaymentRefunds(f.booking.id)
     expect((await webhook('transfer.reversed', undefined, f.transfer)).status).toBe(200)
     expect((await payment()).status).toBe('REFUNDED')
     expect((await booking()).status).toBe('CANCELLED')
@@ -800,12 +840,12 @@ describe('real settlement verifier, signatures, SQL and refund reconciliation wi
     expect(notifications.filter(item => item.type === 'PAYMENT_REVIEW_REQUIRED')).toHaveLength(2)
     expect((await booking()).status).toBe('CONFIRMED')
   })
-  it('retains linked identities and no confirmation when refund reconciliation fails, then completes on retry', async () => {
+  it('rolls back paid identities and confirmation when refund reconciliation fails, then completes on retry', async () => {
     f.charge.amount_refunded = 6000; f.charge.refunded = true
     const refund = { id: 're_' + randomUUID(), charge: f.charge.id, payment_intent: f.intent.id, amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }
     provider.refunds.mockRejectedValueOnce(new Error('Stripe refund read unavailable')).mockResolvedValue({ data: [refund], has_more: false })
     expect((await webhook()).status).toBe(503)
-    expect(await payment()).toMatchObject({ stripePaymentIntentId: f.intent.id, stripeChargeId: f.charge.id, stripeTransferId: f.transfer.id })
+    expect(await payment()).toMatchObject({ status: 'PENDING', stripePaymentIntentId: null, stripeChargeId: null, stripeTransferId: null })
     expect((await booking()).status).toBe('PENDING')
     expect((await notices()).some(item => item.type === 'BOOKING_CONFIRMED')).toBe(false)
     expect((await webhook()).status).toBe(200)

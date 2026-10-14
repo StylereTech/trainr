@@ -28,10 +28,10 @@ import { dashboardResponseSchema } from '@/lib/dashboard-contract'
 import { ensureConnectAccount } from '@/lib/connect-accounts'
 
 // Stripe and route authentication are simulated. Prisma transactions, constraints and row locks are real.
-const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), intent: vi.fn() }))
+const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), intent: vi.fn(), refunds: vi.fn() }))
 const auth = vi.hoisted(() => ({ session: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getServerSession: auth.session, authOptions: {} }))
-vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: provider.create, retrieve: provider.retrieve, expire: provider.expire } }, paymentIntents: { retrieve: provider.intent } } }))
+vi.mock('@/lib/stripe', () => ({ stripe: { checkout: { sessions: { create: provider.create, retrieve: provider.retrieve, expire: provider.expire } }, paymentIntents: { retrieve: provider.intent }, refunds: { list: provider.refunds } } }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `http://localhost:3107${path}` }))
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
 let fixture: { parent: string; trainerUser: string; trainer: string; service: string; sport: string; athletes: string[]; date: string }
@@ -54,6 +54,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.resetAllMocks()
+  provider.refunds.mockResolvedValue({ data: [], has_more: false })
   const id = `audit-${randomUUID()}`
   const sport = await prisma.sport.create({ data: { name: id, slug: id } })
   createdSports.push(sport.id)
@@ -1014,7 +1015,12 @@ describe('real PostgreSQL money-flow persistence', () => {
     await Promise.all([applyPaymentEvidence(evidence), applyPaymentEvidence(evidence)])
     expect((await independent.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe('CONFIRMED')
     expect(await independent.notification.count({ where: { userId: fixture.parent, type: 'BOOKING_CONFIRMED' } })).toBe(1)
-    // Refund reconciliation has its own provider/SQL suite; seed its established result here.
+    // Seed a complete provider receipt and ledger, not only refunded aggregate counters.
+    const refund = { id: `re_${randomUUID()}`, paymentId: payment.id, stripeChargeId: 'ch_synthetic', stripePaymentIntentId: evidence.intentId,
+      amountInCents: 6000, currency: 'usd', status: 'SUCCEEDED' as const, stripeCreatedAt: new Date(1791440000000), observedAt: new Date() }
+    await prisma.paymentRefund.create({ data: refund })
+    provider.refunds.mockResolvedValue({ data: [{ id: refund.id, charge: refund.stripeChargeId, payment_intent: evidence.intentId,
+      amount: 6000, currency: 'usd', status: 'succeeded', created: 1791440000 }], has_more: false })
     await prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED', refundAmountInCents: 6000 } })
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'CANCELLED' } })
     await applyPaymentEvidence(evidence)
