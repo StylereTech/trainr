@@ -4,7 +4,7 @@ const local = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(process.env.BASE_UR
 test.skip(!local || !process.env.LOCAL_E2E_SECRET, 'Requires explicit disposable local authentication fixtures.')
 test.use({ channel: process.env.LOCAL_E2E_CHANNEL || undefined })
 
-for (const width of [1440, 390]) {
+for (const width of [1440, 1280, 390]) {
   test.describe(`refund UI ${width}px`, () => {
     test.use({ viewport: { width, height: 1000 }, timezoneId: 'UTC' })
     for (const role of ['PARENT', 'TRAINER', 'ADMIN'] as const) {
@@ -30,7 +30,10 @@ for (const width of [1440, 390]) {
             return route.fulfill({ json: { status: 'PARTIALLY_REFUNDED', refundedAmountInCents: 2000, pendingAmountInCents: 1000, failedCount: 1 } })
           }
           if (path === '/api/athletes') return route.fulfill({ json: { athletes: [] } })
-          if (path === '/api/payments/connect') return route.fulfill({ json: { connected: false, chargesEnabled: false, payoutsEnabled: false } })
+          if (path === '/api/payments/connect') return route.fulfill({ json: { providerConfigured: true, publishableKeyConfigured: true,
+            stripeAccountId: null, stripeOnboardingComplete: false, chargesEnabled: null, payoutsEnabled: null, transfersEnabled: null,
+            providerError: '', dashboardSupported: false, onboardingSupported: true } })
+          if (path === '/api/trainer/wallet') return route.fulfill({ json: { source: 'stripe', connected: false, wallet: null } })
           return route.fulfill({ json: {} })
         })
         const path = role === 'ADMIN' ? '/admin/bookings' : `/${role.toLowerCase()}/dashboard`
@@ -76,6 +79,8 @@ for (const width of [1440, 390]) {
         const bounds = await summary.boundingBox()
         expect(bounds!.x).toBeGreaterThanOrEqual(0)
         expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width)
+        expect(bounds!.width).toBeGreaterThanOrEqual(Math.min(280, width - 96))
+        expect(bounds!.height).toBeLessThan(180)
         await page.screenshot({ path: testInfo.outputPath('refund-summary.png') })
         await page.reload()
         await chooseHistory()

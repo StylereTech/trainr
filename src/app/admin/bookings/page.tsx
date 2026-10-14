@@ -163,8 +163,8 @@ export default function AdminBookings() {
           {bookings.map((b) => (
             <Card key={b.id} className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-4">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-                  <div className="min-w-0 flex-1">
+                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+                  <div className="min-w-0 break-words">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-sm text-white">{b.parentProfile.user.email.split('@')[0]}</span>
                       <span className="text-slate-500">→</span>
@@ -183,13 +183,13 @@ export default function AdminBookings() {
                     </div>
                     {b.notes && <div className="mt-2 text-xs italic text-slate-400">&ldquo;{b.notes}&rdquo;</div>}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[300px]">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-1">
                     <div className="rounded-[1.25rem] border border-white/10 bg-slate-950/45 p-3 text-sm">
                       <div className="font-semibold text-white">{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</div>
                       <div className="mt-1 text-xs text-slate-400">{b.creditFunding ? 'Allocation recorded on package purchase' : `Booked fee: ${formatCurrency(b.platformFeeInCents)} • Trainer allocation: ${formatCurrency(b.trainerPayoutInCents)}`}</div>
                       {(b.payment?.refundAmountInCents || b.payment?.refundPendingAmountInCents || b.payment?.refundFailedCount || ['REFUNDED', 'PARTIALLY_REFUNDED'].includes(b.payment?.status || '')) ? <div className="mt-1 text-xs text-amber-200">Net payout needs reconciliation</div> : null}
                     </div>
-                    <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <div className="flex min-w-0 flex-wrap gap-2">
                       {b.payment && b.totalAmountInCents > 0 && <Button size="sm" variant="outline" disabled={actionBusy || needsReload || !!refreshingRefundId} onClick={() => void refreshPayment(b.id)}><RefreshCw className="mr-2 h-4 w-4" />Refresh payment</Button>}
                       {b.status === 'CANCELLED' && !b.creditFunding && <Button size="sm" variant="outline" disabled={actionBusy || needsReload} onClick={() => void handleAction(b.id, 'cancel')}><RefreshCw className="mr-2 h-4 w-4" />Reconcile checkout</Button>}
                       {b.payment?.stripePaymentIntentId && <Button size="sm" variant="outline" disabled={!!refreshingRefundId || actionBusy || needsReload} onClick={() => void refreshRefunds(b.id)}>
