@@ -31,7 +31,7 @@ async function verify(event: object, secret = connectSecret) {
 
 describe('separate platform and Connect webhook signing secrets', () => {
   const connectedEvent = {
-    id: 'evt_synthetic_connect', type: 'account.updated', account: 'acct_synthetic',
+    id: 'evt_synthetic_connect', type: 'account.updated', account: 'acct_synthetic', livemode: false,
     data: { object: { id: 'acct_synthetic', charges_enabled: true, payouts_enabled: true } },
   }
 
@@ -40,7 +40,7 @@ describe('separate platform and Connect webhook signing secrets', () => {
   })
 
   it('keeps the existing platform signing secret working', async () => {
-    const event = { id: 'evt_platform', type: 'payment_intent.succeeded', data: { object: {} } }
+    const event = { id: 'evt_platform', type: 'payment_intent.succeeded', livemode: false, data: { object: {} } }
     expect(await verify(event, platformSecret)).toEqual(event)
   })
 

@@ -123,19 +123,24 @@ export async function createPaymentIntent(
   return paymentIntent
 }
 
-export async function verifyWebhookSignature(payload: string | Buffer, signature: string) {
+export async function verifyWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event | null> {
+  let event: Stripe.Event
   try {
-    return stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '')
+    event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '')
   } catch (platformError) {
     const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || ''
     if (!connectSecret || placeholderPrefixes.some((prefix) => connectSecret.startsWith(prefix))) throw platformError
 
     // Stripe signs platform and connected-account destinations with different secrets.
-    const event = stripe.webhooks.constructEvent(payload, signature, connectSecret)
+    event = stripe.webhooks.constructEvent(payload, signature, connectSecret)
     if (!event.account || typeof event.account !== 'string') throw new Error('Connect webhook account scope is missing')
     if (event.type === 'account.updated' && event.data.object.id !== event.account) {
       throw new Error('Connect webhook account identity does not match')
     }
-    return event
   }
+
+  const keyMode = /^(?:sk|rk)_(test|live)_/.exec(stripeSecretKey)?.[1]
+  if (!keyMode || typeof event.livemode !== 'boolean') throw new Error('Stripe webhook mode is invalid')
+  // Connect destinations may receive both modes; authenticate before acknowledging an ignored event.
+  return event.livemode === (keyMode === 'live') ? event : null
 }

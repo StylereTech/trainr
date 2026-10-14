@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Webhook Mode Follow-Up
+
+**2026-10-14 05:44 UTC**, baseline `d05a1461c2e496e20259f299ac70aabe3a601a33`: reproduced and fixed opposite-mode signed Stripe events reaching application handlers. Signature/scope verification now precedes mode filtering; valid opposite-mode events are explicitly acknowledged without dispatch. **1,709 unit, 1,208 SQL, 10 built HTTP and 46 selected browser cases pass**, plus lint/types/build; fixtures cleaned and local services stopped. [Exact failures, fix, scope, cleanup and publication](WEBHOOK_MODE_ISOLATION_REPORT.md). The latest full gate passes; preceding timeout evidence below remains historical and its root cause is not proven resolved. Actual hosted money flow and other launch gates remain **HOLD**.
+
 ## Unit Timing Follow-Up
 
 **Final retest 2026-10-14 05:19 UTC:** with logging disabled, focused suite **15/17 FAIL**, compilation and traversal-security tests timed out. The earlier 17/17 success below was not stable; reliability remains OPEN.

@@ -13,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 
 const secret = 'whsec_synthetic_signature_test_only'
 const payload = JSON.stringify({
-  id: 'evt_synthetic', type: 'checkout.session.completed',
+  id: 'evt_synthetic', type: 'checkout.session.completed', livemode: false,
   data: { object: { payment_status: 'unpaid', metadata: { bookingId: 'booking' } } },
 })
 
@@ -33,7 +33,7 @@ async function send(body = payload) {
 
 describe('webhook route with real Stripe SDK signature verification', () => {
   it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded', 'payment_intent.payment_failed'])('ignores connected-account %s events even with valid TRAINR metadata', async type => {
-    const body = JSON.stringify({ id: 'evt_connected', account: 'acct_fixture', type,
+    const body = JSON.stringify({ id: 'evt_connected', account: 'acct_fixture', type, livemode: false,
       data: { object: { id: 'pi_fixture', payment_status: 'paid', amount_received: 6000, amount_total: 6000, currency: 'usd',
         metadata: { bookingId: 'booking', paymentId: 'payment' } } } })
     mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
@@ -42,7 +42,7 @@ describe('webhook route with real Stripe SDK signature verification', () => {
   })
 
   it.each(['refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated', 'charge.refunded'])('reconciles current provider truth for a signed %s event', async type => {
-    const body = JSON.stringify({ id: 'evt_refund', type, data: { object: type === 'charge.refunded' ? { id: 'ch_fixture', amount_refunded: 6000 } : { id: 're_fixture', charge: 'ch_fixture', amount: 6000, status: 'succeeded' } } })
+    const body = JSON.stringify({ id: 'evt_refund', type, livemode: false, data: { object: type === 'charge.refunded' ? { id: 'ch_fixture', amount_refunded: 6000 } : { id: 're_fixture', charge: 'ch_fixture', amount: 6000, status: 'succeeded' } } })
     mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
     expect((await send(body)).status).toBe(200)
     expect(mock.refund).toHaveBeenCalledWith('ch_fixture', ...(type === 'charge.refunded' ? [] : ['re_fixture']))
@@ -50,7 +50,7 @@ describe('webhook route with real Stripe SDK signature verification', () => {
   })
 
   it('does not acknowledge a signed refund when provider reconciliation fails', async () => {
-    const body = JSON.stringify({ id: 'evt_refund', type: 'refund.updated', data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
+    const body = JSON.stringify({ id: 'evt_refund', type: 'refund.updated', livemode: false, data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
     mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
     mock.refund.mockRejectedValueOnce(new Error('private provider details'))
     const response = await send(body)
@@ -59,7 +59,7 @@ describe('webhook route with real Stripe SDK signature verification', () => {
   })
 
   it('ignores mirrored connected-account refund events', async () => {
-    const body = JSON.stringify({ id: 'evt_refund', account: 'acct_fixture', type: 'refund.updated', data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
+    const body = JSON.stringify({ id: 'evt_refund', account: 'acct_fixture', type: 'refund.updated', livemode: false, data: { object: { id: 're_fixture', charge: 'ch_fixture' } } })
     mock.signature = Stripe.webhooks.generateTestHeaderString({ payload: body, secret })
     expect((await send(body)).status).toBe(200)
     expect(mock.refund).not.toHaveBeenCalled()
