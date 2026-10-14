@@ -1,116 +1,79 @@
 # Current Launch Gates
 
-## Package Purchase UI Follow-Up
+Reviewed **2026-10-14 04:09-04:16 UTC**, clean baseline **`aa5a0753e03970ed84a309edd3a4120406654f8e`**, branch `codex/payment-readiness-20261006`. **NOT PRODUCTION READY.** This is a requirement-level reconciliation, not a new implementation or a full signed-in hosted test run.
 
-2026-10-13: parent package review, consent, checkout/retry, return-state review and history navigation pass the full local quality gate (1,595 units), 981 SQL tests and 112 selected browser cases. Missing time-zone checkout, hidden review flags and long-title overflow were reproduced and fixed. [Exact tests, failures and publication boundaries](PACKAGE_PURCHASE_UI_REPORT.md). This supersedes the missing customer UI statement within the tested local scope; actual hosted Stripe checkout/Connect/transfer/payout and other release gates remain **HOLD**.
+Scope: isolated TRAINR audit Preview and previously verified owned disposable local tests. Main, Production/trainr.cc, Story, Replit, provider settings, credentials and real funds remain unchanged. Broad approval does not supply missing accounts, policy definitions, agreements or provider receipts. [Historical checklist and dated follow-ups](LAUNCH_GATES_20261012_HISTORY.md) are preserved separately; superseded missing-feature statements are not current blockers.
 
-## Package Sales API Follow-Up
+## Verified Baseline
 
-2026-10-13: added a parent-only package checkout API using immutable reviewed purchases and recoverable Stripe attempts. Fixed reproduced review/refund hold bypasses, including SQL-vs-JSON null ambiguity. [Exact failures, retests and publication evidence](PACKAGE_SALES_API_REPORT.md). Customer purchase UI and actual hosted Stripe proof remain incomplete; this does not make package sales end-to-end ready. **HOLD**.
+- Runtime/test source **`9c119e6da1de22d79c6c214a074ca5fb6cca8d36`**: full local quality gate passed **1,616 units**, TypeScript and production build; **1,188 SQL cases** and **88 selected browser cases**, zero browser retries. These results belong to the preceding security pass, not a rerun in this documentation pass. Provider responses/navigation were simulated. [Exact failures, fixes, commands, timestamps, screenshots and limitations](HTTP_SECURITY_HEADERS_REPORT.md).
+- Final documentation source **`aa5a0753e03970ed84a309edd3a4120406654f8e`**: [Vercel deployment](https://vercel.com/styleres-projects/trainr/FmRE3mxzWoK1hgfBh3oRHLvYM7t3) independently showed Ready / Latest / Preview, ready **04:05:34 UTC**, duration 53s. Immutable host `trainr-85y100hru-styleres-projects.vercel.app`; stable audit alias unchanged. Final **13 header** and **21 health/auth** requests passed at **04:06:19-04:06:29 UTC**, exit 0. These overlap; they are not 34 complete customer flows.
+- [GitHub run 38509529789](https://github.com/StylereTech/trainr/actions/runs/38509529789) was independently observed blocked by account billing before either check or migration job started. Earlier successful CI entries in historical reports do not describe this source's run. No billing changes or reruns performed.
+- Final independent remote read in the preceding pass matched audit HEAD; main remained `2067e743c54ffee669cd484f26dc472b157f1881`. Baseline worktree freshly clean this pass. No pull/merge from main because that would change the isolated audited source.
 
-## Credit Reservation Follow-Up
+## Fresh Checks
 
-2026-10-13: added the parent-owned credit reservation API, live balance/options read and linked booking form. Booking, credit debit, notifications and retry identity share one transaction; cash and credit reservations share scheduling/capacity checks. This supersedes the missing credit reservation/balance/form statements below, but does not complete public package sales or hosted Stripe proof. [Current exact tests, failures, publication and remaining boundaries](PACKAGE_CREDIT_RESERVATION_REPORT.md). Expiry interpretation and prepaid service retirement/replacement policy remain open; **HOLD**.
+Preview base: `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`. HTTP probes use no account, cookies or valid webhook signatures. Mutation-shaped probes contain only `{}` and must reject before mutation.
 
-## Credit Dashboard Follow-Up
+| Steps / expected result | Actual result | Decision |
+| --- | --- | --- |
+| Run existing 21-case anonymous smoke at baseline SHA; health must report connected DB, catalog must return a valid count, protected APIs must return 401 and unsigned webhook 400 | **21/21 PASS**, **04:12:33.534-04:12:39.222 UTC**, exit 0. `/api/health`: connected. `/api/trainers?limit=1&page=1`: **0** eligible trainers. [Exact methods, endpoints, expected/actual results](CURRENT_LAUNCH_GATES_HOSTED_SMOKE.json) | PASS health/auth subset; BLOCKED selectable-trainer prerequisite, not proof of no raw trainer rows |
+| Inspect existing TRAINR sign-in tab without entering credentials or reloading a possible handoff | At approximately **04:13 UTC**, `/auth/signin` still displayed blank email/password fields | Hosted authenticated test unavailable in this tab; existing handoff retained, no repeated credential request |
+| Inspect and reload existing Stripe sandbox `/test/connect/accounts`, account `acct_1RAkm8PvdPuIlEw5` | Before reload: All 0 / Enabled 0 / No connected accounts. After reload: AX temporarily blank; screenshot at approximately **04:12 UTC** visibly showed Sandbox, Connected accounts, **All 0** | BLOCKED onboarding prerequisite in this sandbox only. No provider state/account created; screenshot resolves transient AX gap |
+| Re-read package purchase/credit handlers and immutable terms | Checkout POST, review GET, credit GET/POST and linked customer controls exist. Version-2 terms contain shared-parent ownership, successful-payment validity start and approved cancellation restoration | Earlier missing-API/policy claims SUPERSEDED, not new runtime passes |
+| Compare `/legal/refunds` with `applyBookingAction` and `POST /api/admin/refunds` | Policy promises automatic trainer-cancellation refunds and 10% late-cancellation credit; cash cancellation explicitly issues neither; refund endpoint accepts only `action: reconcile` | Confirmed P1 RELEASE BLOCKER; code/policy work remains, not an external-only dependency |
 
-2026-10-13: existing credit-funded sessions now have safe participant/admin funding projections, accurate credit labels, and parent/trainer cancellation controls. This supersedes the dashboard-read/UI gap in the earlier entries, not the missing purchase/reservation flow. [Exact local failures, fixes, retests and publication evidence](PACKAGE_CREDIT_DASHBOARD_REPORT.md). Public package sales, reservation creation, spendable balance, service replacement, expiry interpretation and actual hosted Stripe proof remain incomplete. Overall **HOLD**.
-
-## Credit Action Follow-Up
-
-2026-10-13: the existing booking action handler now integrates package-credit completion/no-show funding checks and atomic policy-backed cancellation restoration. [Exact verification and remaining boundaries](PACKAGE_CREDIT_ACTION_REPORT.md). Public package sales, credit-funded reservation creation and dashboard funding/balance display remain incomplete. These actions alone do not make package booking usable or verify hosted Stripe money flow. Overall **HOLD**.
-
-## Credit Ledger Follow-Up
-
-2026-10-13: internal credit spending/restoration is implemented with focused SQL evidence, but not exposed through public purchase/booking/cancellation routes. [Current exact test results, receipt-mismatch correction, publication state and blockers](PACKAGE_CREDIT_LEDGER_REPORT.md). Do not treat recorded grants or this ledger as a usable customer booking flow. Full money-flow and production release remain **HOLD**.
-
-## Payment Time Follow-Up
-
-2026-10-12: package success-event timing, immutable SQL receipts and parent/trainer history dates are implemented in the audit branch. [Exact test failures, retests, migration evidence and publication status](PACKAGE_PAYMENT_TIME_REPORT.md). This resolves the validity-anchor prerequisite only. Atomic shared-child redemption, cancellation restoration, public package sales and actual hosted Stripe transfer/payout proof remain unfinished code/testing. The existing sandbox platform destination already subscribes to `payment_intent.succeeded`; connected accounts still show zero. Overall **HOLD**.
-
-## Approval And Recovery Update
-
-2026-10-12 approval/recovery pass: user approved the outstanding Preview retry, signed-in testing and package policy. [Exact implementation boundary and fresh results](PACKAGE_CREDIT_POLICY_REPORT.md). Preview retry recovered source `6a68db0` in Ready deployment `2fT2FYMEo5Tio32aDDiYfRSqgjYU`; eight corrected anonymous checks passed. Parent dashboard refresh, changed synthetic athlete save/reload/restore, package empty-state navigation and unfiltered empty catalog were observed. These supersede the pending-approval statements below, which describe the earlier audit. New immutable policy snapshots passed the full local check (1,476 units), 706 SQL cases and a clean 24-case browser rerun. Trainer setup, actual Stripe money flow and redemption remain incomplete; publication evidence belongs to the linked report.
-
-## Evidence Boundary
-
-Reviewed **2026-10-12 11:20-11:26 UTC**, baseline `7399513ab9274bf45919f7be4f053b57df6aed17`, clean branch `codex/payment-readiness-20261006`. This is a requirement-level completion audit, not another application implementation pass. It consolidates current blockers without erasing dated historical reports.
-
-Scope remains the isolated TRAINR audit Preview and owned disposable local testing. Main, Production, Story, real funds and credential changes are excluded. Pushing the audit branch is not fulfillment of the earlier request to publish main or the production domain. Production promotion still needs its own verified release decision.
-
-The immediately preceding implementation pass tested source `ccd41aa49657a7340e5a0d1068f022c81123436a`. Re-read logs confirm 1,465 units/67 files, 697 SQL cases/15 files and 42 selected browser cases passed; clean install, lint, TypeScript and build passed. The final docs-only commit above was deployed and passed 16 anonymous hosted checks. These results are not rerun or relabeled as a complete signed-in hosted audit here. [Exact scope, failures and retests](SELECTOR_PARSER_SECURITY_REPORT.md).
-
-## Fresh Prerequisite Checks
-
-| Environment/account | Exact step | Expected for paid-booking test | Actual | Status |
-| --- | --- | --- | --- | --- |
-| Audit Preview, anonymous/no cookies | GET `/api/health`, 11:20:56 UTC | Connected database | `dbConnected: true` | PASS health only |
-| Same Preview, anonymous/no cookies | GET `/api/trainers?limit=1&page=1` | At least one eligible trainer to select | `pagination.total: 0`, zero returned trainers | BLOCKED catalog prerequisite; does not prove there are no raw trainer rows |
-| Existing Style.re **sandbox** dashboard session, account `acct_1RAkm8PvdPuIlEw5` | Open existing `/test/connect/accounts`, reload, wait for refreshed content | A connected trainer account with current capability evidence | All 0, Enabled 0, No connected accounts | BLOCKED onboarding prerequisite; no account created or provider state changed |
-| Local source, no account | Inspect package purchase HTTP handler, booking creation and purchase terms | Public purchase plus child-owned booking redemption with agreed policy | Purchase route exports GET history only; booking creation has no package-credit input/redemption; terms have `validForDays` but no agreed start/restoration policy | INCOMPLETE CODE, not external-only |
-| Local source, no account | Compare refund policy with cancellation and refund HTTP handlers | Published refund/credit promises implemented and tested | Policy promises automatic trainer-cancellation refund and 10% late-cancellation credit; cancellation records review and explicitly issues neither refund nor reversal; refund endpoint accepts reconciliation only | RELEASE BLOCKER, not fixed by expiry/reconciliation |
-
-No signed-in TRAINR Preview access was attempted. The earlier browser action was interrupted before execution by the approval service; retry approval remains outstanding. Current account/child/booking data cannot be inferred from the anonymous checks. Stripe's refreshed zero-account result is limited to the named sandbox, not any other Stripe account or Production.
+The smoke's SHA argument labels intended source; it does not prove deployment identity. The independently observed Vercel mapping above supplies baseline attribution. Raw evidence contains status/contract assertions, no private records or credentials.
 
 ## Parent Requirements
 
-| Requirement | Current evidence | Completion decision / next proof |
+| Requirement | Actual evidence | Remaining proof |
 | --- | --- | --- |
-| Create account | Registration/verification persistence has local SQL coverage in `account-registration.integration.ts`; historical hosted parent setup exists in dated reports | PARTIAL. Fresh hosted registration, verification delivery and retry proof still required; email setup was explicitly deferred |
-| Log in | Local account/session suites cover authentication and revocation; no current signed-in read this pass | PARTIAL. Re-enter authorized Preview session and verify role/refresh behavior |
-| Enter/save child information | `athlete-profiles.integration.ts` and prior browser evidence cover owned child writes and history retention | PARTIAL. Hosted owned-child create/edit/refresh and rejection checks remain required |
-| Browse trainers | Anonymous catalog currently returns zero eligible trainers | BLOCKED. Owner-controlled trainer account/catalog prerequisite first |
-| Select package/program | Trainer catalog and immutable purchase helpers exist; package public purchase route is missing | INCOMPLETE. Finish purchase UI/API and policy-backed redemption before enabling sales |
-| Create booking | Local reservation/idempotency/capacity SQL tests exist; no current hosted selectable trainer | PARTIAL. Create real sandbox booking for an owned child and independently read it back |
-| Pay in full through Stripe | Checkout/destination receipt verification has simulated-provider integration coverage | UNPROVEN HOSTED. Complete actual sandbox Checkout and verify amount, destination, fee and signed webhook processing |
-| Correct booking/payment after refresh | Local persistence, reconciliation and recovery coverage exists | UNPROVEN HOSTED. Reload both parent and trainer views and match persisted records to actual Stripe object IDs |
+| Create account / email verification | Local SQL persistence/validation coverage; historical hosted parent setup | Fresh hosted registration, delivered verification link and retry unverified. Email setup deferred. [Registration report](ACCOUNT_EMAIL_REGISTRATION_REPORT.md) |
+| Log in | Local real-credentials session/revocation tests pass; Preview tab signed out | Authorized hosted parent login/reload; no manufactured sessions. [Session report](SESSION_REVOCATION_REPORT.md) |
+| Save child information | Local owned-child transaction tests; Oct12 hosted edit/reload/restore is dated evidence | Fresh current-source hosted create/edit/refresh and ownership rejection |
+| Browse/select trainer and service | Local catalog/selection coverage; current hosted catalog count 0 | Owner-controlled eligible trainer, profile, services and availability |
+| Buy package | Review, consent, immutable quote, checkout/retry, return and history UI/API implemented and locally tested | Actual sandbox purchase and signed provider evidence. [Purchase UI](PACKAGE_PURCHASE_UI_REPORT.md), [sales API](PACKAGE_SALES_API_REPORT.md) |
+| Use credits across children | Shared-parent ledger, balances/options, reservation form/API and transactional consumption implemented; cancellation restoration and dashboards integrated | Hosted purchased entitlement used for two owned children; expiry/service-retirement choices open. [Reservation](PACKAGE_CREDIT_RESERVATION_REPORT.md), [actions](PACKAGE_CREDIT_ACTION_REPORT.md), [dashboard](PACKAGE_CREDIT_DASHBOARD_REPORT.md) |
+| Create cash booking and pay in full | Local capacity, idempotency, checkout-recovery and receipt-chain coverage | Actual sandbox Checkout; amount, destination, application fee and signed webhook; no fabricated paid records |
+| Correct booking/payment after refresh | Local persistence/reconciliation, holds and recovery coverage | Independently match actual provider objects and persisted parent/trainer views after reload |
+
+Every parent requirement remains PARTIAL or BLOCKED at the hosted end-to-end level. Implemented code and selected local passes do not establish that all parent flows pass.
 
 ## Trainer Requirements
 
-| Requirement | Current evidence | Completion decision / next proof |
+| Requirement | Actual evidence | Remaining proof |
 | --- | --- | --- |
-| Create account / log in | Local role/registration/session coverage; existing hosted account was previously identified as parent | PARTIAL. User-controlled trainer sign-in/setup is needed; do not reuse parent authority or invent credentials |
-| Create/edit profile | Prior trainer-flow/UI reports record local profile validation/navigation coverage | PARTIAL. Fresh hosted trainer profile save/reload and public listing readback required |
-| Packages/programs/pricing | `trainer-packages.integration.ts` and package-management report cover local catalog transactions | PARTIAL. Hosted catalog creation and parent-visible selection remain unverified; paid package redemption is incomplete |
-| Availability/schedule | Local scheduling/time-zone/reservation tests and dated browser reports | PARTIAL. Hosted save/reload plus selectable date/time and collision rejection required |
-| Dashboard | Local browser/API coverage; latest representative run exercised Connect status states | PARTIAL. Fresh hosted signed-in trainer dashboard required |
-| See bookings | Local scoped dashboard/pagination/action coverage | UNPROVEN HOSTED. Match actual paid sandbox booking, parent/child and current status |
-| See payments | Local receipt/reconciliation/wallet-display coverage uses simulated provider objects | UNPROVEN HOSTED. Match actual charge, fee, transfer and connected-account balance |
-| Complete Connect onboarding | Current sandbox has zero connected accounts | BLOCKED prerequisite. Owner completes necessary account/terms steps; then verify current charges, transfers and payout capabilities |
-| Receive/withdraw payouts through v1 path | `/api/trainer/wallet/withdraw` returns `409 STRIPE_MANAGED_PAYOUTS`; bank payouts are delegated to Stripe | UNPROVEN HOSTED. Verify defined Stripe-managed path, destination transfer and payout status; a TRAINR withdrawal button is intentionally not the path |
+| Create account / log in | Local role/registration/session tests; trainer signup handoff already open | Owner-controlled trainer credentials and necessary agreements; do not change a parent role to simulate this |
+| Create/edit profile | Local validation/management coverage in dated trainer reports | Current hosted save/reload and parent-visible listing |
+| Programs/packages/pricing | Local catalog transactions and customer package UI/API implemented | Hosted creation/revision, reviewed purchase and price consistency |
+| Availability/schedule | Local time-zone, scheduling, capacity and collision tests | Hosted save/reload, selected slot and conflicting reservation rejection |
+| Dashboard/bookings/payments | Local role-scoped reads, credit/cash labels, status actions and review holds | Actual paid sandbox booking/package with correct participants/amounts/statuses |
+| Stripe Connect | Local capability handling/UI coverage; refreshed sandbox has zero connected accounts | Owner setup; verify linkage and current charge/transfer/payout capabilities |
+| Receive payouts | V1: destination charge, then Stripe-managed bank payout. `/api/trainer/wallet/withdraw` deliberately returns `409 STRIPE_MANAGED_PAYOUTS` to trainers | Actual destination transfer, connected balance and payout status. Transfer is not bank settlement; no second legacy-wallet payout |
 
-## Cross-Cutting Gates
+All trainer requirements remain PARTIAL or BLOCKED for hosted signoff. [Trainer report](TRAINER_FLOW_VALIDATION_REPORT.md), [Connect report](STRIPE_CONNECT_READINESS_REPORT.md), [payout report](PAYOUT_READINESS_REPORT.md).
 
-| Required gate | Authoritative evidence / gap | Decision |
-| --- | --- | --- |
-| Critical APIs and role permissions | Full local SQL suite and protected anonymous hosted endpoints pass within documented scope; no full fresh signed-in hosted matrix | PARTIAL, not all critical API flows passed |
-| Database persistence | Local independent-connection transaction/rollback tests pass; Preview health is connected | PARTIAL. Actual hosted financial records/refresh and Production backup/restore remain unverified |
-| Stripe checkout | Simulated receipt-chain tests are not a provider checkout receipt | HOLD |
-| Connect/payout readiness | Zero connected accounts in the refreshed sandbox | HOLD |
-| Mobile/desktop UI, errors and empty states | Latest 42-case selection covers booking layouts, Connect state and purchase history; prior reports cover other surfaces | PARTIAL. No claim that every page/control was tested in the latest run |
-| Hygiene/security | Token and dependency fixes exist; last audit still has six production affected packages/eight full-tree affected packages, all high in the braces chain | OPEN. Do not equate a successful build with security signoff |
-| Cancellation/refunds/disputes | Expiry/reconciliation/holds do not execute policy refunds or promotional credits; historical dispute disposition and unattended recovery remain separate work | INCOMPLETE. Preserve published terms until owner resolves policy/implementation; no invented financial policy |
-| All fixable issues fixed | Public package purchase/redemption and other implementation gaps remain | FAIL; remaining blockers are not exclusively external |
-| Committed and pushed | Baseline audit branch matched remote and was clean at review start; implementation source and reports are pushed | PASS audit branch only; main/Production are not promoted |
-| Final live smoke | 16 checks passed on isolated Preview after the prior publication | PASS anonymous Preview subset only; final Production smoke is NOT DONE |
-| Required reports | All 11 named artifacts exist under `docs/launch-readiness` | Presence PASS; reports explicitly retain HOLD and are not evidence of completed flows |
+## Open Release Gates
 
-The 100-build/1,000-test limits are loop ceilings, not a substitute for completion evidence. No aggregate cycle count or all-flow pass is invented from individual test counts. Historical failures and superseded gaps in older reports must be read with their dated follow-ups, not treated as current passes or repeatedly fixed from stale notes.
+1. **P1 refund promise/execution mismatch:** automatic cash refunds and late-trainer-cancellation promotional credits are not implemented. Parent cash refund timing and package cash refunds also need a tested execution path. Reconciliation, restored session credits and operator alerts do not fulfill these promises. Customer-facing policy unchanged. Owner asked whether to implement the promise or prepare a revised manual-support policy for review; neither silently applied. Exact cash boundary, percentage basis, fee/reversal treatment and exception semantics must be specified before money movement.
+2. **Package policy details:** shared-parent ownership, successful-payment start, trainer cancellation restoration, parent restoration at least 24h before start, late/no-show consumption already approved and implemented. Do not ask for those again. Remaining choices: session must occur before expiry versus merely be booked before expiry; treatment of purchased services later retired/replaced. Current guard requires session start before expiry and rejects unavailable services; no silent substitute or expiry extension.
+3. **Hosted prerequisites and receipts:** signed-in parent/trainer access, eligible catalog and sandbox connected account. Then actual paid booking/package, delayed/duplicate webhooks, refunds/reversals, refresh persistence, destination transfer and payout. Existing account handoffs remain pending. Sandbox completion would not prove Production money flow.
+4. **Security/reliability:** fresh Oct14 npm audit has 8 full-tree/6 production affected packages, all high, rooted in braces with no upstream patch. Bounded trace observations do not clear it. Latest run initially hit one unchanged esbuild timeout; focused/full reruns passed but cause unproven. Earlier cold-navigation timeout/admin PATCH reset, 42 lint warnings, middleware deprecation and internal Edge warning are not declared resolved. [Security evidence](HTTP_SECURITY_HEADERS_REPORT.md), [dependency report](DEPENDENCY_SECURITY_REPORT.md).
+5. **Operations and CI:** billing prevents current GitHub jobs starting. Unattended exception recovery, secure operator access and actual refund/payout procedures need proof. Local build does not substitute for CI/operations readiness.
+6. **Production release:** verify intended project/domain mapping, migrations, backup/restore and rollback; obtain release decision; publish permitted main/Production changes and final live smoke. Audit Preview is not `trainr.cc`. Outside current isolated Preview boundary and NOT DONE.
 
-## Next Required Decisions And Work
+## Completion Decision
 
-1. Obtain the outstanding approval to resume the previously interrupted signed-in Preview action. Then use the existing owner-controlled account; no cookie/API workaround, credential changes or parent-to-trainer role fabrication.
-2. Establish an owner-controlled test trainer, profile, eligible services/availability and Stripe sandbox connected account. Required credential entry, agreements or financial-account steps remain user-controlled. Verify the app/account linkage before checkout testing.
-3. Confirm package validity start and cancellation-credit restoration. A focused question is pending: successful-payment start; restore for trainer cancellation or parent cancellation at least 24 hours before; consume for late cancellation/no-show; cash-refund eligibility remains separate. Shared ownership across the parent's children is already confirmed. No policy choice has been applied.
-4. Implement atomic credit redemption/balance/expiry/restoration with immutable policy snapshots, then wire public purchase and booking controls. Keep sales disabled until a purchased package is actually usable.
-5. Resolve the published automatic refund/late-credit promise with tested execution or an explicitly owner-approved policy/process change. Do not silently weaken entitlements or call reconciliation a refund.
-6. Run the actual sandbox parent-to-trainer money flow, delayed/duplicate webhooks, refresh/recovery and payout verification. Record provider IDs/statuses and database evidence without leaking credentials.
-7. Clear remaining security/operational gates and GitHub billing, verify Production migration/backup/project mapping, then obtain the release decision and run final Production smoke.
+| Original stop condition | Current status |
+| --- | --- |
+| All parent and trainer flows pass | NOT PROVEN; hosted prerequisites incomplete |
+| All critical APIs and database persistence | Local/anonymous subsets pass; actual hosted financial persistence unverified |
+| Stripe Checkout, Connect and payout readiness | HOLD; no actual end-to-end provider receipt chain |
+| Route protection | Local roles/anonymous hosted probes pass within named scopes; fresh full hosted role matrix incomplete |
+| All fixable issues fixed / external-only blockers | FAIL; refund execution/policy and application/operational work remain |
+| Changes committed/pushed | Baseline PASS audit branch only; publication of this documentation pass verified separately after commit |
+| Final live smoke | Anonymous Preview subset PASS; Production/signed-in money-flow smoke NOT DONE |
+| Required reports | All 11 artifacts exist; current summary corrected without erasing dated failures. Presence is not flow signoff |
 
-**Overall result: NOT PRODUCTION READY. Goal remains active.** This audit did not modify application code, credentials, financial policy, provider state, main, Production or Story. A completion claim or external-only-blocker claim would contradict the evidence above.
-
-## Publication Failure
-
-Checklist/report commit `6a68db061303c5b41f65958b6c30e01705843a0d` was committed and successfully pushed to the audit branch. Its automatic [Preview deployment ADd5Anhi4BtbcQcDUfUB4GADtSPq](https://vercel.com/styleres-projects/trainr/ADd5Anhi4BtbcQcDUfUB4GADtSPq) failed. GitHub reports Vercel failure; the Vercel page independently shows matching source, Preview, Error and **Git information retrieval failed for this deployment.** No application build duration or successful build is present. This is a Git-retrieval deployment failure, not a demonstrated application compile regression.
-
-The browser inspection timed out twice before a longer read of the same tab succeeded; no deployment was restarted during those observations. No Vercel CLI was installed or used. Requested approval for the visible **Redeploy** action on this failed audit Preview only; response is pending. No manual retry, empty commit, credential workaround, production promotion or new-source hosted smoke was attempted. Last verified Ready application deployment remains `7399513ab9274bf45919f7be4f053b57df6aed17` / `F8jmbRy3RbkyrAszEicmcshamQUa`, with the preceding turn's 16 anonymous checks. This failure note is retained locally pending authorized publication/recovery; it must not be interpreted as another deployed commit.
+The 100-build/1,000-test limits are ceilings, not success criteria or an invented aggregate count. No full suite rerun for this documentation-only reconciliation. No application code, schema, payment policy, provider setting, credentials, main, Production or Story changed. Overall **HOLD**, goal active.
