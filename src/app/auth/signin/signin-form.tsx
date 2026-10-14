@@ -11,19 +11,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/components/ui/use-toast'
 import { TRAINR_LOGO } from '@/lib/trainr-media'
 
 const trustPoints = ['Trainer profiles', 'Secure payments', 'Family-friendly scheduling']
 
 export default function SignInPage() {
   const router = useRouter()
-  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [form, setForm] = useState({ email: '', password: '' })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
 
     try {
@@ -33,18 +33,23 @@ export default function SignInPage() {
         redirect: false,
       })
 
-      if (result?.error) {
-        toast({ title: 'Sign-in unavailable', description: 'Check your credentials or try again later.', variant: 'destructive' })
-      } else {
-        const sessionRes = await fetch('/api/auth/session')
-        const session = sessionRes.ok ? await sessionRes.json() : null
-        const role = session?.user?.role
-        const destination = role === 'TRAINER' ? '/trainer/dashboard' : role === 'ADMIN' ? '/admin' : '/parent/dashboard'
-        router.push(destination)
-        router.refresh()
+      if (!result?.ok || result.error) {
+        setError('Sign-in unavailable. Check your credentials or try again later.')
+        return
       }
+
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' })
+      const session = sessionRes.ok ? await sessionRes.json() : null
+      const role = session?.user?.role
+      const destination = role === 'TRAINER' ? '/trainer/dashboard' : role === 'ADMIN' ? '/admin' : role === 'PARENT' ? '/parent/dashboard' : null
+      if (typeof session?.user?.id !== 'string' || !session.user.id.trim() || !destination) {
+        setError('Unable to confirm your sign-in session. Please try again.')
+        return
+      }
+      router.push(destination)
+      router.refresh()
     } catch {
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
+      setError('Unable to confirm your sign-in session. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -103,17 +108,18 @@ export default function SignInPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" aria-describedby={error ? 'signin-error' : undefined}>
+              {error && <p id="signin-error" role="alert" className="break-words border-l-2 border-red-400 pl-3 text-sm text-red-200">{error}</p>}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required className="h-12 border-white/10 bg-white text-slate-900" />
+                <Input id="email" type="email" autoComplete="username" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required className="h-12 border-white/10 bg-white text-slate-900" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
                   <Link href="/auth/forgot-password" className="text-xs text-emerald-300 hover:underline">Forgot password?</Link>
                 </div>
-                <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required className="h-12 border-white/10 bg-white text-slate-900" />
+                <Input id="password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required className="h-12 border-white/10 bg-white text-slate-900" />
               </div>
               <Button type="submit" className="w-full gradient-primary border-0 text-white" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
