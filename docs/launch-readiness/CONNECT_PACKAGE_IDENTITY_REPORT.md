@@ -1,6 +1,6 @@
 # Connect Package Identity Report
 
-Status **2026-10-14 04:59 UTC**: two reproduced issues corrected and locally verified; **50 focused Connect / 1,208 full SQL / 46 selected browser cases pass**, final build passes. Final full unit runs retain timeout failures; no green final quality-gate or production signoff claim. Publication pending below.
+Status **2026-10-14 05:03 UTC**: two reproduced issues corrected, locally verified and published as **`0e5f4cdbce2e63c56ebe1f00a4bb20a384ab8085`**; **50 focused Connect / 1,208 full SQL / 46 selected browser cases pass**, final build passes. Preview independently Ready; **21 API and 13 header probes pass**. Final full unit runs retain timeout failures; no green final quality-gate or production signoff claim.
 
 Baseline **`4dfa55d871e50c2f9430525e919b7ac7d485ba7f`**, clean audit branch `codex/payment-readiness-20261006`, reviewed **2026-10-14**. Scope: owned disposable local PostgreSQL and synthetic parent/trainer accounts; simulated Stripe in integration tests. No credentials, financial accounts, provider settings, real funds, main, Production or Story changed. Overall release remains **HOLD**.
 
@@ -37,3 +37,12 @@ Full Connect identity suite: **50/50 PASS**, **04:25:41 UTC**, 5.34s, exit 0. Co
 ## Remaining Gates
 
 Existing account handoffs, eligible hosted catalog and sandbox connected-account setup remain pending. Actual Stripe Checkout, destination transfer, refunds and payout remain unverified. Published automatic refund/late-credit mismatch, pending policy choices, dependency/reliability and CI billing issues remain open. [Current requirement-level checklist](CURRENT_LAUNCH_GATES.md). This narrow identity repair is not money-flow signoff.
+
+## Published Preview
+
+- Runtime/test source **`0e5f4cdbce2e63c56ebe1f00a4bb20a384ab8085`**, `fix: preserve Connect identity for package payment history`, pushed to `codex/payment-readiness-20261006`. Independent remote read matched; main remains `2067e743c54ffee669cd484f26dc472b157f1881`.
+- Normal Vercel UI independently verified source, branch, stable alias and **Ready / Latest / Preview** for [deployment AFSC8ozGh](https://vercel.com/styleres-projects/trainr/AFSC8ozGhDFkt2JwRjatJSAUA7Kn), ready **2026-10-14 05:02:44 UTC**, duration **55s**. Immutable host `trainr-hja1tztvo-styleres-projects.vercel.app`. Navigation observation timed out once; the same tab recovered Building then Ready. No manual redeploy or settings change.
+- Stable base `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`: anonymous health/auth probes **21/21 PASS**, **05:03:41.824-05:03:46.269 UTC**, exit 0. DB connected; eligible trainer catalog remains 0. [Exact methods, endpoints, status and contract checks](CONNECT_PACKAGE_IDENTITY_HOSTED_SMOKE.json).
+- Same base, anonymous response-header/status probes **13/13 PASS**, **05:03:48.786-05:03:50.397 UTC**, exit 0. Anti-framing/no-sniff/no-referrer policies retained. [Exact expected/actual responses](CONNECT_PACKAGE_IDENTITY_HEADERS.json). The 34 requests overlap; they are not 34 workflows. No valid signatures, authenticated requests, provider transactions or private data were submitted. Source labeling in probes relies on the independent Vercel mapping above.
+- [GitHub run 38514460697](https://github.com/StylereTech/trainr/actions/runs/38514460697): fresh UI annotations say both jobs were **not started due to account billing lock**. No rerun or billing action. Vercel Ready and anonymous probes do not replace the failed local full-unit gate, absent hosted signed-in tests, or CI execution.
+- This publication evidence is a subsequent documentation-only commit. Final documentation deployment/smoke will be retained locally and in the task result, avoiding an infinite documentation/deployment cycle. Goal and overall release remain **HOLD**.

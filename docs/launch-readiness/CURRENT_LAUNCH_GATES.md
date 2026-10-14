@@ -2,6 +2,8 @@
 
 ## Connect Identity Follow-Up
 
+Published runtime source `0e5f4cdbce2e63c56ebe1f00a4bb20a384ab8085`, independently Ready in isolated Preview; 21 health/auth and 13 security-header probes pass at 2026-10-14 05:03 UTC. Exact source/deployment and CI billing evidence are in the linked report. This does not clear the final full-unit timing failures or hosted money-flow gates.
+
 2026-10-14 04:59 UTC: package payment/checkout history now blocks automatic creation of a replacement Stripe account when the trainer link is missing, and the profile payout panel retains the API's reconciliation message. **50 focused Connect, 1,208 full SQL and 46 selected browser cases pass**; final build passes. Final full-unit attempts each had one timeout, so the final quality gate is **not green**. [Exact failures, focused retests, screenshots and publication](CONNECT_PACKAGE_IDENTITY_REPORT.md). No provider account was created. The requirement audit below remains the baseline; actual hosted money flow and other launch gates remain **HOLD**.
 
 Reviewed **2026-10-14 04:09-04:16 UTC**, clean baseline **`aa5a0753e03970ed84a309edd3a4120406654f8e`**, branch `codex/payment-readiness-20261006`. **NOT PRODUCTION READY.** This is a requirement-level reconciliation, not a new implementation or a full signed-in hosted test run.
