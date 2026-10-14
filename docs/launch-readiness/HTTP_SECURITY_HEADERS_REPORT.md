@@ -1,6 +1,6 @@
 # HTTP Security Headers Report
 
-Status **2026-10-14 03:58 UTC**: missing response protections reproduced and corrected. Full quality gate passes **1,616 units**, types/build; **1,188 SQL** and **88 selected browser cases** pass. Fixture cleanup verified; Preview publication pending. Overall **HOLD**.
+Status **2026-10-14 04:01 UTC**: missing response protections reproduced, corrected and published as **`9c119e6da1de22d79c6c214a074ca5fb6cca8d36`**. Final quality gate passes **1,616 units**, types/build; **1,188 SQL** and **88 selected browser cases** pass. Fixture cleanup verified. Audit Preview independently Ready; **13 hosted header and 21 health/auth probes pass**. Overall **HOLD**.
 
 ## Scope And Baseline
 
@@ -49,4 +49,12 @@ Severity: **P2** missing anti-framing protection on the application; **P3** miss
 
 ## Remaining Gates
 
-Commit/push, Preview source mapping and hosted header/smoke retest are pending. Fresh normal-browser navigation to Preview `/dashboard` again settled at `/auth/signin` with blank credentials; no login or agreement was submitted. Hosted actual Stripe Checkout/Connect/transfer/payout, account setup, deferred email, provider policy and other reliability/security gates remain unverified. The initial toolchain timeout is not declared fixed, and the dependency finding remains open. Production and Story remain untouched.
+Fresh normal-browser navigation to Preview `/dashboard` again settled at `/auth/signin` with blank credentials; no login or agreement was submitted. Hosted actual Stripe Checkout/Connect/transfer/payout, account setup, deferred email, provider policy and other reliability/security gates remain unverified. The initial toolchain timeout is not declared fixed, and the dependency finding remains open. Production and Story remain untouched.
+
+## Published Preview
+
+- Runtime/test source **`9c119e6da1de22d79c6c214a074ca5fb6cca8d36`**, `security: enforce browser response protections`, pushed to `codex/payment-readiness-20261006`. Remote ref independently verified; main remains **`2067e743c54ffee669cd484f26dc472b157f1881`**.
+- Normal Vercel UI independently showed **Ready / Latest / Preview**, exact source, branch and alias for [deployment ezetcTCoF](https://vercel.com/styleres-projects/trainr/ezetcTCoFsEWPB9HH6JQinbH8UXo). Ready **2026-10-14 04:00:43 UTC**, duration **1m14s**, immutable host `trainr-78n611td0-styleres-projects.vercel.app`. Stable alias remains `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`.
+- Anonymous hosted header retest **13/13 PASS**, **04:01:15.012-04:01:17.617 UTC**, exit 0: sign-in/signup/verification pages, parent/trainer/admin redirects, session/booking/Connect/wallet/package APIs, unsigned webhook and 404 all return the expected status and all four headers. [Exact methods, paths, expected and actual headers](HTTP_SECURITY_HEADERS_HOSTED_SMOKE.json).
+- Existing anonymous health/auth smoke **21/21 PASS**, **04:01:20-04:01:24 UTC**, exit 0. Database connected; catalog **0 trainers**; protected routes reject unauthenticated calls; unsigned webhook rejects missing signature. [Exact response evidence](HTTP_SECURITY_HEADERS_AUTH_SMOKE.json). These are 34 requests with partly overlapping routes, not 34 distinct flows. No cookies, valid signatures, private account data or provider payments were submitted. Probe scripts label source mapping as requiring independent verification; the normal-UI check above supplies that verification.
+- [GitHub run 38509073342](https://github.com/StylereTech/trainr/actions/runs/38509073342): both check/migrations jobs failed with **zero executed steps**. Fresh normal UI annotations confirm an account billing lock prevented either job from starting. Local checks and Vercel Ready are not a GitHub CI pass; no billing changes or rerun attempted.
