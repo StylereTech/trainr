@@ -1,6 +1,6 @@
 # Cash Settlement Refund Inventory Audit
 
-Status at **2026-10-14 02:28 UTC**: cash source published and Ready in audit Preview; 21 hosted probes pass. The admin layout follow-up passes the complete local quality gate and **31 browser cases with zero retries**; publication of that follow-up is pending. Current cash-source GitHub CI cannot start due to an independently verified account billing lock. Overall **HOLD**.
+Status at **2026-10-14 02:31 UTC**: cash fix and admin layout follow-up published and Ready in audit Preview; **21 hosted probes pass** on the layout source. Complete local quality gate and **31 browser cases with zero retries** pass. Current GitHub CI cannot start due to an independently verified account billing lock. Overall **HOLD**.
 
 ## Baseline And Scope
 
@@ -66,4 +66,12 @@ Provider references rechecked 2026-10-14: Stripe documents that [event order is 
 
 ## Open Gates
 
-Admin layout follow-up publication and hosted retest remain pending. Actual hosted trainer signup, Connect, paid checkout, transfer/payout and email remain unverified. Dependency remediation, cold-load/connection reliability investigation and wider release gates remain open. These local tests use simulated Stripe receipts and cannot establish live or sandbox money-flow success.
+Actual hosted trainer signup, Connect, paid checkout, transfer/payout and email remain unverified. Dependency remediation, cold-load/connection reliability investigation and wider release gates remain open. These local tests use simulated Stripe receipts and cannot establish live or sandbox money-flow success.
+
+## Layout Publication And Retest
+
+- Source **`a7e5865e4750a5f1d9eea17a248929c025fb84ac`**, `fix: preserve readable admin refund layout`, committed and pushed to the isolated audit branch. Code/test scope: admin booking layout and refund browser coverage. Includes reviewed synthetic screenshots and cash audit evidence; no secrets, browser traces, local database or generated build files committed.
+- [Vercel Preview](https://vercel.com/styleres-projects/trainr/ofcPSqscE9LHRMr1T3osckiaLkRo) independently observed **Ready / Latest**, source `a7e5865`, stable audit alias and immutable domain `trainr-fv7ezfyb4-styleres-projects.vercel.app`. Completed **2026-10-14 02:30:40 UTC**, 51 seconds. Browser inspection initially timed out; rebinding the same tab recovered and confirmed the source mapping without changing deployment settings.
+- Anonymous hosted retest **21/21 PASS**, terminal exit 0, **02:30:56.018-02:31:03.764 UTC**. [Raw endpoint evidence](CASH_REFUND_LAYOUT_HOSTED_SMOKE.json). Connected database, zero-trainer catalog, protected endpoints rejecting unauthorized requests and unsigned webhook rejecting an invalid request. No payment, refund, transfer, payout or valid booking mutation submitted. The local signed-in admin layout is verified by browser regression, not by these anonymous hosted probes.
+- [Current CI run 38501320286](https://github.com/StylereTech/trainr/actions/runs/38501320286) failed both jobs with **zero executed steps**. Fresh normal-UI annotations for both `check` and `migrations` confirm an account billing lock prevented startup. CI is **BLOCKED**, not passed. Local static/unit/build and browser results are separate evidence. Billing and runner configuration unchanged.
+- Main, Production, Story and all provider/account settings remain untouched. Broad launch status remains **HOLD** pending the open gates above.
