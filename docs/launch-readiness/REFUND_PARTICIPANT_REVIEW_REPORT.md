@@ -1,6 +1,6 @@
 # Refund Refresh Participant Review Audit
 
-Status at **2026-10-14 03:03 UTC**: reproduced booking-action bypass corrected; **1,188 SQL, 1,613 unit and 31 selected browser cases pass**, static checks and production build pass. Publication and hosted retest pending. Overall **HOLD**.
+Status at **2026-10-14 03:06 UTC**: reproduced booking-action bypass corrected and published as **`2f2f4b9a5d5c3909dd531d56920ed5f91b232315`**; **1,188 SQL, 1,613 unit and 31 selected browser cases pass**, static checks and production build pass. Audit Preview independently Ready; **21 hosted probes pass**. Overall **HOLD**.
 
 ## Baseline And Scope
 
@@ -29,7 +29,14 @@ Status at **2026-10-14 03:03 UTC**: reproduced booking-action bypass corrected; 
 - Browser regression **31/31 PASS**, one worker, **zero retries**, **3.7 minutes**, terminal exit 0. Command: `npm run test:e2e -- e2e/refund-local-regression.spec.ts e2e/payment-hold-local-regression.spec.ts e2e/payment-reconciliation-local-regression.spec.ts --workers=1 --retries=0`. Rebuilt loopback app at port 3108, installed Chrome, synthetic parent/trainer/admin accounts. Payment-hold/refund UI responses are mocked; recovery cases use real local persistence with simulated provider responses. `.postgres-test/refund-participant-browser.log`.
 - Expected and actual browser results: review/unverified warnings keep unsafe controls disabled at 1440/390px; refund success/pending/failure amounts stay distinct after reload at 1440/1280/390px; failed/malformed/lost recovery responses require reload before further action. All pass. Reviewed parent refund, admin recovery/refund and mobile hold captures. Retained [admin 1280px](screenshots/refund-participant-admin-1280.png) and [mobile hold text](screenshots/refund-participant-mobile-hold.png).
 - Independent SQL inspection after browser completion confirmed the disposable database marker, no other active connections, and **zero rows in all ten fixture tables**. Local Next stopped; owned PostgreSQL stopped at **03:03 UTC**. No test server left running.
-- Commit/push, Preview source mapping and hosted smoke are pending. The source must not be called production-ready based on local suites alone.
+- Runtime/test source **`2f2f4b9a5d5c3909dd531d56920ed5f91b232315`** committed and pushed to the audit branch. Remote ref independently verified; main remains **`2067e743c54ffee669cd484f26dc472b157f1881`**. No migration or Production deployment performed.
+
+## Published Preview
+
+- Normal Vercel UI independently showed **Ready / Latest / Preview**, source `2f2f4b9`, audit branch and stable alias mapped to [deployment 4fWV8it9G](https://vercel.com/styleres-projects/trainr/4fWV8it9Gw1oxDCBwKNVBWYBJfi1). Ready **2026-10-14 03:05:24 UTC**, duration **49 seconds**; immutable host `trainr-l0z1bgdyx-styleres-projects.vercel.app`.
+- Stable alias: `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`. Anonymous **21/21 PASS**, **03:06:04-03:06:08 UTC**, terminal exit 0. Health returned 200 and `dbConnected: true`; catalog returned 200 with **0 trainers**; protected booking/package/wallet/checkout/closure/payment-refresh/refund routes returned expected 401; unsigned webhook returned 400. Exact paths/methods/expected/actual results: [raw probe evidence](REFUND_PARTICIPANT_HOSTED_SMOKE.json). The raw file deliberately labels source mapping as independently unverified by the probe script; the separate normal-UI check above supplies that verification.
+- No authenticated hosted account or provider transaction was used in these probes. This proves Preview availability/anonymous boundaries, not checkout, transfer or payout.
+- [GitHub run 38504359743](https://github.com/StylereTech/trainr/actions/runs/38504359743): `check` and `migrations` both failed with **zero executed steps**. Normal UI annotations independently confirmed both were not started because of an account billing lock. Local pass is not a CI pass; no billing changes or rerun were attempted.
 
 ## Remaining Launch Gates
 
