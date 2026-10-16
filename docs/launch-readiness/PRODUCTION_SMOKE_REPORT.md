@@ -20,3 +20,10 @@
 | `npm run check` | lint/type/unit/build complete | Exit 0; lint 0 errors/42 warnings; typecheck; **1,790/1,790 unit**; optimized build | PASS local gate |
 
 No authenticated parent/trainer/admin assertion, successful booking, paid Checkout, signed webhook, destination transfer, bank payout, refund, or refresh persistence was tested by this smoke. The isolated test trainer's Connect account remains restricted. No screenshot was needed for the API/status assertions; Playwright produced ordinary local test artifacts. **Production HOLD.**
+
+## Published Retest (2026-10-16 10:53 UTC)
+
+- Commit `818c2b1282803d33631037cd4a0bbf6fe8d81915` was fetched from GitHub; local HEAD and origin matched with a clean tracked worktree. Vercel showed its Preview deployment `2XvaJqgArymiuDJPaBA7FPMNWCj8` **Ready / Latest**, and its Domains panel assigned `trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app` to this exact source.
+- With PowerShell `$env:BASE_URL` set to `https://trainr-ir5aw8bnh-styleres-projects.vercel.app`, `npm run test:e2e:prod` **failed 3/3** because that immutable deployment URL redirected the unauthenticated test browser to `vercel.com/login` under Deployment Protection. This is an access boundary, not an application-role result. The screenshot/error context is in ignored `test-results/production-smoke-*/` artifacts. Protection was not bypassed or changed.
+- Retest via the Vercel-assigned public audit-branch alias above: **3/3 passed in 11.3s**, exercising the same public navigation, DB/catalog health and anonymous route/API rejection on the published source. `trainr.cc` had separately passed 3/3 before the audit-branch push; Production was not updated by this commit.
+- The immutable-URL failure remains a harness limitation for deployment-specific links without an authorized bypass token. The source-attributed branch-alias pass clears this read-only smoke subset only. Authenticated roles and actual Stripe settlement remain open; **Production HOLD**.

@@ -1,6 +1,6 @@
 # Current Launch Gates
 
-**2026-10-16 10:48 UTC:** [Production smoke command repair](PRODUCTION_SMOKE_REPORT.md) replaces a Windows-incompatible, legacy-demo-credential role command with three read-only anonymous checks. They passed **3/3 on audit Preview and 3/3 on `trainr.cc`**; full local lint/type/unit/build gate passed (1,790 units, 42 lint warnings). This is not authenticated role or Stripe money-flow proof. **Production HOLD.**
+**2026-10-16 10:53 UTC:** [Production smoke command repair and published retest](PRODUCTION_SMOKE_REPORT.md) replaces a Windows-incompatible, legacy-demo-credential role command with three read-only anonymous checks. They passed **3/3 on audit Preview and 3/3 on `trainr.cc`**; the exact new Ready deployment's immutable URL required Vercel login, while its Vercel-assigned audit-branch alias passed **3/3 post-deploy**. Full local lint/type/unit/build gate passed (1,790 units, 42 lint warnings). This is not authenticated role or Stripe money-flow proof. **Production HOLD.**
 
 **2026-10-16 10:35 UTC:** [Stripe Connect refreshed status](STRIPE_CONNECT_READINESS_REPORT.md) confirms 30/30 authenticated Preview role checks, a linked but still restricted test connected account, and zero hosted booking/payment/package-purchase records. A fresh Stripe test onboarding page is open for user completion. No charge, webhook settlement, transfer or payout has occurred. **Production HOLD.**
 
