@@ -1,5 +1,12 @@
 # Preview Account Provisioning And Authenticated Retest
 
+## Fresh Retest: 2026-10-16 16:23 UTC
+
+- Environment/source: isolated Vercel audit Preview alias, with Vercel Deployments showing `be89a81d4bec210dd7398edda0bf978f46994688` Ready. Existing synthetic parent, trainer, and admin accounts in the ignored local fixture were used; no new accounts or credential changes. The alias, rather than the immutable deployment URL, was the browser-test target.
+- Steps/expected/actual: submit `/auth/signin` for each role, verify own dashboard after refresh and redirect from a forbidden dashboard; browse Audit Trainer and open `/book/audit-trainer-20261016` on 390x844 mobile; review the shared package; open trainer dashboard, packages, and `/trainer/profile?tab=payouts`; check public entry points, `/api/health`, trainer catalog, and anonymous route/API protection. Expected all roles and routes reachable without overflow, with paid controls held for incomplete Connect. Actual **9/9 hosted Chrome Playwright PASS** across `e2e/preview-role-smoke.spec.ts`, `e2e/preview-mobile-smoke.spec.ts`, and `e2e/production-smoke.spec.ts`. Mobile screenshots are in ignored Playwright test results.
+- Failure/fix/retest: the first shell run was blocked at navigation by `ERR_NETWORK_ACCESS_DENIED`; the network-enabled run reached TRAINR and passed five of six authenticated cases, but the package case raced sign-in and returned to `/auth/signin`. The mobile test helper now waits for the role dashboard URL. Focused package rerun **1/1 PASS** and the complete hosted set **9/9 PASS**. No application code was changed for this timing correction.
+- Blocker status: the trainer's Connect account remains restricted and the UI correctly disables paid booking and package checkout. No sandbox charge, signed settlement webhook, transfer, external bank payout, or Production money-flow signoff was demonstrated. **Production HOLD.**
+
 ## Fresh Retest: 2026-10-16 15:41 UTC
 
 - Environment: isolated audit Preview alias above; source commit `b57a7a3308c698b743502628237f8328ea5636a9`. The three existing synthetic `PARENT`, `TRAINER`, and `ADMIN` accounts in the ignored local fixture were used. No accounts were added or credentials changed.
