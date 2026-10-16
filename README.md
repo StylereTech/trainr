@@ -43,6 +43,8 @@ npm run test:e2e
 npm run test:e2e:prod
 ```
 
+`test:e2e:prod` is a credential-free, read-only smoke of `https://trainr.cc` by default. Set `BASE_URL` to an HTTPS Preview URL to smoke that deployment. Authenticated roles, booking, and Stripe settlement require separate tests.
+
 ## Environment
 
 Use `.env.example` as the source of truth for required environment variables.

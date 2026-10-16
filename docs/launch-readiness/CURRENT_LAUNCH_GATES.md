@@ -1,5 +1,7 @@
 # Current Launch Gates
 
+**2026-10-16 10:48 UTC:** [Production smoke command repair](PRODUCTION_SMOKE_REPORT.md) replaces a Windows-incompatible, legacy-demo-credential role command with three read-only anonymous checks. They passed **3/3 on audit Preview and 3/3 on `trainr.cc`**; full local lint/type/unit/build gate passed (1,790 units, 42 lint warnings). This is not authenticated role or Stripe money-flow proof. **Production HOLD.**
+
 **2026-10-16 10:35 UTC:** [Stripe Connect refreshed status](STRIPE_CONNECT_READINESS_REPORT.md) confirms 30/30 authenticated Preview role checks, a linked but still restricted test connected account, and zero hosted booking/payment/package-purchase records. A fresh Stripe test onboarding page is open for user completion. No charge, webhook settlement, transfer or payout has occurred. **Production HOLD.**
 
 **2026-10-16 10:13 UTC:** [Payment UI/browser retest](PAYMENT_UI_BROWSER_RETEST_REPORT.md) passes 34/34 selected local Chrome cases in one run after correcting the missing bundled-browser harness issue; database fixtures are 0 and local services stopped. Fresh dependency audit remains 8 high full-tree / 6 high production-classified, with no patched `braces` release in the reviewed advisory. Hosted paid Checkout/transfer/payout and refund-policy execution remain unverified. **Production HOLD.**
