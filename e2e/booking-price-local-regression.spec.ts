@@ -81,9 +81,10 @@ for (const width of [1440, 390]) test.describe(`booking price ${width}px`, () =>
         await page.screenshot({ path: testInfo.outputPath('maximum-price-review.png'), fullPage: true })
       } else if (scenario === 'retry' || scenario === 'malformed' || scenario === 'timeout') {
         await expect(page.getByRole('button', { name: 'Book & Pay', exact: true })).toBeDisabled()
-        await expect(page.getByRole('button', { name: 'Retry price', exact: true })).toBeVisible({ timeout: scenario === 'timeout' ? 20000 : 10000 })
+        await expect(page.getByRole('button', { name: 'Retry check', exact: true })).toBeVisible({ timeout: scenario === 'timeout' ? 20000 : 10000 })
+        await expect(page.getByText('Payment collected at Stripe checkout', { exact: true })).toHaveCount(0)
         release?.()
-        await page.getByRole('button', { name: 'Retry price', exact: true }).click()
+        await page.getByRole('button', { name: 'Retry check', exact: true }).click()
         await expect(page.getByText('Total due: $60.00', { exact: true })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Book & Pay', exact: true })).toBeEnabled()
       } else if (scenario === 'changed') {
@@ -118,7 +119,7 @@ for (const width of [1440, 390]) test.describe(`booking price ${width}px`, () =>
         } else if (scenario === 'exhausted') {
           await db.coupon.update({ where: { id: coupon.id }, data: { maxUses: 0 } })
           await page.getByRole('button', { name: 'Confirm free booking', exact: true }).click()
-          await expect(page.getByRole('button', { name: 'Retry price', exact: true })).toBeVisible()
+          await expect(page.getByRole('button', { name: 'Retry check', exact: true })).toBeVisible()
           await expect(page.getByRole('button', { name: 'Book & Pay', exact: true })).toBeDisabled()
           expect(await db.booking.count({ where: { parentProfileId: parentProfile.id } })).toBe(0)
           await page.getByLabel('Promo code', { exact: true }).fill('')

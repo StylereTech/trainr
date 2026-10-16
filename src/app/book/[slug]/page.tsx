@@ -393,7 +393,7 @@ export default function BookingPage() {
                   <Input id="coupon" maxLength={32} placeholder="Enter code" value={couponCode} onChange={(e) => { setCouponCode(e.target.value); setBookingError('') }} className="mt-2 h-11 border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-500 disabled:bg-slate-100 disabled:text-slate-950 disabled:opacity-100" />
                   <div className="mt-2 text-sm" aria-live="polite">
                     {pricing.loading && <p>Checking price...</p>}
-                    {pricing.error && <><p role="alert" className="text-rose-700">{pricing.error}</p><Button type="button" variant="outline" onClick={pricing.refresh} className="mt-2 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900"><RefreshCw className="mr-2 h-4 w-4" />Retry price</Button></>}
+                    {pricing.error && <><p role="alert" className="text-rose-700">{pricing.error}</p><Button type="button" variant="outline" onClick={pricing.refresh} className="mt-2 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900"><RefreshCw className="mr-2 h-4 w-4" />Retry check</Button></>}
                     {pricing.quote && <p className="text-emerald-800">{pricing.quote.discountInCents > 0 ? 'Promo applied: ' + formatCurrency(pricing.quote.discountInCents) + ' off. ' : ''}Total due: {formatCurrency(pricing.quote.totalAmountInCents)}</p>}
                   </div>
                 </div>
@@ -429,7 +429,7 @@ export default function BookingPage() {
                   {submitting ? <><Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />Processing...</> : bookingUncertain ? <><RefreshCw className="mr-2 h-4 w-4 shrink-0" />Retry same reservation</> : pricing.quote?.totalAmountInCents === 0 ? <><CheckCircle2 className="mr-2 h-4 w-4 shrink-0" />Confirm free booking</> : <><CreditCard className="mr-2 h-4 w-4 shrink-0" />Book &amp; Pay</>}
                 </Button>
                 <p className="text-xs text-zinc-600">{pricing.quote?.totalAmountInCents === 0 ? 'No Stripe charge or trainer payout will be created.' : 'Price and availability are checked again before checkout.'}</p>
-                {pricing.quote?.totalAmountInCents !== 0 && <p className="text-xs text-zinc-600">Payment collected at Stripe checkout</p>}
+                {pricing.quote && pricing.quote.totalAmountInCents !== 0 && <p className="text-xs text-zinc-600">Payment collected at Stripe checkout</p>}
                 <p className="border-t border-zinc-200 pt-4 text-xs text-zinc-600">Profile approval does not establish identity or background screening. <Link href="/legal/safety" className="text-emerald-800 underline">Safety guidelines</Link></p>
               </div>
             </aside>
