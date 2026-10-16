@@ -1,5 +1,13 @@
 # Account Registration And Email Delivery Audit
 
+## Hosted Preview Retest, 2026-10-16 10:58 UTC
+
+- Environment: isolated audit Preview at `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`, source `83963f2d12c0fe5daa36c7f15e451ec159254a6c`. Existing synthetic parent, trainer and admin accounts in `trainr-audit-staging-20261009`; no legacy/demo account or Production write.
+- Exact steps: opened `/account/verify-email` while signed in as the synthetic parent; waited for authenticated status; observed **Not verified**; clicked **Send verification email** once. Expected an accepted provider attempt only when configured. Actual UI: **Verification email is temporarily unavailable. Try again later.** The handler returns 503 for an unavailable email provider; inbox receipt was not tested.
+- Configuration readback in Vercel project `trainr` environment-variable UI: `RESEND_API_KEY` exists with **Production** scope only. Searching project and shared variables for `EMAIL_FROM` returned **No Results Found**. Secret values were not revealed. The missing Preview key and sender are sufficient to explain this Preview failure, although no provider logs were inspected. The `.test` recipient has no deliverable inbox.
+- Existing `.postgres-test/preview-role-smoke.mjs` rerun against the stable Preview alias at 10:58 UTC: **30/30 PASS**. All three synthetic roles authenticated through ordinary credentials/CSRF sessions; `/api/auth/verify` returned 200 and `verified: false` for each. Role-scoped API checks passed. The first sandboxed attempt could not reach the network (`EACCES`); an approved network-enabled retry passed. Sanitized results: ignored `.postgres-test/preview-role-smoke.json`.
+- Blocker: Preview email delivery remains **FAIL / external configuration**. No mail-provider acceptance or actual inbox delivery is claimed. Re-test only after an approved, verified sender and isolated Preview provider credential are configured; keep `.test` recipients for account/role testing without claiming delivery. Source code and database account creation require no change from this observation. Stripe checkout, Connect completion and payouts remain separately blocked and unverified.
+
 ## Identity And Scope
 
 - Date: 2026-10-08 UTC. Baseline `8652e4c50674ec461eecfe6e7e3e1550651529b6`, audit branch `codex/payment-readiness-20261006`; final publication proof below.
