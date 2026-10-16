@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Latest Account And Quality Retest
+
+**2026-10-16 01:43 UTC**, source `04682831eaaed9589969ada11f01314ad6446b5c`: full local `npm run check` **PASS**, exit 0, including **1,725/1,725 units**, lint (42 warnings), types and build. The unchanged focused timing files also passed 22/22; intermittent failure root cause remains OPEN. Fresh full-tree npm audit still reports **8 high / 0 critical**, exit 1. The user-supplied legacy parent/trainer/admin credentials failed in Preview; a fresh read-only query confirmed none of those three emails exists in the isolated staging database. Additive account-creation approval remains pending. The unsafe legacy database runbook was corrected; destructive demo seed was not run and has no new runtime guard. [Exact evidence, commands, limitations and remaining work](ACCOUNT_PREREQUISITES_RETEST_REPORT.md). **Production HOLD.** Dated entries below are historical, not a replacement for this latest quality result.
+
 ## Webhook Mode Follow-Up
 
 Published runtime **`6d22bc6fc60b5001d289414dc2c467fcc0508b05`**, independently Ready in audit Preview at **2026-10-14 05:47:29 UTC**. **21 hosted health/auth and 13 header probes pass**; catalog remains 0 and current CI remains billing-blocked. Exact attribution and raw probes are in the report below; actual money-flow gates remain open.

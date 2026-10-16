@@ -1,6 +1,8 @@
 # Trainr DB-Ready Runbook
 
-This project is ready for DB hookup, but **runtime verification is blocked until `DATABASE_URL` points to a reachable PostgreSQL database**.
+**Not a production-readiness signoff.** Database connectivity is only one prerequisite. Use [Current Launch Gates](launch-readiness/CURRENT_LAUNCH_GATES.md) and its dated evidence for authentication, booking, Stripe, security and release status.
+
+**Do not run `npm run db:seed` against Preview, Production or any database containing records that must be retained.** The legacy demo seed starts with unfiltered deletions and installs fixed-password demo users. It is not an additive account-provisioning command. Supplying its documented credentials does not create those accounts in another database.
 
 ## 1) Exact DB requirements
 
@@ -44,20 +46,25 @@ RESEND_API_KEY=...
 EMAIL_FROM=...
 ```
 
-## 3) Commands to run as soon as DATABASE_URL exists
+## 3) Verify The Target Before Any Writes
 
-Run from project root:
+From the intended checkout, identify the environment, database owner, host and database name without publishing connection credentials. Confirm the target is authorized and take a restorable backup before an approved schema change. Do not copy Production credentials into a test environment.
+
+Read-only checks:
 
 ```bash
-cd /home/jeane/.openclaw/workspace/trainr
-cp .env.example .env   # if .env does not already exist
-# then edit .env and set DATABASE_URL to the real reachable Postgres URL
 npm run db:check
 npx prisma validate
-npm run db:push
-npm run db:seed
+npx prisma migrate status
+```
+
+Use reviewed, versioned migrations for an authorized deployment, not `prisma db push` as an operational shortcut. The isolated audit Preview has its own guarded initialization path in `scripts/prepare-staging.mjs`; do not copy its ownership marker or opt-in settings to another database. See [Staging Provisioning](launch-readiness/STAGING_PROVISIONING_REPORT.md).
+
+After environment and schema verification, run local quality checks with an appropriate isolated test configuration:
+
+```bash
 npm run build
-npm test -- --run
+npm test
 npm run dev
 ```
 
@@ -113,36 +120,22 @@ npm run db:check
 npx prisma validate
 ```
 
-### Apply schema
+### Inspect migration state without applying changes
+
 ```bash
-npm run db:push
+npx prisma migrate status
 ```
 
-### Seed realistic data
-```bash
-npm run db:seed
-```
+### Test data and accounts
 
-## 6) What "DB-ready" means now
+Do not use the legacy demo seed to repair a missing account. Its destructive behavior remains in the code; this runbook does not add a runtime guard. Any use requires an explicitly disposable local database and approval to replace its records. The seed's compatibility with the current financial schema is not verified by this runbook.
 
-Current repo state is ready for immediate DB hookup because:
-- Prisma schema validates
-- seed script is schema-aligned and transpiles
-- build passes
-- typecheck passes
-- tests pass
-- route protection is in place
-- a DB reachability check script now exists
+Preview test-account creation must be separately authorized, additive and limited to the intended environment. Never change an existing user's role or password to manufacture a test login, and never mark synthetic financial records paid as a substitute for Stripe evidence. Do not publish credentials in reports or commits.
 
-## 7) The only real blocker
+The audit Preview reference catalog uses the separately reviewed `scripts/staging-reference-data.sql`, not the demo seed. It does not provision users or payment data; see [Catalog Validation](launch-readiness/STAGING_CATALOG_VALIDATION_REPORT.md).
 
-**A reachable PostgreSQL `DATABASE_URL`.**
+## 6) Evidence Required For Readiness
 
-Until that exists, no honest score increase is possible for DB/runtime-sensitive categories like:
-- auth/account runtime
-- backend reliability
-- API integrity
-- trainer/profile persistence
-- booking persistence
-- admin runtime
-- production readiness
+A connected database, a successful build or historical test results do not establish production readiness. Verify current-source parent/trainer login and persistence, role isolation, booking and package purchase, actual sandbox Checkout and signed webhooks, trainer Connect capabilities, destination transfer and payout state. Also resolve the current refund-policy/execution, dependency, reliability, CI and release gates. Do not carry forward historical pass claims without their environment, source SHA, date and test scope.
+
+Main/Production release, domain changes, migrations, backup/restore and rollback require their own approved plan and verification. The isolated Preview is not the Production environment.
