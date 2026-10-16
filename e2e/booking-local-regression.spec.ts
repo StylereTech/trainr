@@ -113,7 +113,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
           page.once('dialog', dialog => dialog.accept())
           await page.getByRole('button', { name: 'Cancel reservation' }).click()
           await expect(page.getByRole('tab', { name: 'Open (0)' })).toBeVisible()
-          await expect(page.getByText('Cancellation is not a refund receipt.', { exact: false })).toBeVisible()
+          await expect(page.getByText('The reservation is in your past sessions. Cancellation is not a refund receipt.', { exact: true })).toBeVisible()
           expect(saved.status).toBe('CANCELLED')
         }
         await page.screenshot({ path: testInfo.outputPath('booking-recovery.png') })
