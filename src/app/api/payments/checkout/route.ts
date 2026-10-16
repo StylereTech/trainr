@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
     const user = await getRequestUser(req)
     if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (user.role !== 'PARENT') return NextResponse.json({ error: 'Only parents can pay for bookings' }, { status: 403 })
-    if (!stripeRuntimeStatus().secretConfigured) {
+    const configured = stripeRuntimeStatus()
+    if (!configured.secretConfigured || !configured.webhookConfigured) {
       return NextResponse.json({ error: 'Stripe is not configured on this runtime' }, { status: 503 })
     }
     const input = checkoutBody.safeParse(await req.json().catch(() => null))

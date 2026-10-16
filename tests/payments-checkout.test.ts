@@ -1,19 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CheckoutConflict } from '@/lib/checkout-attempts'
 
-const mock = vi.hoisted(() => ({ user: vi.fn(), booking: vi.fn(), account: vi.fn(), updateTrainer: vi.fn(), checkout: vi.fn() }))
+const mock = vi.hoisted(() => ({ user: vi.fn(), booking: vi.fn(), account: vi.fn(), updateTrainer: vi.fn(), checkout: vi.fn(), runtime: { secretConfigured: true, webhookConfigured: true } }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: { booking: { findUnique: mock.booking }, trainerProfile: { update: mock.updateTrainer } } }))
 vi.mock('@/lib/checkout-attempts', () => ({ CheckoutConflict: class extends Error {}, startOrResumeCheckout: mock.checkout }))
 vi.mock('@/lib/connect-readiness', () => ({ refreshConnectReadiness: mock.account }))
 vi.mock('@/lib/stripe', () => ({
-  stripeRuntimeStatus: () => ({ secretConfigured: true }),
+  stripeRuntimeStatus: () => mock.runtime,
   mapStripeError: () => ({ message: 'Checkout temporarily unavailable', detail: 'private provider detail', status: 503 }),
   stripe: { accounts: { retrieve: mock.account } },
 }))
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mock.runtime.secretConfigured = true
+  mock.runtime.webhookConfigured = true
   mock.user.mockResolvedValue({ id: 'parent', role: 'PARENT', email: 'parent@example.test' })
   mock.booking.mockResolvedValue({
     id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' }, timeZone: 'UTC', startsAt: new Date('2030-11-01T09:00:00Z'), endsAt: new Date('2030-11-01T10:00:00Z'),
@@ -29,6 +31,14 @@ async function send(body = JSON.stringify({ bookingId: 'booking' })) {
 }
 
 describe('checkout route boundaries', () => {
+  it.each(['secretConfigured', 'webhookConfigured'] as const)('does not create a payable session without %s', async field => {
+    mock.runtime[field] = false
+    const response = await send()
+    expect(response.status).toBe(503)
+    expect(mock.booking).not.toHaveBeenCalled()
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
   it.each(['inactive', 'pending', undefined])('does not prepare checkout without active transfers: %s', transfers => {
     mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers } })
     return send().then(response => {
