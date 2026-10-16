@@ -62,7 +62,7 @@ export default function CreditBookingPage() {
     finally { inFlight.current = false; setBusy(false) }
   }
   const fieldClass = 'h-10 w-full min-w-0 rounded-md border border-white/20 bg-slate-950 px-3 text-sm'
-  return <main className="container max-w-3xl py-6 md:py-8">
+  return <div className="container max-w-3xl py-6 md:py-8">
     <Link href="/parent/packages" className="mb-5 inline-flex items-center gap-2 text-sm text-slate-300"><ArrowLeft className="h-4 w-4" />My package purchases</Link>
     <header className="flex items-start justify-between gap-4 border-b border-white/10 pb-5">
       <div className="min-w-0"><h1 className="text-2xl font-semibold">Book a package session</h1>{data && <><p className="mt-2 break-words font-medium">{data.title}</p><p className="mt-1 break-words text-sm text-slate-300">{data.trainerName}</p></>}</div>
@@ -102,5 +102,5 @@ export default function CreditBookingPage() {
         </div>
       </form>
     </>}
-  </main>
+  </div>
 }

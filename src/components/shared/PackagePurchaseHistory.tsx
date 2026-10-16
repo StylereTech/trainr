@@ -45,7 +45,7 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
   }
   const disabled = Boolean(busyId) || history.loading
   const pagination = history.data?.pagination
-  return <main className="container max-w-5xl py-6 md:py-8">
+  return <div className="container max-w-5xl py-6 md:py-8">
     <Link href={role === 'PARENT' ? '/parent/dashboard' : '/trainer/packages'} className="mb-4 inline-flex items-center gap-2 text-sm text-slate-300">
       <ArrowLeft className="h-4 w-4" />{role === 'PARENT' ? 'Dashboard' : 'Packages'}
     </Link>
@@ -105,5 +105,5 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
         <Button size="icon" variant="outline" title="Next purchase page" aria-label="Next purchase page" disabled={disabled || uncertain || pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)}><ChevronRight className="h-4 w-4" /></Button>
       </nav>}
     </>}
-  </main>
+  </div>
 }

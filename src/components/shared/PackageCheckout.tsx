@@ -78,7 +78,7 @@ export function PackageCheckout({ buyerId, packageId, purchaseId }: { buyerId: s
       else router.push(`/parent/packages/buy/${encodeURIComponent(data.packageId)}`)
     } catch { setError('Saved checkout could not be cleared. Review your purchases.') }
   }
-  return <main className="container max-w-3xl py-6 md:py-8">
+  return <div className="container max-w-3xl py-6 md:py-8">
     <Link href="/parent/packages" className="mb-5 inline-flex items-center gap-2 text-sm text-slate-300"><ArrowLeft className="h-4 w-4" />My package purchases</Link>
     <header className="flex items-start justify-between gap-4 border-b border-white/10 pb-5">
       <h1 className="min-w-0 text-2xl font-semibold">{purchaseId || data?.purchaseId ? 'Review package purchase' : 'Review package'}</h1>
@@ -121,5 +121,5 @@ export function PackageCheckout({ buyerId, packageId, purchaseId }: { buyerId: s
         {!data.canCheckout && !data.canBuyAgain && <Link href="/contact" className="mt-4 inline-block text-sm text-emerald-300 underline">Contact support</Link>}
       </section>
     </>}
-  </main>
+  </div>
 }

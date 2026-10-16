@@ -207,7 +207,7 @@ export default function TrainerProfilePage() {
                   </Button>
 
                   <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="lg">
-                    <Link href={`/messages?to=${trainer.id}`}>
+                    <Link href={`/messages?trainer=${encodeURIComponent(trainer.id)}`}>
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Send Message
                     </Link>
@@ -491,7 +491,7 @@ export default function TrainerProfilePage() {
                 <Link href={`/book/${trainer.slug}`}>Book a session</Link>
               </Button>
               <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
-                <Link href={`/messages?to=${trainer.id}`}>
+                <Link href={`/messages?trainer=${encodeURIComponent(trainer.id)}`}>
                   Message trainer
                   <ArrowUpRight className="ml-2 h-4 w-4" />
                 </Link>

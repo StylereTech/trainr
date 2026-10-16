@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Approved Preview Accounts And Signed-In Tests
+
+**2026-10-16 07:21-07:45 UTC**, hosted source `d80c02f8b8b8282a879a05ccd5dc2671fc56f427`: the owner explicitly authorized additive test users. Three isolated Preview accounts now exist; all three browser logins and **30/30 authenticated API checks pass**. A parent athlete, trainer profile/service/schedule, active two-session package, and admin listing approval were saved and read back. A real **sandbox** Connect account was created and its hosted onboarding opened, but capabilities remain disabled. Stripe terms approval and a user-performed Book & Pay step are pending; no payment, webhook, transfer, or payout completion is claimed. [Exact steps, identities, scope, and limits](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md). This supersedes older pending-provisioning and zero-catalog statements below. **Production HOLD.**
+
 ## Destructive Seed Guard
 
 **2026-10-16 02:00 UTC**, baseline `daf63e79ae1037dbda790ceb34c5a0c4a0d84ca8`: the legacy seed now rejects hosted/Production targets before client creation and requires an explicitly opted-in, verified disposable local database and ownership marker before seed writes. Seed errors exit nonzero without raw database diagnostics. **41 focused guard cases and 1,766 full-suite units pass**, plus lint/types/build; two actual entry-point refusal checks returned the expected nonzero guard codes. No seed writes, database changes or Preview accounts were created. [Scope, exact tests and limits](DESTRUCTIVE_SEED_GUARD_REPORT.md). This supersedes the earlier missing-runtime-guard finding; actual seed fixture compatibility and an additive hosted provisioning path are not verified. **Production HOLD; hosted money-flow gates unchanged.**

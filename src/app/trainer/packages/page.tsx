@@ -91,7 +91,7 @@ export default function TrainerPackagesPage() {
   const disabled = loading || busy || uncertain || !listing
   const selected = listing?.packages.find(value => value.id === editor?.id)
 
-  return <main className="container max-w-5xl py-6 md:py-8">
+  return <div className="container max-w-5xl py-6 md:py-8">
     <Link href="/trainer/dashboard" className="mb-4 inline-flex items-center gap-2 text-sm text-slate-300"><ArrowLeft className="h-4 w-4" />Dashboard</Link>
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
       <div><h1 className="text-2xl font-semibold text-white">Programs &amp; Packages</h1><p className="mt-2 text-sm text-amber-200">Package checkout unavailable</p></div>
@@ -157,5 +157,5 @@ export default function TrainerPackagesPage() {
         </form>}
       </DialogContent>
     </Dialog>
-  </main>
+  </div>
 }

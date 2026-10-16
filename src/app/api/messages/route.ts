@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const messageSchema = z.object({ content: z.string().min(1).max(2000), recipientId: z.string().optional(), threadId: z.string().optional() })
+const messageSchema = z.object({ content: z.string().trim().min(1).max(2000), recipientId: z.string().min(1).optional(),
+  trainerProfileId: z.string().min(1).optional(), threadId: z.string().min(1).optional() })
+  .refine(data => [data.recipientId, data.trainerProfileId, data.threadId].filter(Boolean).length === 1, 'Choose one message recipient or conversation')
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,15 +68,25 @@ export async function POST(req: NextRequest) {
     const data = messageSchema.parse(body)
 
     let threadId = data.threadId
+    let recipientId = data.recipientId
+    if (data.trainerProfileId) {
+      const trainer = await prisma.trainerProfile.findFirst({
+        where: { id: data.trainerProfileId, isActive: true, approvalStatus: 'APPROVED', user: { role: 'TRAINER', deletedAt: null } },
+        select: { userId: true },
+      })
+      if (!trainer) return NextResponse.json({ error: 'Trainer is unavailable for messaging' }, { status: 404 })
+      recipientId = trainer.userId
+    }
+    if (recipientId === userId) return NextResponse.json({ error: 'Choose another recipient' }, { status: 400 })
 
     // Create thread if needed
-    if (!threadId && data.recipientId) {
+    if (!threadId && recipientId) {
       // Check if thread exists
       const existing = await prisma.messageThread.findFirst({
         where: {
           OR: [
-            { participantAId: userId, participantBId: data.recipientId },
-            { participantAId: data.recipientId, participantBId: userId },
+            { participantAId: userId, participantBId: recipientId },
+            { participantAId: recipientId, participantBId: userId },
           ],
         },
       })
@@ -83,7 +95,7 @@ export async function POST(req: NextRequest) {
         threadId = existing.id
       } else {
         const thread = await prisma.messageThread.create({
-          data: { participantAId: userId, participantBId: data.recipientId },
+          data: { participantAId: userId, participantBId: recipientId },
         })
         threadId = thread.id
       }
@@ -113,10 +125,10 @@ export async function POST(req: NextRequest) {
     })
 
     // Create notification for recipient
-    const recipientId = thread.participantAId === userId ? thread.participantBId : thread.participantAId
+    const notificationRecipientId = thread.participantAId === userId ? thread.participantBId : thread.participantAId
     await prisma.notification.create({
       data: {
-        userId: recipientId,
+        userId: notificationRecipientId,
         type: 'NEW_MESSAGE',
         title: 'New Message',
         message: data.content.substring(0, 100),
