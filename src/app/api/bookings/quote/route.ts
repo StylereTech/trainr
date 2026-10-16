@@ -25,7 +25,11 @@ export async function POST(req: NextRequest) {
       const fees = await effectiveFeeValues(tx)
       const code = normalizeCouponCode(couponCode)
       const coupon = couponCode ? await tx.coupon.findUnique({ where: { code } }) : null
-      return { serviceOfferingId, couponCode: code, currency: 'usd', ...bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(couponCode), coupon) }
+      const price = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(couponCode), coupon)
+      if (price.totalAmountInCents > 0 && (!service.trainerProfile.stripeAccountId || !service.trainerProfile.stripeOnboardingComplete)) {
+        throw new BookingPriceError('Trainer must finish Stripe setup before a paid booking can be reserved.', 409)
+      }
+      return { serviceOfferingId, couponCode: code, currency: 'usd', ...price }
     }, { isolationLevel: 'RepeatableRead' })
     return NextResponse.json(quote, { headers })
   } catch (error) {
