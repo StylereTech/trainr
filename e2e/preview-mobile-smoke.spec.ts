@@ -55,4 +55,18 @@ test.describe('isolated Preview mobile journeys', () => {
     await expectFitsViewport(page)
     await page.screenshot({ path: testInfo.outputPath('preview-mobile-trainer-packages.png'), fullPage: true })
   })
+
+  test('parent can review a shared package and sees the Stripe checkout hold', async ({ page }, testInfo) => {
+    await signIn(page, 'PARENT')
+    await page.goto('/trainers/audit-trainer-20261016')
+    await page.getByRole('tab', { name: 'Services' }).click()
+    await expect(page.getByRole('link', { name: 'Review package' }).first()).toBeVisible()
+    await page.getByRole('link', { name: 'Review package' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Review package' })).toBeVisible()
+    await expect(page.getByText('shared across your children')).toBeVisible()
+    await expect(page.getByText('Trainer must finish Stripe setup before checkout.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Pay in full with Stripe' })).toHaveCount(0)
+    await expectFitsViewport(page)
+    await page.screenshot({ path: testInfo.outputPath('preview-mobile-package-hold.png'), fullPage: true })
+  })
 })

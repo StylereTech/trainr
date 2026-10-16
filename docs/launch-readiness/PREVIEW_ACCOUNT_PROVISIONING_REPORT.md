@@ -1,12 +1,14 @@
 # Preview Account Provisioning And Authenticated Retest
 
-## Fresh Retest: 2026-10-16 08:41 UTC
+## Fresh Retest: 2026-10-16 15:41 UTC
 
 - Environment: isolated audit Preview alias above; source commit `b57a7a3308c698b743502628237f8328ea5636a9`. The three existing synthetic `PARENT`, `TRAINER`, and `ADMIN` accounts in the ignored local fixture were used. No accounts were added or credentials changed.
 - Routes and steps: each role submitted the real `/auth/signin` form, reached its own dashboard (`/parent/dashboard`, `/trainer/dashboard`, or `/admin`), reloaded successfully, and was redirected away from a forbidden role dashboard. Expected 3/3; actual **3/3 PASS**.
 - Mobile steps at 390x844: parent signed in, browsed and opened Audit Trainer, reached booking, and saw the disabled Book & Pay control with the Stripe setup hold; trainer signed in and opened dashboard and packages. Expected 2/2 without horizontal overflow; actual **2/2 PASS**. Screenshots were captured in ignored Playwright test results.
 - Focused local payment/Stripe tests: checkout, readiness, settlement, payouts, financial events, webhooks, and reconciliation, **9 files / 339 tests PASS**. The initial sandboxed invocation could not read the Vitest config (`Access is denied`); rerun outside that restriction passed. The initial browser invocation likewise failed with `ERR_NETWORK_ACCESS_DENIED`; the network-enabled rerun passed all five cases.
 - Blocker/fix status: no application fix was indicated by these retests. Trainer Stripe Connect remains incomplete, so the booking hold is expected. No sandbox charge, transfer, payout, or production money-flow signoff was performed. **Production HOLD.**
+
+The prior heading incorrectly labeled the local Pacific Vitest start time as UTC. The corrected UTC time above is seven hours later; the test outcome is unchanged.
 
 ## Scope And Attribution
 
