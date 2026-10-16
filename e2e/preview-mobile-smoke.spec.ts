@@ -46,7 +46,7 @@ test.describe('isolated Preview mobile journeys', () => {
     await page.screenshot({ path: testInfo.outputPath('preview-mobile-booking-hold.png'), fullPage: true })
   })
 
-  test('trainer can read dashboard and packages without mobile overflow', async ({ page }, testInfo) => {
+  test('trainer can read dashboard, packages and payout hold without mobile overflow', async ({ page }, testInfo) => {
     await signIn(page, 'TRAINER')
     await expect(page.getByRole('heading', { name: 'Trainer dashboard' })).toBeVisible()
     await expectFitsViewport(page)
@@ -54,6 +54,14 @@ test.describe('isolated Preview mobile journeys', () => {
     await expect(page.getByText('Synthetic', { exact: false }).first()).toBeVisible()
     await expectFitsViewport(page)
     await page.screenshot({ path: testInfo.outputPath('preview-mobile-trainer-packages.png'), fullPage: true })
+
+    await page.goto('/trainer/profile?tab=payouts')
+    await expect(page.getByRole('region', { name: 'Stripe earnings and payouts' })).toBeVisible()
+    await expect(page.getByText('Setup in progress')).toBeVisible()
+    await expect(page.getByText('Transfers not enabled')).toBeVisible()
+    await expect(page.getByText('No bank payouts reported by Stripe yet.')).toBeVisible()
+    await expectFitsViewport(page)
+    await page.screenshot({ path: testInfo.outputPath('preview-mobile-trainer-payouts-hold.png'), fullPage: true })
   })
 
   test('parent can review a shared package and sees the Stripe checkout hold', async ({ page }, testInfo) => {
