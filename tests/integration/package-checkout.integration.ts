@@ -84,7 +84,7 @@ beforeEach(async () => {
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `package-checkout-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_settlement', timeZone: 'UTC',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_settlement', stripeOnboardingComplete: true, timeZone: 'UTC',
       sports: { create: { sportId } }, serviceOfferings: { create: { title: 'Training', sportId, priceInCents: 3000 } } } } },
     include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainerId = trainer.id; trainerProfileId = trainer.trainerProfile!.id
@@ -142,6 +142,25 @@ describe('public package checkout route with local SQL and simulated provider', 
     expect(JSON.stringify(data)).not.toContain('acct_settlement'); expect(JSON.stringify(data)).not.toContain('example.test')
     expect(await readPurchase()).toEqual(saved); expect(await independent.packagePurchase.count()).toBe(1)
     await noProvider()
+  })
+  it('holds both an existing pending purchase and a new offer when Connect becomes restricted', async () => {
+    const saved = await readPurchase()
+    await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { stripeOnboardingComplete: false } })
+    for (const query of [`purchaseId=${purchaseId}`, `packageId=${saved.packageId}`]) {
+      const response = await review(query)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ canCheckout: false, hold: expect.stringContaining('Stripe setup') })
+    }
+    await noProvider()
+  })
+  it('recovers a stale saved Connect flag through the fresh provider checkout check', async () => {
+    await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: { stripeOnboardingComplete: false } })
+    expect(await (await review(`purchaseId=${purchaseId}`)).json()).toMatchObject({ canCheckout: false, hold: expect.stringContaining('Stripe setup') })
+    const response = await post(await request())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ purchaseId, checkoutUrl: expect.stringMatching(/^https:\/\/checkout\.stripe\.com\//) })
+    expect(provider.account).toHaveBeenCalled()
+    expect((await prisma.trainerProfile.findUniqueOrThrow({ where: { id: trainerProfileId } })).stripeOnboardingComplete).toBe(true)
   })
   it('recovers the original owned purchase by request identity across reloads', async () => {
     const saved = await readPurchase()

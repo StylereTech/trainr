@@ -43,7 +43,7 @@ export async function readPackageOffer(userId: string, packageId: string) {
     const terms = catalogTerms(value), fees = await effectiveFeeValues(tx)
     const hold = !canonicalTimeZone(value.trainerProfile.timeZone) ? 'Trainer schedule time zone needs correction before checkout.' :
       value.priceInCents < fees.minBookingAmountCents ? 'Package price is below the platform minimum.' :
-      !value.trainerProfile.stripeAccountId ? 'Trainer must finish Stripe setup before checkout.' : null
+      !value.trainerProfile.stripeAccountId || !value.trainerProfile.stripeOnboardingComplete ? 'Trainer must finish Stripe setup before checkout.' : null
     return { buyerId: userId, packageId, purchaseId: null, catalogRevision: value.updatedAt.toISOString(), terms,
       amountInCents: value.priceInCents, trainerName: `${value.trainerProfile.firstName} ${value.trainerProfile.lastName}`.trim(),
       trainerSlug: value.trainerProfile.slug, status: null, hold, canCheckout: !hold, canBuyAgain: false }
@@ -78,6 +78,9 @@ export async function preparePackagePurchase(userId: string, raw: unknown) {
     }
     const fees = await effectiveFeeValues(tx)
     if (value.priceInCents < fees.minBookingAmountCents) throw new PackagePurchaseError('Package price is below the platform minimum.')
+    if (!trainer.stripeAccountId || !trainer.stripeOnboardingComplete) {
+      throw new PackagePurchaseError('Trainer must finish Stripe setup before checkout.')
+    }
     const split = calculateSplit(value.priceInCents, fees.platformCommissionPercent)
     return tx.packagePurchase.create({ data: {
       parentProfileId: parent.id, trainerProfileId: trainer.id, packageId: value.id, requestId, payloadHash,

@@ -40,6 +40,7 @@ export async function readPackageCheckoutReview(purchaseId: string, userId: stri
     let hold: string | null = null
     try { assertPayable(snapshot) }
     catch (error) { if (error instanceof PackagePurchaseError) hold = error.message; else throw error }
+    if (!hold && !snapshot.purchase.trainerProfile.stripeOnboardingComplete) hold = 'Trainer must finish Stripe setup before checkout.'
     const { purchase, terms } = snapshot
     return { buyerId: userId, packageId: purchase.packageId, purchaseId, catalogRevision: purchase.catalogRevision.toISOString(), terms,
       amountInCents: purchase.amountInCents, trainerName: `${purchase.trainerProfile.firstName} ${purchase.trainerProfile.lastName}`.trim(),

@@ -33,7 +33,7 @@ beforeEach(async () => {
   const admin = await prisma.user.create({ data: { email: `closure-admin-${key}@example.test`, role: 'ADMIN', passwordHash: 'not-a-login' } }); adminId = admin.id; ids.push(adminId)
   const sport = await prisma.sport.create({ data: { name: key, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `closure-trainer-${key}@example.test`, role: 'TRAINER', passwordHash: 'not-a-login',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
       sports: { create: { sportId } }, serviceOfferings: { create: { title: 'Synthetic service', priceInCents: 6000, sportId } } } } },
     include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainerId = trainer.id; ids.push(trainerId)

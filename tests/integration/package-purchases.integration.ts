@@ -22,7 +22,7 @@ beforeEach(async () => {
   const key = randomUUID()
   const sport = await prisma.sport.create({ data: { name: `Purchase ${key}`, slug: key } }); sportId = sport.id
   const trainer = await prisma.user.create({ data: { email: `purchase-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', sports: { create: { sportId } },
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true, sports: { create: { sportId } },
       serviceOfferings: { create: { title: 'Training', sportId, priceInCents: 6000 } } } } }, include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainerId = trainer.id; trainerProfileId = trainer.trainerProfile!.id; serviceId = trainer.trainerProfile!.serviceOfferings[0].id
   const parent = await prisma.user.create({ data: { email: `purchase-parent-${key}@example.test`, passwordHash: 'not-a-login', role: 'PARENT', parentProfile: { create: {
@@ -43,6 +43,12 @@ afterEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); await independent.$disconnect() })
 
 describe('real SQL family-shared pending package purchases', () => {
+  it.each(['missing', 'incomplete'])('does not create a new purchase when trainer Connect is %s', async condition => {
+    await prisma.trainerProfile.update({ where: { id: trainerProfileId }, data: condition === 'missing'
+      ? { stripeAccountId: null, stripeOnboardingComplete: false } : { stripeOnboardingComplete: false } })
+    await expect(preparePackagePurchase(parentId, input())).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Stripe setup') })
+    expect(await independent.packagePurchase.count({ where: { parentProfileId } })).toBe(0)
+  })
   it('persists owned reviewed terms independently without a child, charge, booking or wallet entry', async () => {
     const saved = await preparePackagePurchase(parentId, input())
     const reloaded = await independent.packagePurchase.findUniqueOrThrow({ where: { id: saved.id } })
