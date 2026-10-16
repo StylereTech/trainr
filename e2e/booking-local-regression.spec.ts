@@ -56,6 +56,11 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
             return route.fulfill({ status: 201, json: saved })
           }
           if (path === '/api/bookings') return route.fulfill({ json: { bookings: saved ? [saved] : [] } })
+          if (path === '/api/bookings/booking' && route.request().method() === 'PATCH') {
+            expect(route.request().postDataJSON()).toEqual({ action: 'cancel' })
+            saved = { ...saved, status: 'CANCELLED' }
+            return route.fulfill({ json: { ...saved, checkoutClosure: 'not_required' } })
+          }
           if (path === '/api/dashboard/bookings') return route.fulfill({ json: dashboardFixture(saved ? [saved] : [], route.request().url()) })
           if (path === '/api/payments/checkout') {
             checkoutCalls++
@@ -105,6 +110,11 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
           await page.getByRole('button', { name: 'Pay now', exact: true }).click()
           await expect(page.getByRole('heading', { name: 'Checkout could not be opened', exact: true })).toBeVisible()
           expect(checkoutCalls).toBe(2)
+          page.once('dialog', dialog => dialog.accept())
+          await page.getByRole('button', { name: 'Cancel reservation' }).click()
+          await expect(page.getByRole('tab', { name: 'Open (0)' })).toBeVisible()
+          await expect(page.getByText('Cancellation is not a refund receipt.', { exact: false })).toBeVisible()
+          expect(saved.status).toBe('CANCELLED')
         }
         await page.screenshot({ path: testInfo.outputPath('booking-recovery.png') })
       })

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { dashboardFixture } from './fixtures/dashboard'
 
 const previewUrl = 'https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app'
 
@@ -77,5 +78,35 @@ test.describe('isolated Preview mobile journeys', () => {
     await expect(page.getByRole('button', { name: 'Pay in full with Stripe' })).toHaveCount(0)
     await expectFitsViewport(page)
     await page.screenshot({ path: testInfo.outputPath('preview-mobile-package-hold.png'), fullPage: true })
+  })
+
+  test('parent can release an unpaid reservation without claiming a refund', async ({ page }, testInfo) => {
+    await signIn(page, 'PARENT')
+    const booking = {
+      id: 'synthetic-unpaid-reservation', date: '2030-11-04', startTime: '09:00', endTime: '10:00', timeZone: 'UTC',
+      startsAt: '2030-11-04T09:00:00.000Z', endsAt: '2030-11-04T10:00:00.000Z', status: 'PENDING',
+      totalAmountInCents: 5000, trainerPayoutInCents: 4250, payment: null, creditFunding: null,
+      serviceOffering: { title: 'Synthetic Basketball Session', durationMinutes: 60 },
+      trainerProfile: { firstName: 'Audit', lastName: 'Trainer', paymentReady: true },
+      athleteProfile: { firstName: 'Audit', lastName: 'Child' },
+    }
+    let cancelCalls = 0
+    await page.route('**/api/dashboard/bookings?*', route => route.fulfill({ json: dashboardFixture([booking], route.request().url()) }))
+    await page.route('**/api/bookings/synthetic-unpaid-reservation', route => {
+      expect(route.request().method()).toBe('PATCH')
+      expect(route.request().postDataJSON()).toEqual({ action: 'cancel' })
+      cancelCalls++
+      booking.status = 'CANCELLED'
+      return route.fulfill({ json: { id: booking.id, status: booking.status, checkoutClosure: 'not_required' } })
+    })
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Cancel reservation' })).toBeVisible()
+    await expectFitsViewport(page)
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: 'Cancel reservation' }).click()
+    await expect(page.getByRole('tab', { name: 'Open (0)' })).toBeVisible()
+    await expect(page.getByText('Cancellation is not a refund receipt.', { exact: false })).toBeVisible()
+    expect(cancelCalls).toBe(1)
+    await page.screenshot({ path: testInfo.outputPath('preview-mobile-unpaid-reservation-cancel.png'), fullPage: true })
   })
 })

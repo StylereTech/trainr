@@ -55,9 +55,12 @@ export default function ParentDashboard() {
   const reloadCancellation = async () => {
     if (await dashboard.reload()) { setCancelNeedsReload(false); setCancelError('') }
   }
-  const cancelCreditSession = async (bookingId: string) => {
+  const cancelSession = async (bookingId: string, funding: 'credit' | 'unpaid') => {
     if (cancellationInFlight.current || cancelNeedsReload || checkoutInFlight.current) return
-    if (!window.confirm('Cancel this session? Parent cancellations at least 24 hours before the start return one session credit. Later cancellations use the credit. Original expiry and package payment restrictions still apply. No cash refund will be issued.')) return
+    const question = funding === 'credit'
+      ? 'Cancel this session? Parent cancellations at least 24 hours before the start return one session credit. Later cancellations use the credit. Original expiry and package payment restrictions still apply. No cash refund will be issued.'
+      : 'Cancel this unpaid reservation? If checkout was opened elsewhere or a charge appears, cancellation is not a refund receipt. Contact support to review any payment.'
+    if (!window.confirm(question)) return
     cancellationInFlight.current = true
     setCancellingId(bookingId); setCancelError(''); setCancelNeedsReload(true)
     try {
@@ -67,7 +70,11 @@ export default function ParentDashboard() {
       if (!response.ok || body?.id !== bookingId || body?.status !== 'CANCELLED') throw new Error(typeof body?.error === 'string' ? body.error : 'Cancellation could not be verified. Refresh before another action.')
       if (await dashboard.reload()) {
         setCancelNeedsReload(false)
-        toast({ title: 'Session cancelled', description: 'The saved credit result is in your past sessions. No cash refund was issued.' })
+        toast({ title: funding === 'credit' ? 'Session cancelled' : 'Reservation cancelled', description: funding === 'credit'
+          ? 'The saved credit result is in your past sessions. No cash refund was issued.'
+          : body.checkoutClosure === 'review_required'
+            ? 'Checkout needs support review. Cancellation is not a refund receipt.'
+            : 'The reservation is in your past sessions. Cancellation is not a refund receipt.' })
       } else setCancelError('Cancellation received, but current booking state could not be loaded. Refresh before another action.')
     } catch (error) { setCancelError(error instanceof Error ? error.message : 'Cancellation could not be verified. Refresh before another action.') }
     finally { cancellationInFlight.current = false; setCancellingId(null) }
@@ -211,8 +218,11 @@ export default function ParentDashboard() {
                       </div>
                       <div className="md:text-right">
                         <div className="font-semibold text-white">{b.creditFunding ? '1 session credit' : formatCurrency(b.totalAmountInCents)}</div>
-                        {b.creditFunding && b.status === 'CONFIRMED' && <Button size="sm" variant="outline" className="mt-2" disabled={!!cancellingId || cancelNeedsReload || !!startingCheckoutId} onClick={() => void cancelCreditSession(b.id)}>
+                        {b.creditFunding && b.status === 'CONFIRMED' && <Button size="sm" variant="outline" className="mt-2" disabled={!!cancellingId || cancelNeedsReload || !!startingCheckoutId} onClick={() => void cancelSession(b.id, 'credit')}>
                           {cancellingId === b.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <XCircle className="mr-1 h-3 w-3" />}Cancel session
+                        </Button>}
+                        {!b.creditFunding && b.status === 'PENDING' && !b.payment && <Button size="sm" variant="outline" className="mt-2" disabled={!!cancellingId || cancelNeedsReload || !!startingCheckoutId} onClick={() => void cancelSession(b.id, 'unpaid')}>
+                          {cancellingId === b.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <XCircle className="mr-1 h-3 w-3" />}Cancel reservation
                         </Button>}
                         {b.status === 'PENDING' && <div className="mt-1 text-xs text-slate-400">{b.payment?.status === 'SUCCEEDED' ? 'Payment received; confirmation pending' : b.payment?.status === 'PROCESSING' ? 'Payment processing' : 'Awaiting payment'}</div>}
                         {canStartCheckout(b) && (
