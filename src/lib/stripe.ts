@@ -84,9 +84,18 @@ export async function createConnectedAccount(trainerId: string, email: string, i
     type: 'express',
     country: 'US',
     email,
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
     metadata: { trainerId },
   }, { idempotencyKey, timeout: 15000, maxNetworkRetries: 0 })
   return account
+}
+
+export async function requestMissingConnectCapabilities(account: Pick<Stripe.Account, 'id' | 'capabilities'>) {
+  for (const capability of ['card_payments', 'transfers'] as const) {
+    if (account.capabilities?.[capability]) continue
+    await stripe.accounts.updateCapability(account.id, capability, { requested: true },
+      { idempotencyKey: `trainr-connect-${account.id}-${capability}`, timeout: 15000, maxNetworkRetries: 0 })
+  }
 }
 
 export async function createAccountLink(accountId: string, returnUrl: string, refreshUrl: string) {

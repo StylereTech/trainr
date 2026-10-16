@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/auth'
 import { hasStripeTransferCapability, isStripeAccountReady } from '@/lib/stripe-account'
-import { createAccountLink, createDashboardLink, stripeRuntimeStatus } from '@/lib/stripe'
+import { createAccountLink, createDashboardLink, requestMissingConnectCapabilities, stripeRuntimeStatus } from '@/lib/stripe'
 import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { ConnectAccountError, currentConnectTrainer, ensureConnectAccount, verifiedConnectAccount } from '@/lib/connect-accounts'
 
@@ -49,8 +49,12 @@ export async function POST(request: NextRequest) {
     if (!stripeRuntimeStatus().secretConfigured) return json({ error: 'Stripe is not configured on this runtime' }, 503)
     const initial = await currentConnectTrainer(actor.id)
     const accountId = await ensureConnectAccount(actor.id)
-    const account = await verifiedConnectAccount(actor.id, accountId)
+    let account = await verifiedConnectAccount(actor.id, accountId)
     if (account.type !== 'express') throw new ConnectAccountError('This existing Stripe account requires support. Automatic replacement is disabled.')
+    if (!isStripeAccountReady(account)) {
+      await requestMissingConnectCapabilities(account)
+      account = await verifiedConnectAccount(actor.id, accountId)
+    }
     const ready = isStripeAccountReady(account)
     const link = ready ? await createDashboardLink(accountId) : await createAccountLink(accountId,
       toAbsoluteAppUrl('/trainer/dashboard?stripe=complete'), toAbsoluteAppUrl('/trainer/dashboard?stripe=refresh'))

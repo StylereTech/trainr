@@ -9,9 +9,10 @@ import { GET, POST } from '@/app/api/payments/connect/route'
 import { POST as legacyPost, GET as legacyGet } from '@/app/api/trainer/stripe-connect/route'
 import { NextRequest } from 'next/server'
 
-const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), link: vi.fn(), dashboard: vi.fn(), auth: vi.fn(), configured: vi.fn() }))
+const provider = vi.hoisted(() => ({ create: vi.fn(), retrieve: vi.fn(), requestCapabilities: vi.fn(), link: vi.fn(), dashboard: vi.fn(), auth: vi.fn(), configured: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: provider.auth }))
-vi.mock('@/lib/stripe', () => ({ createConnectedAccount: provider.create, createAccountLink: provider.link, createDashboardLink: provider.dashboard,
+vi.mock('@/lib/stripe', () => ({ createConnectedAccount: provider.create, requestMissingConnectCapabilities: provider.requestCapabilities,
+  createAccountLink: provider.link, createDashboardLink: provider.dashboard,
   stripe: { accounts: { retrieve: provider.retrieve } }, stripeRuntimeStatus: provider.configured }))
 vi.mock('@/lib/app-url', () => ({ toAbsoluteAppUrl: (path: string) => `https://configured.example.test${path}` }))
 const independent = new PrismaClient({ datasourceUrl: process.env.TEST_DATABASE_URL })
@@ -47,6 +48,7 @@ beforeEach(async () => {
   provider.retrieve.mockImplementation(async id => ready(id))
   provider.link.mockResolvedValue({ url: 'https://connect.stripe.com/synthetic-onboarding' })
   provider.dashboard.mockResolvedValue({ url: 'https://connect.stripe.com/synthetic-dashboard' })
+  provider.requestCapabilities.mockResolvedValue(undefined)
 })
 afterEach(async () => {
   if (!verified || !userId) return
@@ -112,6 +114,7 @@ describe('real PostgreSQL Connect identity', () => {
     expect(await read()).toMatchObject({ stripeAccountId: 'acct_existing', stripeOnboardingComplete: false })
     expect(await (await legacyGet(request())).json()).toMatchObject({ transfersEnabled: false, onboardingComplete: false })
     expect(await (await POST(request())).json()).toMatchObject({ onboardingUrl: 'https://connect.stripe.com/synthetic-onboarding', stripeOnboardingComplete: false })
+    expect(provider.requestCapabilities).toHaveBeenCalledWith(expect.objectContaining({ id: 'acct_existing' }))
     expect(provider.create).not.toHaveBeenCalled()
     expect(provider.dashboard).not.toHaveBeenCalled()
     provider.retrieve.mockResolvedValue(ready())
