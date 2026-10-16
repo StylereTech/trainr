@@ -1,11 +1,10 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
-
-const prisma = new PrismaClient()
+import { runGuardedSeed, SeedSafetyError } from '../scripts/seed-safety'
 
 const SALT_ROUNDS = 10
 
-async function main() {
+async function main(prisma: PrismaClient) {
   console.log('🌱 Seeding database...')
 
   // Clean existing data (order matters due to foreign keys)
@@ -457,6 +456,8 @@ async function main() {
   console.log('\n🎉 All passwords follow pattern: [Role]123!')
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect())
+runGuardedSeed(process.env, url => new PrismaClient({ datasourceUrl: url }), main)
+  .catch(error => {
+    console.error(error instanceof SeedSafetyError ? error.message : 'SEED_FAILED')
+    process.exitCode = 1
+  })

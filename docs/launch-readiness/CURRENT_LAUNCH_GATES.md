@@ -1,5 +1,9 @@
 # Current Launch Gates
 
+## Destructive Seed Guard
+
+**2026-10-16 02:00 UTC**, baseline `daf63e79ae1037dbda790ceb34c5a0c4a0d84ca8`: the legacy seed now rejects hosted/Production targets before client creation and requires an explicitly opted-in, verified disposable local database and ownership marker before seed writes. Seed errors exit nonzero without raw database diagnostics. **41 focused guard cases and 1,766 full-suite units pass**, plus lint/types/build; two actual entry-point refusal checks returned the expected nonzero guard codes. No seed writes, database changes or Preview accounts were created. [Scope, exact tests and limits](DESTRUCTIVE_SEED_GUARD_REPORT.md). This supersedes the earlier missing-runtime-guard finding; actual seed fixture compatibility and an additive hosted provisioning path are not verified. **Production HOLD; hosted money-flow gates unchanged.**
+
 ## Latest Account And Quality Retest
 
 **2026-10-16 01:43 UTC**, source `04682831eaaed9589969ada11f01314ad6446b5c`: full local `npm run check` **PASS**, exit 0, including **1,725/1,725 units**, lint (42 warnings), types and build. The unchanged focused timing files also passed 22/22; intermittent failure root cause remains OPEN. Fresh full-tree npm audit still reports **8 high / 0 critical**, exit 1. The user-supplied legacy parent/trainer/admin credentials failed in Preview; a fresh read-only query confirmed none of those three emails exists in the isolated staging database. Additive account-creation approval remains pending. The unsafe legacy database runbook was corrected; destructive demo seed was not run and has no new runtime guard. [Exact evidence, commands, limitations and remaining work](ACCOUNT_PREREQUISITES_RETEST_REPORT.md). **Production HOLD.** Dated entries below are historical, not a replacement for this latest quality result.

@@ -1,5 +1,7 @@
 # Account Prerequisites And Quality Retest
 
+Follow-up 2026-10-16 02:00 UTC: the runtime seed guard missing during this earlier pass is now implemented and locally tested. See [Destructive Seed Guard](DESTRUCTIVE_SEED_GUARD_REPORT.md). The account-existence and pending-provisioning findings below are unchanged.
+
 - Recorded: 2026-10-16 01:43 UTC (2026-10-15 local date).
 - Source: `04682831eaaed9589969ada11f01314ad6446b5c`, audit branch `codex/payment-readiness-20261006`.
 - Environments: isolated audit Preview for account existence/login checks; Windows local checkout for quality tests. No Production or real-money transaction.

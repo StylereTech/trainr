@@ -2,7 +2,7 @@
 
 **Not a production-readiness signoff.** Database connectivity is only one prerequisite. Use [Current Launch Gates](launch-readiness/CURRENT_LAUNCH_GATES.md) and its dated evidence for authentication, booking, Stripe, security and release status.
 
-**Do not run `npm run db:seed` against Preview, Production or any database containing records that must be retained.** The legacy demo seed starts with unfiltered deletions and installs fixed-password demo users. It is not an additive account-provisioning command. Supplying its documented credentials does not create those accounts in another database.
+**Do not run `npm run db:seed` against Preview, Production or any database containing records that must be retained.** The guarded legacy demo seed still performs unfiltered deletions and installs fixed-password demo users after its disposable-local checks pass. It is not an additive account-provisioning command. Supplying its documented credentials does not create those accounts in another database.
 
 ## 1) Exact DB requirements
 
@@ -128,7 +128,16 @@ npx prisma migrate status
 
 ### Test data and accounts
 
-Do not use the legacy demo seed to repair a missing account. Its destructive behavior remains in the code; this runbook does not add a runtime guard. Any use requires an explicitly disposable local database and approval to replace its records. The seed's compatibility with the current financial schema is not verified by this runbook.
+Do not use the legacy demo seed to repair a missing account. Its destructive fixture behavior remains, but `scripts/seed-safety.ts` now rejects hosted/Production environments and verifies the explicitly opted-in disposable local target before invoking any seed write. The seed's compatibility with the current financial schema is not verified by this guard.
+
+For an independently authorized, disposable local fixture database only, the guard requires all of the following:
+
+- Exported `DATABASE_URL` using PostgreSQL on `127.0.0.1` or `localhost`, user `trainr_seed`, database `trainr_seed_<suffix>` and schema `public`. Only `schema`, `connection_limit`, `pool_timeout` and `connect_timeout` query parameters are accepted, with no duplicates or connection-routing overrides.
+- `TRAINR_ALLOW_DESTRUCTIVE_SEED` exactly equal to that database's name; this explicitly acknowledges replacement of its records. A generic `1` is not accepted.
+- No `VERCEL`, `VERCEL_ENV` or `TRAINR_STAGING_INIT` value, and no `NODE_ENV=production`.
+- The connected database's actual name, current role and schema must match the expected target. `public.trainr_seed_guard` must already contain exactly one row whose `purpose` is `disposable local demo seed`.
+
+The guard does not create the database, role, schema or ownership marker, and must not be disabled to make a hosted seed work. Never install this marker in Preview, Production or a database whose records must be retained. Seed failures exit nonzero with a sanitized error code. This command remains inappropriate for normal account provisioning; use a reviewed additive workflow instead.
 
 Preview test-account creation must be separately authorized, additive and limited to the intended environment. Never change an existing user's role or password to manufacture a test login, and never mark synthetic financial records paid as a substitute for Stripe evidence. Do not publish credentials in reports or commits.
 
