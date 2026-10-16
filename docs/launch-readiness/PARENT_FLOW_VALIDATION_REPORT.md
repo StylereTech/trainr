@@ -1,5 +1,7 @@
 # Parent Flow Validation Report
 
+**2026-10-16 09:44 UTC Preview package retest:** signed-in synthetic parent viewed `Synthetic Family Basketball Pack` ($90, two credits shared across children). Its restricted trainer Connect account now yields a clear setup hold and no purchase action; package history stayed at 0. [Commit, routes, exact steps and test limits](PACKAGE_CONNECT_READINESS_REPORT.md). Actual paid package purchase and credit use remain untested.
+
 **2026-10-16 09:21 UTC Preview retest:** synthetic parent `audit.parent.20261016@example.test` selected the $50 service on the deployed audit branch. Quote returned a Connect setup error, the Book & Pay button was disabled, and the dashboard still showed 0 bookings. A later copy deploy showed `Retry check` and omitted checkout-payment text without a valid quote. [Commits, routes, exact steps and limits](PAID_BOOKING_CONNECT_GUARD_REPORT.md#quote-and-parent-ui-follow-up). Connect must finish before any paid booking attempt; payment remains untested.
 
 **2026-10-16 Preview retest:** approved synthetic parent login, athlete form save, sign-out/re-login/refresh persistence, trainer discovery, service/package visibility, date/time selection, and $50 booking review pass. Book & Pay requires user handoff; payment remains untested. [Account, source SHA, exact steps and evidence](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md). Earlier account-unavailable notes are historical.
