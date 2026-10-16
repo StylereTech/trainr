@@ -1,5 +1,7 @@
 # Current Launch Gates
 
+**2026-10-16 10:35 UTC:** [Stripe Connect refreshed status](STRIPE_CONNECT_READINESS_REPORT.md) confirms 30/30 authenticated Preview role checks, a linked but still restricted test connected account, and zero hosted booking/payment/package-purchase records. A fresh Stripe test onboarding page is open for user completion. No charge, webhook settlement, transfer or payout has occurred. **Production HOLD.**
+
 **2026-10-16 10:13 UTC:** [Payment UI/browser retest](PAYMENT_UI_BROWSER_RETEST_REPORT.md) passes 34/34 selected local Chrome cases in one run after correcting the missing bundled-browser harness issue; database fixtures are 0 and local services stopped. Fresh dependency audit remains 8 high full-tree / 6 high production-classified, with no patched `braces` release in the reviewed advisory. Hosted paid Checkout/transfer/payout and refund-policy execution remain unverified. **Production HOLD.**
 
 **2026-10-16 09:59 UTC:** [Guarded package SQL retest](PACKAGE_CONNECT_READINESS_REPORT.md#guarded-postgresql-retest-2026-10-16-0959-utc) now passes 444/444 focused and 1,212/1,212 full integration cases on the independently verified disposable local PostgreSQL database; six fixture categories returned 0 and the server is stopped. This supersedes the 09:44 "not run" SQL status below. Provider behavior is mocked in these tests. Actual sandbox checkout, signed webhook, transfer, payout and refund-policy implementation remain open. **Production HOLD.**
