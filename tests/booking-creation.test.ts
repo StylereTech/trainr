@@ -21,7 +21,7 @@ beforeEach(() => {
     parent: { id: 'parent', user: { email: 'parent@example.test' } },
     service: { id: 'service', trainerProfileId: 'trainer', sportId: 'sport', title: 'Training', type: 'INDIVIDUAL',
       priceInCents: 6000, durationMinutes: 60, maxParticipants: 1, isActive: true,
-      sport: { isActive: true }, trainerProfile: { id: 'trainer', userId: 'trainer-user', timeZone: 'UTC', isActive: true, approvalStatus: 'APPROVED', sports: [{ sportId: 'sport' }] } },
+      sport: { isActive: true }, trainerProfile: { id: 'trainer', userId: 'trainer-user', timeZone: 'UTC', isActive: true, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true, sports: [{ sportId: 'sport' }] } },
     athletes: ['athlete', 'athlete2', 'athlete3'].map((id) => ({ id, parentProfileId: 'parent', sports: [{ sportId: 'sport' }] })),
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
@@ -81,6 +81,15 @@ beforeEach(() => {
 })
 
 describe('atomic reservation creation', () => {
+  it.each(['missing', 'incomplete'])('does not reserve or consume a coupon when trainer payment setup is %s', async condition => {
+    if (condition === 'missing') state.service.trainerProfile.stripeAccountId = null
+    else state.service.trainerProfile.stripeOnboardingComplete = false
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Stripe setup') })
+    expect(state.bookings).toHaveLength(0)
+    expect(state.requests).toHaveLength(0)
+    expect(state.notifications).toHaveLength(0)
+    expect(state.coupon.currentUses).toBe(0)
+  })
   it.each([undefined, 0, 5999, 6001])('rejects missing or changed accepted price %s without writes', async expectedTotalInCents => {
     await expect(reserve({ expectedTotalInCents })).rejects.toMatchObject({ status: 409, code: 'PRICE_CHANGED' })
     expect(state.bookings).toHaveLength(0)
@@ -106,6 +115,8 @@ describe('atomic reservation creation', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2030-11-04T08:45:00Z'))
     state.coupon.discountPercent = 100
+    state.service.trainerProfile.stripeAccountId = null
+    state.service.trainerProfile.stripeOnboardingComplete = false
     await expect(reserve({ couponCode: 'SAVE10' })).resolves.toMatchObject({ status: 'CONFIRMED', totalAmountInCents: 0 })
     expect(state.coupon.currentUses).toBe(1)
   })

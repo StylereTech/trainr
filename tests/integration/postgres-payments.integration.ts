@@ -63,7 +63,7 @@ beforeEach(async () => {
     include: { parentProfile: { include: { athletes: true } } } })
   createdParents.push(parent.id)
   const trainer = await prisma.user.create({ data: { email: `${id}-trainer@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, timeZone: 'UTC', approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: id, timeZone: 'UTC', approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
       sports: { create: { sportId: sport.id } },
       serviceOfferings: { create: { title: 'Synthetic session', priceInCents: 6000, durationMinutes: 60, sportId: sport.id } },
       availabilitySlots: { create: { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' } } } } },

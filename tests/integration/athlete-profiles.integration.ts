@@ -41,6 +41,7 @@ async function remove(id: string, revision: string, actor = parent) { return DEL
 async function reservable() {
   const trainer = await user('TRAINER')
   const profile = await prisma.trainerProfile.findUniqueOrThrow({ where: { userId: trainer.id } })
+  await prisma.trainerProfile.update({ where: { id: profile.id }, data: { stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true } })
   await prisma.trainerSport.create({ data: { trainerProfileId: profile.id, sportId: sport.id } })
   await prisma.availabilitySlot.create({ data: { trainerProfileId: profile.id, dayOfWeek: 1, startTime: '09:00', endTime: '17:00' } })
   return prisma.serviceOffering.create({ data: { trainerProfileId: profile.id, sportId: sport.id, title: 'Synthetic session', durationMinutes: 60, priceInCents: 6000 } })

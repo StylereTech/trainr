@@ -75,6 +75,9 @@ export async function createBooking(userId: string, input: BookingInput) {
       throw error
     }
     if (data.expectedTotalInCents !== total) throw new BookingCreationError('Price changed or needs confirmation. Review the latest total before booking.', 409, 'PRICE_CHANGED')
+    if (total > 0 && (!service.trainerProfile.stripeAccountId || !service.trainerProfile.stripeOnboardingComplete)) {
+      throw new BookingCreationError('Trainer must finish Stripe setup before a paid booking can be reserved.', 409)
+    }
     if (coupon) await tx.coupon.update({ where: { id: coupon.id }, data: { currentUses: { increment: 1 } } })
     const { platformFee, trainerShare } = calculateSplit(total, fees.platformCommissionPercent)
     const free = total === 0

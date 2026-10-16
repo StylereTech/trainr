@@ -30,7 +30,7 @@ beforeEach(async () => {
   const key = randomUUID()
   sportId = (await prisma.sport.create({ data: { name: `Credit ledger ${key}`, slug: key } })).id
   const trainer = await prisma.user.create({ data: { email: `credit-trainer-${key}@example.test`, passwordHash: 'not-a-login', role: 'TRAINER',
-    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', timeZone: 'UTC',
+    trainerProfile: { create: { firstName: 'Synthetic', lastName: 'Trainer', slug: key, approvalStatus: 'APPROVED', timeZone: 'UTC', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true,
       sports: { create: { sportId } }, serviceOfferings: { create: { title: 'Training', sportId, priceInCents: 3000 } } } } },
     include: { trainerProfile: { include: { serviceOfferings: true } } } })
   trainerId = trainer.id; trainerProfileId = trainer.trainerProfile!.id; serviceId = trainer.trainerProfile!.serviceOfferings[0].id
