@@ -1,5 +1,7 @@
 # UI/UX Production Audit Report
 
+**2026-10-16 10:13 UTC local browser retest:** booking form layout at 320/390/1024/1440 px, long-name and empty-state geometry, booking error/free/coupon states, and trainer Connect panels contribute to [34/34 selected Chrome passes](PAYMENT_UI_BROWSER_RETEST_REPORT.md). Desktop screenshot reviewed; this does not prove every mobile/desktop view or actual paid Stripe Checkout. **Overall HOLD.**
+
 **2026-10-16 09:21 UTC Preview retest:** signed-in parent booking review for a restricted trainer now states the Connect setup requirement and disables Book & Pay; after `c5817dd`, the retry label is generic and no checkout-collection sentence appears without a valid quote. [Exact deployed steps and verification limits](PAID_BOOKING_CONNECT_GUARD_REPORT.md#quote-and-parent-ui-follow-up). Other mobile/desktop views and the actual paid path were not retested in this pass.
 
 **2026-10-16 authenticated Preview audit:** parent/trainer/admin screens are now reachable with approved fixtures. Found and fixed nested main landmarks, missing mobile admin navigation, admin implementation-status copy, and the public-profile messaging recipient mismatch with silent send failure. Parent booking review fits the observed mobile viewport without horizontal overflow; payment submission is a user handoff. [Exact source, steps, local tests and hosted retest status](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md).
