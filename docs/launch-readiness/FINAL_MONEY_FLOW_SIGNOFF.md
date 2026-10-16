@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+**2026-10-16 09:21 UTC:** the [deployed parent quote follow-up](PAID_BOOKING_CONNECT_GUARD_REPORT.md#quote-and-parent-ui-follow-up) blocks a known-unready trainer before payment UI action and leaves 0 parent bookings. It is not payment proof; the sandbox account remains restricted, and no charge, signed webhook, destination transfer, refund or bank payout was completed. **NOT SIGNED OFF.**
+
 **2026-10-16 08:54 UTC:** [Paid booking Connect guard](PAID_BOOKING_CONNECT_GUARD_REPORT.md) is pushed at `e1765b79f12c97e80bbae66377d8109a15614614` and Ready in audit Preview. It prevents known-unready paid reservations before coupon or booking writes; local regression and build gates pass after a documented nonrepeating timeout. No hosted booking write, Checkout, signed webhook, transfer, refund or payout was performed in this pass. **NOT SIGNED OFF.**
 
 **2026-10-16 status: NOT SIGNED OFF.** Approved Preview accounts and authenticated workflow testing are now available, with a real sandbox Connect account, but onboarding completion, Book & Pay, successful payment/webhook/transfer, shared-credit use, refund execution, and bank payouts are not verified. [Current proof and pending user steps](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md). No Production money movement occurred.

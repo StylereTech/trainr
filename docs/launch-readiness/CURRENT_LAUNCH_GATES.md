@@ -1,5 +1,7 @@
 # Current Launch Gates
 
+**2026-10-16 09:21 UTC:** [Parent quote/UI follow-up](PAID_BOOKING_CONNECT_GUARD_REPORT.md#quote-and-parent-ui-follow-up) is pushed at `c5817ddb5774bdf5b8fa4358a1ee401bbfdc2eb5` and Ready in audit Preview. Full local check passes 1,787 units, lint/types/build; signed-in browser confirms the restricted trainer's $50 service now shows a clear Connect error, disabled Book & Pay, and no false Stripe payment copy. Parent dashboard remains 0 bookings. Complete Connect onboarding before attempting sandbox payment. **Production HOLD.**
+
 ## Paid Booking Connect Guard
 
 **2026-10-16 08:54 UTC**, source `e1765b79f12c97e80bbae66377d8109a15614614`: a paid reservation now fails before coupon or booking writes when the trainer's saved Connect state is unready. Focused 70/70 and retested full 1,785/1,785 units, lint/types/build pass; an initial full-suite run had two nonrepeating esbuild test timeouts. Vercel Preview is Ready and public homepage/catalog smoke passed. Hosted booking write, Checkout, webhook, transfer and payout remain **unverified**, and the published cash-refund policy remains a release blocker. [Exact evidence and limits](PAID_BOOKING_CONNECT_GUARD_REPORT.md). **Production HOLD.**
