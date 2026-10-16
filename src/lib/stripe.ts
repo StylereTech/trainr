@@ -91,10 +91,10 @@ export async function createConnectedAccount(trainerId: string, email: string, i
 }
 
 export async function requestMissingConnectCapabilities(account: Pick<Stripe.Account, 'id' | 'capabilities'>) {
-  for (const capability of ['card_payments', 'transfers'] as const) {
+  for (const capability of ['transfers', 'card_payments'] as const) {
     if (account.capabilities?.[capability]) continue
     await stripe.accounts.updateCapability(account.id, capability, { requested: true },
-      { idempotencyKey: `trainr-connect-${account.id}-${capability}`, timeout: 15000, maxNetworkRetries: 0 })
+      { idempotencyKey: `trainr-connect-v2-${account.id}-${capability}`, timeout: 15000, maxNetworkRetries: 0 })
   }
 }
 

@@ -32,10 +32,11 @@ describe('Connect contracts', () => {
     const { requestMissingConnectCapabilities } = await import('@/lib/stripe')
     updateCapability.mockResolvedValue({ requested: true })
     await requestMissingConnectCapabilities({ id: 'acct_existing', capabilities: {} })
+    expect(updateCapability.mock.calls.map(call => call[1])).toEqual(['transfers', 'card_payments'])
     expect(updateCapability).toHaveBeenCalledWith('acct_existing', 'card_payments', { requested: true },
-      { idempotencyKey: 'trainr-connect-acct_existing-card_payments', timeout: 15000, maxNetworkRetries: 0 })
+      { idempotencyKey: 'trainr-connect-v2-acct_existing-card_payments', timeout: 15000, maxNetworkRetries: 0 })
     expect(updateCapability).toHaveBeenCalledWith('acct_existing', 'transfers', { requested: true },
-      { idempotencyKey: 'trainr-connect-acct_existing-transfers', timeout: 15000, maxNetworkRetries: 0 })
+      { idempotencyKey: 'trainr-connect-v2-acct_existing-transfers', timeout: 15000, maxNetworkRetries: 0 })
     updateCapability.mockClear()
     await requestMissingConnectCapabilities({ id: 'acct_existing', capabilities: { card_payments: 'inactive', transfers: 'pending' } })
     expect(updateCapability).not.toHaveBeenCalled()

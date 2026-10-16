@@ -1,5 +1,7 @@
 # Current Launch Gates
 
+**2026-10-16 15:06 UTC:** first hosted existing-account capability repair failed closed with **503**; Stripe's request log identified a **400** because `card_payments` was requested before `transfers`. The same sandbox account remained linked and unready. Code order and retry key are corrected, with focused tests passing; [exact provider evidence](STRIPE_CONNECT_READINESS_REPORT.md). Full retest and Preview publication remain pending. **Production HOLD.**
+
 **2026-10-16 14:57 UTC:** [Stripe Connect capability gap](STRIPE_CONNECT_READINESS_REPORT.md) is a confirmed app/configuration blocker, not only missing trainer terms: the linked sandbox account shows **No capabilities requested**. The audit branch now explicitly requests `card_payments` and `transfers` for new Express accounts and repairs missing requests on the same existing unready account before onboarding. Focused and full local unit/type/build checks pass; hosted provider repair and actual charge/transfer/payout remain unverified. **Production HOLD.**
 
 **2026-10-16 14:36 UTC:** an additional real-browser Preview check signs in the approved synthetic parent, trainer and admin through `/auth/signin`, verifies their dashboards after refresh, and confirms a cross-role dashboard redirect. **3/3 PASS**, no retries; see [role audit](ROLE_PERMISSION_AUDIT_REPORT.md). This strengthens hosted UI/session proof, but does not clear Stripe Connect or any paid-booking gate. **Production HOLD.**
