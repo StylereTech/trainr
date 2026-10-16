@@ -44,3 +44,13 @@ The full check used a non-listening loopback database URL, synthetic auth/Stripe
 ## Remaining Scope
 
 Actual parent/trainer/admin Preview access, hosted Stripe Checkout, Connect, destination transfers and payouts remain unverified. Refund policy/execution, dependency findings, intermittent toolchain reliability, CI billing and Production release gates remain open. This guard closes an accidental destructive-tool path; it is not a money-flow signoff. See [Current Launch Gates](CURRENT_LAUNCH_GATES.md).
+
+## Publication And Preview Retest
+
+Source **`559c2fd5dfadd2ee189311e968a6074f1da40872`** was committed and pushed to the audit branch. Independent remote reads matched that SHA and showed main unchanged at `2067e743c54ffee669cd484f26dc472b157f1881`; the worktree was clean. Normal Vercel UI independently showed matching source/branch, Ready and Preview at approximately 2026-10-16 02:03 UTC, duration 51 seconds: [deployment](https://vercel.com/styleres-projects/trainr/82UvXCStGNNU9Pw4mRy9epkHU3yW), immutable host `trainr-g2sc83o2l-styleres-projects.vercel.app`.
+
+The existing anonymous smoke suite then returned **21/21 PASS**, exit 0, local probe timestamps 02:03:43.146-02:03:47.293 UTC. Health reported connected DB; catalog count remained zero; protected booking/payment/package/trainer/admin APIs returned 401; unsigned webhook returned 400. [Raw method/path/expected/actual results](DESTRUCTIVE_SEED_GUARD_HOSTED_SMOKE.json). The script's SHA is a requested-source label, not its own deployment proof; the separate Vercel observation supplies that mapping. No signed-in flow or seed invocation took place on Preview.
+
+[CI run 38838385097](https://github.com/StylereTech/trainr/actions/runs/38838385097) was independently inspected in the normal GitHub UI: both check and migrations were not started because the account is locked due to a billing issue. No billing or provider settings changed. This is not a CI pass.
+
+This publication evidence is a documentation-only follow-up commit. Final follow-up deployment/smoke proof is retained in the task and local artifacts rather than creating an endless sequence of publication-report commits. Main, Production and Story remain excluded.
