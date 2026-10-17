@@ -27,17 +27,19 @@ npx playwright show-report e2e-report
 
 ## Configuration
 
-- **Target**: Live Vercel deployment (`https://trainr-seven.vercel.app`) or override with `BASE_URL=http://localhost:5000`
+- **Target**: `https://trainr.cc` by default; set `BASE_URL` explicitly for an isolated Preview or local deployment
 - **Browser**: Chromium (system Chrome or Playwright-managed)
 - **Workers**: 1 (sequential, avoids race conditions with shared test accounts)
 
 ## Test Accounts
 
-| Role | Email | Password |
-|------|-------|----------|
-| Parent | jennifer.davis@email.com | Parent123! |
-| Trainer | marcus.johnson@email.com | Trainer123! |
-| Admin | admin@trainr.app | Admin123! |
+Set `TRAINR_TEST_PARENT_EMAIL` and `TRAINR_TEST_PARENT_PASSWORD` for parent tests,
+`TRAINR_TEST_TRAINER_EMAIL` and `TRAINR_TEST_TRAINER_PASSWORD` for trainer tests,
+and `TRAINR_TEST_ADMIN_EMAIL` and `TRAINR_TEST_ADMIN_PASSWORD` for admin tests.
+Use isolated test accounts for the selected `BASE_URL`; do not commit credentials.
+The guarded disposable-local seed prints newly generated credentials after a successful run.
+Previously published demo passwords must be rotated or those hosted accounts disabled;
+removing them from the current source cannot erase Git history.
 
 ## Test Suites
 

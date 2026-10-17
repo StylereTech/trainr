@@ -4,35 +4,22 @@
  */
 import { Page, expect } from '@playwright/test';
 
-export const TEST_ACCOUNTS = {
-  parent: {
-    email: 'jennifer.davis@email.com',
-    password: 'Parent123!',
-    role: 'PARENT',
-  },
-  trainer: {
-    email: 'marcus.johnson@email.com',
-    password: 'Trainer123!',
-    role: 'TRAINER',
-  },
-  admin: {
-    email: 'admin@trainr.app',
-    password: 'Admin123!',
-    role: 'ADMIN',
-  },
-} as const;
-
 /**
  * Log in via the NextAuth credentials provider.
  * Uses the signin page form, not API calls, to test real browser flow.
  */
 export async function loginAs(page: Page, role: 'parent' | 'trainer' | 'admin') {
-  const account = TEST_ACCOUNTS[role]
+  const key = role.toUpperCase()
+  const email = process.env[`TRAINR_TEST_${key}_EMAIL`]
+  const password = process.env[`TRAINR_TEST_${key}_PASSWORD`]
+  if (!email || !password) {
+    throw new Error(`TRAINR_TEST_${key}_EMAIL and TRAINR_TEST_${key}_PASSWORD are required`)
+  }
   await page.goto('/auth/signin')
   await page.waitForLoadState('networkidle')
 
-  await page.getByLabel(/email/i).fill(account.email)
-  await page.getByLabel(/password/i).fill(account.password)
+  await page.getByLabel(/email/i).fill(email)
+  await page.getByLabel(/password/i).fill(password)
 
   const submitBtn = page.locator('main button[type="submit"]').first()
   await Promise.all([

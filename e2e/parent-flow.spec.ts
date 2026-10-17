@@ -4,7 +4,7 @@
  * Covers: signup → login → browse → trainer profile → book → payment → bookings → review → athlete creation → dashboard
  */
 import { test, expect } from '@playwright/test';
-import { loginAs, TEST_ACCOUNTS, registerUser, expectOnPage } from './helpers';
+import { loginAs } from './helpers';
 
 test.describe('Parent (Rider) Flow', () => {
 

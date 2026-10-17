@@ -1,11 +1,17 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 import { runGuardedSeed, SeedSafetyError } from '../scripts/seed-safety'
 
 const SALT_ROUNDS = 10
 
 async function main(prisma: PrismaClient) {
   console.log('🌱 Seeding database...')
+  const demoPasswords = {
+    admin: randomBytes(24).toString('base64url'),
+    trainer: randomBytes(24).toString('base64url'),
+    parent: randomBytes(24).toString('base64url'),
+  }
 
   // Clean existing data (order matters due to foreign keys)
   await prisma.message.deleteMany()
@@ -77,7 +83,7 @@ async function main(prisma: PrismaClient) {
   // ==================
   // CREATE ADMIN
   // ==================
-  const adminPassword = await bcrypt.hash('Admin123!', SALT_ROUNDS)
+  const adminPassword = await bcrypt.hash(demoPasswords.admin, SALT_ROUNDS)
   const admin = await prisma.user.create({
     data: {
       email: 'admin@trainr.app',
@@ -125,15 +131,15 @@ async function main(prisma: PrismaClient) {
 
   const trainers: any[] = []
   const services: any[] = []
+  const trainerPassword = await bcrypt.hash(demoPasswords.trainer, SALT_ROUNDS)
 
   for (const t of trainerData) {
-    const password = await bcrypt.hash('Trainer123!', SALT_ROUNDS)
     const slug = `${t.firstName.toLowerCase()}-${t.lastName.toLowerCase()}`
 
     const user = await prisma.user.create({
       data: {
         email: `${t.firstName.toLowerCase()}.${t.lastName.toLowerCase()}@email.com`,
-        passwordHash: password,
+        passwordHash: trainerPassword,
         role: 'TRAINER',
       },
     })
@@ -257,13 +263,13 @@ async function main(prisma: PrismaClient) {
   ]
 
   const parents: any[] = []
+  const parentPassword = await bcrypt.hash(demoPasswords.parent, SALT_ROUNDS)
 
   for (const p of parentData) {
-    const password = await bcrypt.hash('Parent123!', SALT_ROUNDS)
     const user = await prisma.user.create({
       data: {
         email: p.email,
-        passwordHash: password,
+        passwordHash: parentPassword,
         role: 'PARENT',
       },
     })
@@ -450,10 +456,10 @@ async function main(prisma: PrismaClient) {
 
   console.log('\n✅ Seed complete!')
   console.log('\n📋 Test Accounts:')
-  console.log('  Admin:   admin@trainr.app / Admin123!')
-  console.log('  Trainer: marcus.johnson@email.com / Trainer123!')
-  console.log('  Parent:  jennifer.davis@email.com / Parent123!')
-  console.log('\n🎉 All passwords follow pattern: [Role]123!')
+  console.log(`  Admin:   admin@trainr.app / ${demoPasswords.admin}`)
+  console.log(`  Trainer: marcus.johnson@email.com / ${demoPasswords.trainer}`)
+  console.log(`  Parent:  jennifer.davis@email.com / ${demoPasswords.parent}`)
+  console.log('\nOther disposable users share the password for their role. Do not seed a hosted database.')
 }
 
 runGuardedSeed(process.env, url => new PrismaClient({ datasourceUrl: url }), main)
