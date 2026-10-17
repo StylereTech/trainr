@@ -8,6 +8,7 @@ export default defineConfig({
     // Security compatibility tests spawn toolchains; keep their resource use bounded.
     fileParallelism: false,
     maxWorkers: 1,
+    testTimeout: 30_000,
   },
   resolve: {
     alias: {
