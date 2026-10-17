@@ -97,6 +97,7 @@ model ParentProfile {
   bookingRequests BookingCreateRequest[]
   bookings Booking[]  @relation("ParentBookings")
   packagePurchases PackagePurchase[]
+  assignedCoupons Coupon[] @relation("CouponRecipient")
   reviews  Review[]   @relation("ParentReviews")
   favorites Favorite[]
 
@@ -791,10 +792,14 @@ model Coupon {
   expiresAt             DateTime?
   isActive              Boolean   @default(true)
   applicableSportId     String?
+  recipientParentProfileId String?
   createdById           String
   createdAt             DateTime  @default(now())
 
   applicableSport Sport? @relation(fields: [applicableSportId], references: [id])
+  recipientParentProfile ParentProfile? @relation("CouponRecipient", fields: [recipientParentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([recipientParentProfileId])
 
   @@map("coupons")
 }

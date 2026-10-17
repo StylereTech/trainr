@@ -22,6 +22,7 @@ interface Coupon {
   currentUses: number
   expiresAt: string | null
   isActive: boolean
+  recipientParentProfile: { user: { email: string } } | null
   applicableSport: { name: string } | null
   createdAt: string
 }
@@ -44,6 +45,7 @@ export default function AdminCoupons() {
     maxUses: 1,
     expiresAt: '',
     applicableSportId: '',
+    recipientParentEmail: '',
   })
 
   const fetchCoupons = async () => {
@@ -66,6 +68,7 @@ export default function AdminCoupons() {
       maxUses: form.maxUses,
       expiresAt: form.expiresAt || undefined,
       applicableSportId: form.applicableSportId || undefined,
+      recipientParentEmail: form.recipientParentEmail.trim() || undefined,
     }
     if (form.discountType === 'percent') body.discountPercent = form.discountPercent
     else body.discountAmountInCents = form.discountAmountInCents
@@ -79,7 +82,7 @@ export default function AdminCoupons() {
     if (res.ok) {
       toast({ title: 'Coupon created!' })
       setShowCreate(false)
-      setForm({ code: '', discountType: 'percent', discountPercent: 10, discountAmountInCents: 1000, maxUses: 1, expiresAt: '', applicableSportId: '' })
+      setForm({ code: '', discountType: 'percent', discountPercent: 10, discountAmountInCents: 1000, maxUses: 1, expiresAt: '', applicableSportId: '', recipientParentEmail: '' })
       fetchCoupons()
     } else {
       const data = await res.json()
@@ -141,6 +144,7 @@ export default function AdminCoupons() {
                 </div>
                 <div className="mt-3 space-y-2 text-sm text-slate-300">
                   <div>Used {coupon.currentUses} / {coupon.maxUses}</div>
+                  {coupon.recipientParentProfile && <div>Parent: {coupon.recipientParentProfile.user.email}</div>}
                   {coupon.applicableSport && <div>Sport: {coupon.applicableSport.name}</div>}
                   {coupon.expiresAt && (
                     <div className="inline-flex items-center gap-1 text-slate-400"><Calendar className="h-3.5 w-3.5" /> Expires {new Date(coupon.expiresAt).toLocaleDateString()}</div>
@@ -200,6 +204,10 @@ export default function AdminCoupons() {
             <div className="space-y-2">
               <Label htmlFor="coupon-max-uses">Max uses</Label>
               <Input id="coupon-max-uses" type="number" min="1" value={form.maxUses} onChange={(e) => setForm((prev) => ({ ...prev, maxUses: parseInt(e.target.value) || 1 }))} className="h-12 border-white/10 bg-white/5 text-white" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="coupon-recipient">Parent email (optional)</Label>
+              <Input id="coupon-recipient" type="email" autoComplete="off" placeholder="parent@example.com" value={form.recipientParentEmail} onChange={(e) => setForm((prev) => ({ ...prev, recipientParentEmail: e.target.value }))} className="h-12 border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="coupon-expires-at">Expires at (optional)</Label>

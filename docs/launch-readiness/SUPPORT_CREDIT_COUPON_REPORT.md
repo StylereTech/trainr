@@ -21,6 +21,10 @@
 
 The code now defaults admin-created coupons to one use, requires exactly one integer discount, validates the post-normalization code and calendar date, rejects unknown fields, returns a conflict for duplicate codes, and does not expose database diagnostics on uncertain failures. Dialog labels are associated with their controls. Existing generic promotions can still explicitly set a higher use limit.
 
+## 2026-10-17 Parent Assignment Follow-Up
+
+Source after `cb3a9a655d8f5a60b7166a86f0a5d3d64ffff053` on the isolated audit branch, local Windows environment. An additive nullable `recipientParentProfileId` with parent FK is introduced in migration `20261017190000_bind_coupons_to_parent`; old generic coupons remain unassigned. Admin `POST /api/admin/coupons` now accepts an optional active parent email, saves the corresponding profile ID, and lists recipient email only in authenticated admin UI. Parent `POST /api/bookings/quote` and booking reservation both reject another parent's assigned code. Deleting the parent cascades the coupon instead of making it public. Focused unit tests: **114/114 pass**, covering assigned recipient, unknown parent, malformed email, unauthorized quote and reservation. Preview SQL migration and browser retest are pending; this section is not a production assertion.
+
 ## Remaining Money-Flow Gate
 
 Coupon use is counted **at reservation creation**, before Checkout payment; an unpaid or cancelled reservation does not automatically restore the use. One-use codes are not bound to a particular parent. Support must verify the booking/payment and prior code usage before manually issuing a replacement; the [runbook](V1_MANUAL_OPS_RUNBOOK.md#cancellation-and-refund-exceptions) records this limitation. No real 10% credit issuance/redemption, parent-specific enforcement, paid booking or Stripe payout is proven. Restricted trainer Connect capabilities and GitHub CI billing still block full signoff. **Production HOLD.**

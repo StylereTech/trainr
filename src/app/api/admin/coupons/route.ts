@@ -23,6 +23,7 @@ const couponSchema = z.object({
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
   }).optional(),
   applicableSportId: z.string().min(1).optional(),
+  recipientParentEmail: z.string().trim().email().transform(value => value.toLowerCase()).optional(),
 }).strict().refine(data => (data.discountPercent === undefined) !== (data.discountAmountInCents === undefined))
 
 // GET /api/admin/coupons — List coupons
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
   const [coupons, total] = await Promise.all([
     prisma.coupon.findMany({
       where,
-      include: { applicableSport: { select: { name: true } } },
+      include: { applicableSport: { select: { name: true } }, recipientParentProfile: { select: { user: { select: { email: true } } } } },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
@@ -65,6 +66,13 @@ export async function POST(req: NextRequest) {
   if (!input.success) return NextResponse.json({ error: 'Enter a valid code, exactly one discount, a whole-number use limit, and a valid expiry date.' }, { status: 400 })
   try {
     const data = input.data
+    const recipient = data.recipientParentEmail ? await prisma.user.findFirst({
+      where: { email: { equals: data.recipientParentEmail, mode: 'insensitive' }, role: 'PARENT', deletedAt: null },
+      select: { parentProfile: { select: { id: true } } },
+    }) : null
+    if (data.recipientParentEmail && !recipient?.parentProfile) {
+      return NextResponse.json({ error: 'No active parent account matches that email.' }, { status: 400 })
+    }
     const coupon = await prisma.coupon.create({ data: {
       code: data.code,
       discountPercent: data.discountPercent,
@@ -72,6 +80,7 @@ export async function POST(req: NextRequest) {
       maxUses: data.maxUses,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       applicableSportId: data.applicableSportId || null,
+      recipientParentProfileId: recipient?.parentProfile?.id ?? null,
       createdById: adminUserId,
     } })
     return NextResponse.json(coupon, { status: 201 })

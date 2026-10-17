@@ -69,7 +69,7 @@ export async function createBooking(userId: string, input: BookingInput) {
       coupon = await tx.coupon.findUnique({ where: { code } })
     }
     let total: number
-    try { total = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(data.couponCode), coupon).totalAmountInCents }
+    try { total = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(data.couponCode), coupon, parent.id).totalAmountInCents }
     catch (error) {
       if (error instanceof BookingPriceError) throw new BookingCreationError(error.message, error.status)
       throw error

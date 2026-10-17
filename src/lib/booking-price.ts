@@ -8,14 +8,15 @@ export class BookingPriceError extends Error {
 export const normalizeCouponCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
 // Quote and reservation use the same calculation; only reservation consumes a coupon.
-export function bookingPrice(price: number, minimum: number, sportId: string | null, couponRequested: boolean, coupon: Coupon | null, now = new Date()) {
+export function bookingPrice(price: number, minimum: number, sportId: string | null, couponRequested: boolean, coupon: Coupon | null, parentProfileId: string, now = new Date()) {
   if (!Number.isSafeInteger(price) || price < 0) throw new BookingPriceError('Service pricing requires correction', 409)
   if (price < minimum) throw new BookingPriceError('Service price is below the current platform minimum. Contact the trainer.', 409)
   let discount = 0
   if (couponRequested) {
     if (!coupon || !coupon.isActive || coupon.currentUses >= coupon.maxUses ||
         (coupon.expiresAt && coupon.expiresAt <= now) ||
-        (coupon.applicableSportId && coupon.applicableSportId !== sportId)) {
+        (coupon.applicableSportId && coupon.applicableSportId !== sportId) ||
+        (coupon.recipientParentProfileId && coupon.recipientParentProfileId !== parentProfileId)) {
       throw new BookingPriceError('Coupon is invalid, expired, exhausted or does not apply to this sport')
     }
     const percent = coupon.discountPercent, fixed = coupon.discountAmountInCents

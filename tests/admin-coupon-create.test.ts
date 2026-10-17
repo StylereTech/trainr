@@ -3,9 +3,9 @@ import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { POST } from '@/app/api/admin/coupons/route'
 
-const mock = vi.hoisted(() => ({ session: vi.fn(), create: vi.fn() }))
+const mock = vi.hoisted(() => ({ session: vi.fn(), create: vi.fn(), findUser: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getServerSession: mock.session, authOptions: {} }))
-vi.mock('@/lib/prisma', () => ({ prisma: { coupon: { create: mock.create } } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { coupon: { create: mock.create }, user: { findFirst: mock.findUser } } }))
 
 const post = (body: unknown) => POST(new NextRequest('http://localhost/api/admin/coupons', {
   method: 'POST', body: JSON.stringify(body),
@@ -15,6 +15,19 @@ beforeEach(() => {
   vi.resetAllMocks()
   mock.session.mockResolvedValue({ user: { id: 'admin', role: 'ADMIN' } })
   mock.create.mockImplementation(async ({ data }) => ({ id: 'coupon', ...data }))
+  mock.findUser.mockResolvedValue({ parentProfile: { id: 'parent-profile' } })
+})
+it('assigns a support code to an active parent account', async () => {
+  expect((await post({ code: 'LATE10', discountPercent: 10, recipientParentEmail: ' Parent@Example.COM ' })).status).toBe(201)
+  expect(mock.findUser).toHaveBeenCalledWith({ where: {
+    email: { equals: 'parent@example.com', mode: 'insensitive' }, role: 'PARENT', deletedAt: null,
+  }, select: { parentProfile: { select: { id: true } } } })
+  expect(mock.create).toHaveBeenCalledWith({ data: expect.objectContaining({ recipientParentProfileId: 'parent-profile', maxUses: 1 }) })
+})
+it('rejects unknown parent assignment without creating a code', async () => {
+  mock.findUser.mockResolvedValue(null)
+  expect((await post({ code: 'LATE10', discountPercent: 10, recipientParentEmail: 'missing@example.com' })).status).toBe(400)
+  expect(mock.create).not.toHaveBeenCalled()
 })
 
 it.each([null, { user: { id: 'parent', role: 'PARENT' } }])('denies non-admin creation before parsing or writes', async session => {
@@ -44,6 +57,7 @@ it.each([
   { code: 'EXPIREDATE', discountPercent: 10, expiresAt: '2026-02-30' },
   { code: 'INVALIDDATE', discountPercent: 10, expiresAt: 'not-a-date' },
   { code: 'UNKNOWN', discountPercent: 10, currentUses: 0 },
+  { code: 'INVALIDEMAIL', discountPercent: 10, recipientParentEmail: 'not-an-email' },
 ])('rejects malformed financial settings without writes: %j', async body => {
   const response = await post(body)
   expect(response.status).toBe(400)

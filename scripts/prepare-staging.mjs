@@ -13,7 +13,7 @@ const STAGING_UPGRADES = new Set(['20261011080000_add_trainer_time_zone', '20261
   '20261012070000_add_booking_payment_review', '20261012080000_add_package_credit_grants', '20261012090000_add_account_checkout_closures',
   '20261012090100_require_checkout_closure_proof', '20261012130000_add_package_credit_policy_snapshots',
   '20261012140000_add_package_payment_receipts', '20261013060000_add_package_credit_redemptions',
-  '20261013113000_preserve_credit_review_holds'])
+  '20261013113000_preserve_credit_review_holds', '20261017190000_bind_coupons_to_parent'])
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function requireCondition(condition, code) {

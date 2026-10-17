@@ -25,7 +25,7 @@ beforeEach(() => {
     athletes: ['athlete', 'athlete2', 'athlete3'].map((id) => ({ id, parentProfileId: 'parent', sports: [{ sportId: 'sport' }] })),
     slots: [{ dayOfWeek: 1, specificDate: null, startTime: '09:00', endTime: '12:00', isRecurring: true, isAvailable: true }],
     coupon: { id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
-      currentUses: 0, maxUses: 1, expiresAt: null, isActive: true, applicableSportId: null },
+      currentUses: 0, maxUses: 1, expiresAt: null, isActive: true, applicableSportId: null, recipientParentProfileId: null },
     bookings: [], notifications: [], fees: [], requests: [], user: { role: 'PARENT', deletedAt: null },
   }
   let tail = Promise.resolve()
@@ -222,6 +222,15 @@ describe('atomic reservation creation', () => {
   it('normalizes coupon codes and commits the discount with the reservation', async () => {
     expect(await reserve({ couponCode: 'save-10' })).toMatchObject({ totalAmountInCents: 5400, platformFeeInCents: 810, trainerPayoutInCents: 4590 })
     expect(state.coupon.currentUses).toBe(1)
+  })
+
+  it('cannot reserve another parent\'s assigned coupon or consume its use', async () => {
+    state.coupon.recipientParentProfileId = 'different-parent'
+    await expect(reserve({ couponCode: 'SAVE10' })).rejects.toMatchObject({ status: 400 })
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.bookings).toHaveLength(0)
+    state.coupon.recipientParentProfileId = 'parent'
+    await expect(reserve({ couponCode: 'SAVE10' })).resolves.toMatchObject({ totalAmountInCents: 5400 })
   })
 
   it.each([1, 49])('rolls back a coupon leaving an unchargeable %s-cent balance', async (remaining) => {

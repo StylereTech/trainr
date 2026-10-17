@@ -2,13 +2,13 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { POST } from '@/app/api/bookings/quote/route'
 import { bookingQuoteSchema } from '@/lib/booking-quote-schema'
 
-const mock = vi.hoisted(() => ({ user: vi.fn(), transaction: vi.fn(), service: vi.fn(), coupon: vi.fn(), fees: vi.fn() }))
+const mock = vi.hoisted(() => ({ user: vi.fn(), transaction: vi.fn(), service: vi.fn(), coupon: vi.fn(), fees: vi.fn(), parent: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
 vi.mock('@/lib/prisma', () => ({ prisma: { $transaction: mock.transaction } }))
 const offer = () => ({ id: 'service', isActive: true, priceInCents: 6000, sportId: 'sport', sport: { isActive: true },
   trainerProfile: { isActive: true, approvalStatus: 'APPROVED', stripeAccountId: 'acct_synthetic', stripeOnboardingComplete: true, sports: [{ sportId: 'sport' }] } })
 const coupon = () => ({ id: 'coupon', code: 'SAVE10', discountPercent: 10, discountAmountInCents: null,
-  isActive: true, currentUses: 0, maxUses: 1, applicableSportId: null, expiresAt: null })
+  isActive: true, currentUses: 0, maxUses: 1, applicableSportId: null, recipientParentProfileId: null, expiresAt: null })
 const post = (body: unknown = { serviceOfferingId: 'service' }) => POST(new Request('http://localhost/api/bookings/quote', { method: 'POST', body: JSON.stringify(body) }) as any)
 
 beforeEach(() => {
@@ -17,8 +17,15 @@ beforeEach(() => {
   mock.service.mockResolvedValue(offer())
   mock.coupon.mockResolvedValue(coupon())
   mock.fees.mockResolvedValue([])
+  mock.parent.mockResolvedValue({ id: 'parent-profile' })
   // Deliberately expose no write methods: obtaining a quote must not reserve or consume.
-  mock.transaction.mockImplementation(run => run({ serviceOffering: { findUnique: mock.service }, coupon: { findUnique: mock.coupon }, feeConfig: { findMany: mock.fees } }))
+  mock.transaction.mockImplementation(run => run({ serviceOffering: { findUnique: mock.service }, coupon: { findUnique: mock.coupon }, parentProfile: { findUnique: mock.parent }, feeConfig: { findMany: mock.fees } }))
+})
+it('limits assigned coupons to their parent at quote time', async () => {
+  mock.coupon.mockResolvedValue({ ...coupon(), recipientParentProfileId: 'other-parent' })
+  expect((await post({ serviceOfferingId: 'service', couponCode: 'SAVE10' })).status).toBe(400)
+  mock.coupon.mockResolvedValue({ ...coupon(), recipientParentProfileId: 'parent-profile' })
+  expect((await post({ serviceOfferingId: 'service', couponCode: 'SAVE10' })).status).toBe(200)
 })
 it.each([undefined, 'save-10'])('returns only validated USD price fields, without writes: %s', async couponCode => {
   const response = await post({ serviceOfferingId: 'service', couponCode })

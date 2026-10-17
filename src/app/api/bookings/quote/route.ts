@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
       const fees = await effectiveFeeValues(tx)
       const code = normalizeCouponCode(couponCode)
       const coupon = couponCode ? await tx.coupon.findUnique({ where: { code } }) : null
-      const price = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(couponCode), coupon)
+      const parent = coupon?.recipientParentProfileId ? await tx.parentProfile.findUnique({ where: { userId: user.id }, select: { id: true } }) : null
+      const price = bookingPrice(service.priceInCents, fees.minBookingAmountCents, service.sportId, Boolean(couponCode), coupon, parent?.id ?? '')
       if (price.totalAmountInCents > 0 && (!service.trainerProfile.stripeAccountId || !service.trainerProfile.stripeOnboardingComplete)) {
         throw new BookingPriceError('Trainer must finish Stripe setup before a paid booking can be reserved.', 409)
       }
