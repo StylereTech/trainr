@@ -92,6 +92,10 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
     const updated = await tx.booking.update({ where: { id: booking.id }, data: {
       status, ...(input.action === 'cancel' ? { cancellationReason: input.reason || `Cancelled by ${admin ? 'admin' : parent ? 'parent' : 'trainer'}` } : {}),
     } })
+    // No payment row means Checkout was never prepared; paid/uncertain attempts require provider reconciliation.
+    const couponReleased = input.action === 'cancel' && booking.status === 'PENDING' && !payment && !!booking.couponId
+      ? (await tx.coupon.updateMany({ where: { id: booking.couponId!, currentUses: { gt: 0 } }, data: { currentUses: { decrement: 1 } } })).count === 1
+      : false
     const restoredCredit = credit && input.action === 'cancel'
       ? await restoreLockedCancelledPackageCredit(tx, { id: actor.id, role: actor.role! }, { ...updated,
         parentUserId: booking.parentProfile.userId, trainerUserId: booking.trainerProfile.userId,
@@ -112,6 +116,8 @@ export async function applyBookingAction(bookingId: string, actor: { id: string;
           : 'This booking is cancelled. The session credit remains used under the late-cancellation policy. No cash refund was issued.'
         : moneyReview
         ? 'This booking is cancelled. Its payment needs reconciliation by support. Cancellation is not a refund receipt; no refund has been issued by this action.'
+        : couponReleased
+        ? 'This unpaid booking is cancelled, and its coupon reservation was released. Current code limits and expiry still apply. No Stripe refund was issued.'
         : 'This booking is cancelled. This notice does not represent a Stripe refund.' },
     }[input.action]
     const recipients = [

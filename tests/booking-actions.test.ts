@@ -15,11 +15,13 @@ beforeEach(() => {
   fail = null
   state = {
     booking: { id: 'booking', status: 'CONFIRMED', trainerProfileId: 'trainer', totalAmountInCents: 6000,
+      couponId: null,
       timeZone: 'UTC', startsAt: new Date('2020-01-01T09:00:00Z'), endsAt: new Date('2020-01-01T10:00:00Z'),
       trainerProfile: { userId: trainer.id }, parentProfile: { userId: parent.id },
       payment: { id: 'payment', status: 'SUCCEEDED', amountInCents: 6000, refundAmountInCents: 0, settlementVerifiedAt: new Date(), financialReview: null } },
     users: [trainer, parent, admin].map(user => ({ ...user, deletedAt: null })),
     stats: { totalSessions: 2, totalBookings: 2 }, notifications: [], audits: [],
+    coupon: { id: 'coupon', currentUses: 1 },
   }
   let tail = Promise.resolve()
   mock.query.mockImplementation(async (sql: TemplateStringsArray) => {
@@ -42,6 +44,11 @@ beforeEach(() => {
           findUnique: async () => structuredClone(state.booking),
           update: async ({ data }: any) => { Object.assign(state.booking, data); return structuredClone(state.booking) },
         },
+        coupon: { updateMany: async ({ where }: any) => {
+          if (state.coupon.id !== where.id || state.coupon.currentUses <= 0) return { count: 0 }
+          state.coupon.currentUses--
+          return { count: 1 }
+        } },
         trainerProfile: { update: async ({ data }: any) => {
           if (fail === 'stats') throw new Error('stats failure')
           for (const key of Object.keys(data)) state.stats[key] += data[key].increment
@@ -247,6 +254,42 @@ describe('booking state transitions', () => {
     state.booking.payment = null
     await act('cancel', parent)
     expect(state.notifications).toHaveLength(2)
+  })
+  it('releases one coupon use when a pending booking never opened checkout', async () => {
+    state.booking.status = 'PENDING'
+    state.booking.payment = null
+    state.booking.couponId = 'coupon'
+    await act('cancel', parent)
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.notifications[0].message).toContain('coupon reservation was released')
+    await act('cancel', parent)
+    expect(state.coupon.currentUses).toBe(0)
+  })
+  it('keeps coupon usage for an uncertain payment pending provider reconciliation', async () => {
+    state.booking.status = 'PENDING'
+    state.booking.payment.status = 'PENDING'
+    state.booking.couponId = 'coupon'
+    await act('cancel', parent)
+    expect(state.coupon.currentUses).toBe(1)
+    expect(state.notifications.some((item: any) => item.type === 'PAYMENT_REVIEW_REQUIRED')).toBe(true)
+  })
+  it('does not claim coupon release when the usage counter is already zero', async () => {
+    state.booking.status = 'PENDING'
+    state.booking.payment = null
+    state.booking.couponId = 'coupon'
+    state.coupon.currentUses = 0
+    await act('cancel', parent)
+    expect(state.coupon.currentUses).toBe(0)
+    expect(state.notifications[0].message).not.toContain('coupon reservation was released')
+  })
+  it('rolls back coupon release when cancellation notification fails', async () => {
+    state.booking.status = 'PENDING'
+    state.booking.payment = null
+    state.booking.couponId = 'coupon'
+    fail = 'notification'
+    await expect(act('cancel', parent)).rejects.toThrow('notification failure')
+    expect(state.booking.status).toBe('PENDING')
+    expect(state.coupon.currentUses).toBe(1)
   })
   it('makes cancellation retries side-effect free', async () => {
     await act('cancel', admin)

@@ -9,7 +9,7 @@ let booking: Parameters<typeof packageCreditBookingHold>[0] & Booking
 beforeEach(() => {
   booking = {
     id: 'booking', parentProfileId: 'parent', trainerProfileId: 'trainer', serviceOfferingId: 'service',
-    packageId: null, packageSessionNumber: null, totalAmountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, payment: null,
+    packageId: null, packageSessionNumber: null, couponId: null, totalAmountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, payment: null,
     athleteProfileId: 'child', date: new Date('2026-01-02T00:00:00Z'), startTime: '10:00', endTime: '11:00', timeZone: 'UTC',
     status: 'CONFIRMED', location: null, notes: null, cancellationReason: null, rescheduledFromId: null,
     createdAt: new Date('2026-01-01T11:00:00Z'), updatedAt: new Date('2026-01-01T11:00:00Z'),

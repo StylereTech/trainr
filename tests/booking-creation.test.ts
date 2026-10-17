@@ -220,7 +220,7 @@ describe('atomic reservation creation', () => {
   })
 
   it('normalizes coupon codes and commits the discount with the reservation', async () => {
-    expect(await reserve({ couponCode: 'save-10' })).toMatchObject({ totalAmountInCents: 5400, platformFeeInCents: 810, trainerPayoutInCents: 4590 })
+    expect(await reserve({ couponCode: 'save-10' })).toMatchObject({ couponId: 'coupon', totalAmountInCents: 5400, platformFeeInCents: 810, trainerPayoutInCents: 4590 })
     expect(state.coupon.currentUses).toBe(1)
   })
 

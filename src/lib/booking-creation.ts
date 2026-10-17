@@ -87,7 +87,7 @@ export async function createBooking(userId: string, input: BookingInput) {
     const booking = await tx.booking.create({
       data: {
         parentProfileId: parent.id, trainerProfileId: service.trainerProfileId, athleteProfileId: athlete.id,
-        serviceOfferingId: service.id, date, startTime: data.startTime, ...timing, notes: data.notes,
+        serviceOfferingId: service.id, couponId: coupon?.id ?? null, date, startTime: data.startTime, ...timing, notes: data.notes,
         totalAmountInCents: total, platformFeeInCents: platformFee, trainerPayoutInCents: trainerShare,
         status: free ? 'CONFIRMED' : 'PENDING',
         ...(free ? { payment: { create: { amountInCents: 0, platformFeeInCents: 0, trainerPayoutInCents: 0, status: 'SUCCEEDED' as const } } } : {}),

@@ -531,6 +531,7 @@ model Booking {
   trainerProfileId  String
   athleteProfileId  String
   serviceOfferingId String
+  couponId          String?
   packageId         String?
   packageSessionNumber Int?
   date              DateTime
@@ -554,6 +555,7 @@ model Booking {
   trainerProfile   TrainerProfile  @relation("TrainerBookings", fields: [trainerProfileId], references: [id])
   athleteProfile   AthleteProfile  @relation(fields: [athleteProfileId], references: [id])
   serviceOffering  ServiceOffering @relation(fields: [serviceOfferingId], references: [id])
+  coupon           Coupon?         @relation(fields: [couponId], references: [id], onDelete: Restrict)
   package          Package?        @relation(fields: [packageId], references: [id])
   rescheduledFrom  Booking?        @relation("RescheduledBookings", fields: [rescheduledFromId], references: [id])
   rescheduledTo    Booking[]       @relation("RescheduledBookings")
@@ -569,6 +571,7 @@ model Booking {
   @@index([trainerProfileId, startsAt, endsAt])
   @@index([athleteProfileId, startsAt, endsAt])
   @@index([parentProfileId])
+  @@index([couponId])
   @@index([status])
   @@map("bookings")
 }
@@ -798,6 +801,7 @@ model Coupon {
 
   applicableSport Sport? @relation(fields: [applicableSportId], references: [id])
   recipientParentProfile ParentProfile? @relation("CouponRecipient", fields: [recipientParentProfileId], references: [id], onDelete: Cascade)
+  bookings Booking[]
 
   @@index([recipientParentProfileId])
 
