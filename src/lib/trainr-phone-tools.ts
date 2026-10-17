@@ -176,7 +176,6 @@ export async function createTrainerProfileDraft(leadId: string) {
 export async function startSecurePayment(input: {
   leadId: string
   plan?: 'founding_listing' | 'founding_package'
-  amountInCents?: number
 }) {
   const runtime = stripeRuntimeStatus()
   if (!runtime.secretConfigured) throw new Error('Stripe is not configured')
@@ -186,7 +185,8 @@ export async function startSecurePayment(input: {
   const identity = (lead.trainerIdentity || {}) as any
   const email = String(identity.email || '').trim().toLowerCase() || undefined
   const plan = input.plan || 'founding_listing'
-  const amountInCents = input.amountInCents || (plan === 'founding_package' ? 29900 : 9900)
+  if (plan !== 'founding_listing' && plan !== 'founding_package') throw new Error('Unsupported trainer onboarding plan')
+  const amountInCents = plan === 'founding_package' ? 29900 : 9900
   const name = plan === 'founding_package' ? 'Trainr Founding Trainer Package' : 'Trainr Founding Dallas Trainer Listing'
 
   const session = await stripe.checkout.sessions.create({

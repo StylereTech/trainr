@@ -2,11 +2,7 @@ import { config, urls } from '../config.js';
 import { escapeXml, twiml } from '../lib/xml.js';
 import { restoreCachedTwilioXml, sendAndCacheTwilioXml } from '../lib/requestStore.js';
 import { persistSession, upsertSession } from '../agent/sessionStore.js';
-
-function amountFromRequest(req) {
-  const amount = req.query?.amount || req.body?.amount || config.defaultPlanAmount;
-  return String(amount).replace(/[^0-9.]/g, '') || config.defaultPlanAmount;
-}
+import { phonePaymentTerms } from '../lib/paymentTerms.js';
 
 export function registerPaymentRoutes(app) {
   app.post('/voice/trainr/payment-twiml', async (req, res) => {
@@ -14,9 +10,10 @@ export function registerPaymentRoutes(app) {
     const cached = await restoreCachedTwilioXml(req, res, 'trainr_payment_twiml', callSid);
     if (cached.restored) return;
 
-    const planId = req.query?.planId || req.body?.planId || config.defaultPlanId;
-    const amount = amountFromRequest(req);
-    const currency = req.query?.currency || req.body?.currency || config.currency;
+    let terms;
+    try { terms = phonePaymentTerms({ ...req.query, ...req.body }); }
+    catch { return res.status(400).send('Unsupported phone payment offer'); }
+    const { planId, amount, currency } = terms;
 
     if (callSid) {
       upsertSession(callSid, {
@@ -50,7 +47,7 @@ export function registerPaymentRoutes(app) {
 
     if (callSid) {
       upsertSession(callSid, {
-        sales_status: { payment_status: paymentStatus, payment_error: paymentError },
+        sales_status: { payment_status: 'provider_review_required', reported_payment_status: paymentStatus, payment_error: paymentError },
         payment_result: {
           status: paymentStatus,
           error: paymentError,
@@ -61,10 +58,7 @@ export function registerPaymentRoutes(app) {
       await persistSession(callSid, 'payment_complete');
     }
 
-    const successful = ['success', 'successful', 'completed', 'paid'].includes(String(paymentStatus).toLowerCase());
-    const say = successful
-      ? 'Payment is complete. I am connecting you back to Jordan to finish your Trainr onboarding.'
-      : 'The secure payment step is complete. I am connecting you back to Jordan to confirm the next step.';
+    const say = 'The secure payment step is complete. Trainr will verify the payment result before confirming your onboarding. I am connecting you back to Jordan.';
 
     res.type('text/xml').send(twiml(`
       <Say>${escapeXml(say)}</Say>

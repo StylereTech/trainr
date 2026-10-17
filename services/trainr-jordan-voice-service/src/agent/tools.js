@@ -4,6 +4,7 @@ import { postJson } from '../lib/httpJson.js';
 import { log } from '../lib/logger.js';
 import { appendToolEvent, persistSession, upsertSession, getSession, deepMerge } from './sessionStore.js';
 import { recordToolCall } from '../lib/metrics.js';
+import { phonePaymentTerms } from '../lib/paymentTerms.js';
 
 function crmHeaders() {
   const headers = {};
@@ -207,9 +208,7 @@ async function sendEmail(args, context) {
 
 async function startSecurePayment(args, context) {
   const callSid = args.call_sid || context.callSid;
-  const planId = args.plan_id || config.defaultPlanId;
-  const amount = args.amount || config.defaultPlanAmount;
-  const currency = args.currency || config.currency;
+  const { planId, amount, currency } = phonePaymentTerms(args);
 
   upsertSession(callSid, {
     sales_status: {

@@ -43,7 +43,7 @@ app.get('/health/ready', (_req, res) => {
   const checks = {
     publicBaseUrl: Boolean(config.publicBaseUrl),
     openai: Boolean(config.openaiApiKey),
-    twilioAuth: Boolean(config.twilioAuthToken || !config.twilioValidateSignatures),
+    twilioAuth: Boolean(config.twilioAuthToken),
     crmTool: Boolean(config.trainrCrmToolUrl || config.trainrCrmBaseUrl),
   };
   const ready = Object.values(checks).every(Boolean);

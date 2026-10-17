@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { saveOnboardingProgress } from '@/lib/trainr-phone-tools'
+import { readSignedTwilioForm } from '@/lib/twilio-form-auth'
 
 export const runtime = 'nodejs'
 
@@ -8,15 +9,16 @@ function xml(body: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData().catch(() => null)
-  const callSid = String(form?.get('CallSid') || '')
-  const paymentStatus = String(form?.get('PaymentStatus') || form?.get('Result') || 'returned')
+  const signed = await readSignedTwilioForm(req)
+  if (!signed.ok) return new NextResponse('Twilio request could not be verified', { status: signed.status })
+  const callSid = signed.params.CallSid || ''
+  const paymentStatus = signed.params.PaymentStatus || signed.params.Result || 'returned'
 
   if (callSid) {
     await saveOnboardingProgress({
       twilioCallSid: callSid,
-      status: paymentStatus.toLowerCase().includes('success') ? 'payment_completed' : 'payment_returned',
-      onboarding: { sales_status: { payment_status: paymentStatus } },
+      status: 'payment_returned',
+      onboarding: { sales_status: { payment_status: 'provider_review_required' } },
       transcriptEntry: { role: 'system', event: 'payment_return', paymentStatus, at: new Date().toISOString() },
     })
   }
@@ -27,6 +29,6 @@ export async function POST(req: NextRequest) {
 </Response>`)
 }
 
-export async function GET(req: NextRequest) {
-  return POST(req)
+export async function GET() {
+  return new NextResponse('Method not allowed', { status: 405 })
 }

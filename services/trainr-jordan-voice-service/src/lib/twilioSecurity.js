@@ -7,10 +7,9 @@ function publicUrlForRequest(originalUrl = '/') {
 }
 
 export function validateTwilioSignature(req, res, next) {
-  if (!config.twilioValidateSignatures) return next();
   if (!config.twilioAuthToken) {
-    log.warn('TWILIO_VALIDATE_SIGNATURES=true but TWILIO_AUTH_TOKEN is missing');
-    return res.status(500).send('Twilio validation misconfigured');
+    log.warn('TWILIO_AUTH_TOKEN is missing');
+    return res.status(503).send('Twilio validation misconfigured');
   }
 
   const signature = req.header('X-Twilio-Signature');
@@ -22,9 +21,8 @@ export function validateTwilioSignature(req, res, next) {
 }
 
 export function validateTwilioUpgrade(req) {
-  if (!config.twilioValidateSignatures) return true;
   if (!config.twilioAuthToken) {
-    log.warn('TWILIO_VALIDATE_SIGNATURES=true but TWILIO_AUTH_TOKEN is missing for WebSocket upgrade');
+    log.warn('TWILIO_AUTH_TOKEN is missing for WebSocket upgrade');
     return false;
   }
 

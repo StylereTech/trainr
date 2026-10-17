@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
+import { z } from 'zod'
 import { TRAINR_PHONE_AGENT_PROMPT, TRAINR_PHONE_TOOLS } from '@/lib/trainr-phone-agent'
 import { createTrainerProfileDraft, lookupTrainerByPhone, saveOnboardingProgress, startSecurePayment } from '@/lib/trainr-phone-tools'
 
@@ -6,9 +8,16 @@ export const runtime = 'nodejs'
 
 function authorized(req: NextRequest) {
   const secret = process.env.TRAINR_VOICE_TOOL_SECRET
-  if (!secret) return true
-  return req.headers.get('x-trainr-voice-secret') === secret
+  const supplied = req.headers.get('x-trainr-voice-secret')
+  if (!secret || !supplied) return false
+  const actual = Buffer.from(supplied), expected = Buffer.from(secret)
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
+
+const paymentArgs = z.object({
+  leadId: z.string().trim().min(1).max(128),
+  plan: z.enum(['founding_listing', 'founding_package']).optional(),
+}).strict()
 
 export async function GET() {
   return NextResponse.json({
@@ -21,6 +30,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!process.env.TRAINR_VOICE_TOOL_SECRET) return NextResponse.json({ error: 'Voice tools are not configured' }, { status: 503 })
   if (!authorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
@@ -48,10 +58,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, trainer })
       }
       case 'start_secure_payment': {
+        const parsed = paymentArgs.safeParse(args)
+        if (!parsed.success) return NextResponse.json({ error: 'A valid lead and plan are required; price cannot be supplied by the caller.' }, { status: 400 })
         const payment = await startSecurePayment({
-          leadId: args.leadId,
-          plan: args.plan,
-          amountInCents: args.amountInCents,
+          leadId: parsed.data.leadId,
+          plan: parsed.data.plan,
         })
         return NextResponse.json({ ok: true, payment })
       }

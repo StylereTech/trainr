@@ -1,0 +1,30 @@
+# Voice Payment Security And Production Routing
+
+Date: 2026-10-17 19:30 UTC. Environment: local audit worktree, Vercel `trainr` and `trainr-node` projects, public `trainr.cc`. Audit source: `bf620f2e355d2e5ade935c6ce0c4f5b1b687eacc` plus uncommitted hardening at initial inspection. Main hotfix: `c80b62724239f82b03bd47327cd803a9c4f203dd`. Account: anonymous probes only; no customer, trainer, card, or live payment was used.
+
+## Observed Risk
+
+- Anonymous `POST {"tool":"audit_unknown_tool"}` to `/api/voice/trainr/tools` on the audit Preview and `trainr.cc` returned HTTP 400 `Unknown Trainr phone tool` before the fix. Expected: reject before dispatch. This proved the previous no-secret path did not fail closed; no mutating tool was invoked.
+- The legacy payment callbacks accepted unsigned requests and allowed caller-supplied pricing. These are source findings, not a claim that a charge was made.
+- Main hotfix `c80b627` requires a configured voice-tool secret and exact constant-time header match. The `trainr` Vercel project deployed it Ready as production deployment `GXD6JR3VTa5eesptLLXmCrQBa8Z2`, but its domains do not include `trainr.cc`.
+
+## Actual Public Deployment
+
+- Vercel team domain and project settings show `trainr.cc` and `www.trainr.cc` assigned to project `trainr-node`, not `trainr`. Its latest Ready production deployment is `FEp6XgWZotobnxofLrhpssQdJoWN`, source `2067e743c54ffee669cd484f26dc472b157f1881` dated May 31, 2026. The project Git settings say it is **not connected to a Git repository**. Thus pushing `main` did not update the public domain. The current project framework preset is `Other`; do not transfer the domain or redeploy an unrelated artifact without checking its build and environment configuration.
+- After the hotfix push, the same harmless anonymous public POST still returned HTTP 400. Therefore the hotfix was **not live on `trainr.cc`**.
+
+## Temporary Containment
+
+- At approximately 19:29 UTC, an active Vercel Firewall custom rule named `TRAINR temporary voice payment hold` was published on `trainr-node`: **Request Path starts with `/api/voice/trainr/` -> Deny**. Rule ID from its Vercel UI link: `rule_trainr_temporary_voice_payment_hold_pGU2yr`.
+- A fresh anonymous browser GET of `https://trainr.cc/api/voice/trainr/tools` displayed Vercel `403 Forbidden`, request ID `cle1::bttcv-1792265376206-83d69e90fcc9`. The `https://trainr.cc/` homepage still rendered. This is edge containment of the path prefix, not a code deployment or proof for every HTTP method and host.
+- Do not remove this rule until the serving project has the signed/authenticated implementation deployed and GET/POST callback probes, normal site smoke, and Twilio service integration all pass. The rule intentionally interrupts voice tools and payment callbacks while active.
+
+## Local Fix Scope And Retest
+
+- Audit-branch edits make the Next voice tool require its secret, reject caller-supplied amounts, set server-side plan prices, require Twilio-signed form POST callbacks, and avoid declaring payment success from an unverified callback. The separate Fly voice service source now requires Twilio signature validation and rejects model/caller price overrides. Neither the audit-branch edits nor Fly service changes have been published by this report.
+- Remaining P1 money-flow gap: the Next trainer-phone Checkout creates a session with `trainerPhoneLeadId` metadata, but the current Stripe webhook does not reconcile that ID into a verified trainer-onboarding payment record. The Fly Twilio `<Pay>` result likewise is not a Stripe ledger receipt. Do not expose either phone collection path or interpret a returned callback as settled money until the provider-backed reconciliation and failure recovery are implemented and tested. The public project firewall hold is a temporary containment, not that integration.
+- Focused Next payment-auth tests passed 4/4. Final full audit-branch `npm run check` passed: lint 0 errors/42 existing warnings, TypeScript, 1,825/1,825 unit tests in 86 files, Prisma generation and optimized Next.js build (exit 0). Its first sandboxed run stopped before unit execution because esbuild could not read `vitest.config.ts`; the unchanged gate was rerun with filesystem permission and passed. The separate Fly voice-service `npm run check` passed 3/3, including unsigned POST rejection, tampered amount rejection and signed fixed-price TwiML. These tests use synthetic signed forms and mocked provider behavior; no Twilio charge, Stripe reconciliation, transfer, or payout was exercised.
+
+## Refund And Launch Decision
+
+The owner selected a **clearly disclosed manual-support refund process for v1** on 2026-10-17. Existing audit-branch refund page, Terms, parent support links, and manual-ops runbook reflect that choice. Published eligibility amounts require support verification; cancellation alone is not a cash refund receipt. A fresh public browser read of `https://trainr.cc/legal/refunds` still showed the March 1, 2026 policy promising an automatic full refund and 10% credit for trainer cancellation. Thus the approved policy is **not live**. An actual sandbox refund, future-booking code issuance, and refreshed customer/provider ledger reconciliation are not yet verified. Production money-flow signoff remains **HOLD**.

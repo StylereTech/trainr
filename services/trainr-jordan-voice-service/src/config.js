@@ -2,12 +2,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-function boolEnv(name, fallback = false) {
-  const value = process.env[name];
-  if (value === undefined || value === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
-}
-
 function requiredEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -34,7 +28,6 @@ export const config = {
 
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
-  twilioValidateSignatures: boolEnv('TWILIO_VALIDATE_SIGNATURES', false),
 
   trainrCrmBaseUrl: (process.env.TRAINR_CRM_BASE_URL || '').replace(/\/$/, ''),
   trainrCrmApiKey: process.env.TRAINR_CRM_API_KEY || '',
@@ -52,8 +45,12 @@ export const config = {
 
 export function assertRuntimeConfig() {
   requiredEnv('OPENAI_API_KEY');
+  requiredEnv('TWILIO_AUTH_TOKEN');
   if (!config.publicBaseUrl) {
     throw new Error('Missing PUBLIC_BASE_URL. Example: https://trainr-jordan-voice-service.fly.dev');
+  }
+  if (!/^\d+\.\d{2}$/.test(config.defaultPlanAmount) || Number(config.defaultPlanAmount) <= 0 || Number(config.defaultPlanAmount) > 1_000_000 || config.currency !== 'USD') {
+    throw new Error('TRAINR_DEFAULT_PLAN_AMOUNT must be a positive USD amount with two decimal places');
   }
 }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSignedTwilioForm } from '@/lib/twilio-form-auth'
 
 export const runtime = 'nodejs'
 
@@ -11,8 +12,11 @@ function xml(body: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData().catch(() => null)
-  const amount = String(form?.get('amount') || req.nextUrl.searchParams.get('amount') || process.env.TRAINR_FOUNDING_LISTING_AMOUNT || '99.00')
+  const signed = await readSignedTwilioForm(req)
+  if (!signed.ok) return new NextResponse('Twilio request could not be verified', { status: signed.status })
+  const plan = signed.params.plan || req.nextUrl.searchParams.get('plan') || 'founding_listing'
+  if (plan !== 'founding_listing' && plan !== 'founding_package') return new NextResponse('Unsupported trainer onboarding plan', { status: 400 })
+  const amount = plan === 'founding_package' ? '299.00' : '99.00'
   const connector = process.env.TRAINR_TWILIO_PAY_CONNECTOR || 'Trainr_Stripe'
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://trainr.cc'
   const action = xmlEscape(`${baseUrl}/api/voice/trainr/payment/return`)
@@ -26,6 +30,6 @@ export async function POST(req: NextRequest) {
 </Response>`)
 }
 
-export async function GET(req: NextRequest) {
-  return POST(req)
+export async function GET() {
+  return new NextResponse('Method not allowed', { status: 405 })
 }
