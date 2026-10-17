@@ -109,11 +109,22 @@ test.describe('Admin Flow', () => {
       await page.goto('/admin/payouts');
       await page.waitForLoadState('networkidle');
       expect(page.url()).toContain('/admin/payouts');
+      await expect(page.getByRole('heading', { name: 'Recorded Payments' })).toBeVisible();
+      await expect(page.getByText('Application error: a client-side exception has occurred')).toHaveCount(0);
     });
 
     test('payouts API returns data', async ({ page }) => {
-      const response = await page.request.get('/api/admin/payouts');
-      expect(response.status()).not.toBe(404);
+      const response = await page.request.get('/api/admin/payouts?view=payments&page=1&limit=20');
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(Array.isArray(data.payments)).toBe(true);
+      expect(data.summary).toEqual({
+        grossCaptured: expect.any(Number),
+        recordedRefunds: expect.any(Number),
+        netCaptured: expect.any(Number),
+        awaitingPayment: expect.any(Number),
+      });
+      expect(data.pagination).toEqual(expect.objectContaining({ page: 1, limit: 20, total: expect.any(Number) }));
     });
   });
 
