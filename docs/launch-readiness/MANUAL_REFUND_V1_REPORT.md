@@ -1,5 +1,7 @@
 # Manual Refund V1 Validation
 
+**2026-10-17 follow-up:** admin coupon creation now defaults to one use and rejects malformed settings, with local and hosted no-write proof. This does not redeem a credit or bind a code to one parent. [Support-credit coupon audit](SUPPORT_CREDIT_COUPON_REPORT.md). Original refund validation below remains accurate for its dated source.
+
 **2026-10-17 17:39 UTC. Decision: Production HOLD.** Owner selected a clearly disclosed manual-support refund process for v1. Source commits `e95a2fd84f6e8869d7fb523eddb836cf37b39700` (policy/support path) and `bb2ae9078b59805ab40d52593176686713135edd` (legal-page contrast). Environment: Windows local checkout and isolated TRAINR Vercel Preview alias `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`; Production, main, Story and real money were not changed. GitHub [Preview deployment for `bb2ae90`](https://github.com/StylereTech/trainr/deployments/7143287680) reports `success`, completed 2026-10-17 17:36:52 UTC, immutable URL `https://trainr-mvztl7rz6-styleres-projects.vercel.app`.
 
 ## Scope And Accounts

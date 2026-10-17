@@ -19,4 +19,12 @@ test('admin coupon form defaults to one use without creating a code', async ({ p
   await page.goto('/admin/coupons')
   await page.getByRole('button', { name: 'Create coupon' }).first().click()
   await expect(page.getByRole('dialog', { name: 'Create coupon' }).getByLabel('Max uses')).toHaveValue('1')
+  const before = await page.request.get('/api/admin/coupons?limit=1')
+  expect(before.status()).toBe(200)
+  const count = (await before.json()).pagination.total
+  const invalid = await page.request.post('/api/admin/coupons', { data: { code: '!!!', discountPercent: 10 } })
+  expect(invalid.status()).toBe(400)
+  const after = await page.request.get('/api/admin/coupons?limit=1')
+  expect(after.status()).toBe(200)
+  expect((await after.json()).pagination.total).toBe(count)
 })
