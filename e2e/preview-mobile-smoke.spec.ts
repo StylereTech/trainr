@@ -109,4 +109,25 @@ test.describe('isolated Preview mobile journeys', () => {
     expect(cancelCalls).toBe(1)
     await page.screenshot({ path: testInfo.outputPath('preview-mobile-unpaid-reservation-cancel.png'), fullPage: true })
   })
+
+  test('paid booking shows a prefilled manual-support request', async ({ page }) => {
+    await signIn(page, 'PARENT')
+    const booking = {
+      id: 'synthetic-paid-support-review', date: '2030-11-04', startTime: '09:00', endTime: '10:00', timeZone: 'UTC',
+      startsAt: '2030-11-04T09:00:00.000Z', endsAt: '2030-11-04T10:00:00.000Z', status: 'CONFIRMED',
+      totalAmountInCents: 5000, trainerPayoutInCents: 4250, creditFunding: null,
+      payment: { status: 'SUCCEEDED', settlementVerifiedAt: '2030-11-01T09:00:00.000Z' },
+      serviceOffering: { title: 'Synthetic Basketball Session', durationMinutes: 60 },
+      trainerProfile: { firstName: 'Audit', lastName: 'Trainer', paymentReady: true },
+      athleteProfile: { firstName: 'Audit', lastName: 'Child' },
+    }
+    await page.route('**/api/dashboard/bookings?*', route => route.fulfill({ json: dashboardFixture([booking], route.request().url()) }))
+    await page.reload()
+    const link = page.getByRole('link', { name: 'Contact support about this payment' })
+    await expect(link).toBeVisible()
+    const href = await link.getAttribute('href')
+    expect(href).toContain('mailto:support@trainr.app?')
+    expect(decodeURIComponent(href || '')).toContain(`Booking ID: ${booking.id}`)
+    await expectFitsViewport(page)
+  })
 })

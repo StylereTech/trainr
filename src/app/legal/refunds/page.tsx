@@ -6,8 +6,8 @@ export default function RefundPage() {
   return (
     <div className="bg-white py-16">
       <div className="container max-w-3xl">
-        <h1 className="text-3xl font-bold mb-2">Refund Policy</h1>
-        <p className="text-sm text-muted-foreground mb-8">Last updated: October 17, 2026</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Refund Policy</h1>
+        <p className="text-sm text-gray-600 mb-8">Last updated: October 17, 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-6">
           <section>
