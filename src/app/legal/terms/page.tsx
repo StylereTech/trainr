@@ -27,12 +27,12 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900">4. Booking & Cancellation</h2>
-            <p>Bookings are requests subject to trainer acceptance. Cancellations made more than 24 hours before the session receive a full refund. Late cancellations may be subject to a cancellation fee. No-shows are non-refundable.</p>
+            <p>Bookings are requests subject to trainer acceptance. For paid single sessions, parent cancellations at least 24 hours before the scheduled start are eligible for a full refund; cancellations under 24 hours are eligible for 50%. No-shows are non-refundable. Cash refunds are reviewed and issued through support, not by the cancellation action. Package-funded sessions follow the package credit rules. See the <a href="/legal/refunds" className="underline">Refund Policy</a> for requests and trainer cancellations.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900">5. Payments</h2>
-            <p>All payments are processed securely through Stripe. Parents are charged at the time of booking confirmation. Trainers receive payment after session completion, minus the platform fee and processing fees.</p>
+            <p>Online payments are processed through Stripe when a parent completes Checkout; a reservation alone does not charge the parent. A successful destination charge allocates the trainer share to the trainer&apos;s connected Stripe account, subject to Stripe account eligibility and payout timing. A platform transfer is not proof of a bank payout.</p>
           </section>
 
           <section>

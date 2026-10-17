@@ -24,6 +24,10 @@ function isTrainerPaymentReady(booking: Booking) {
   return booking.trainerProfile.paymentReady
 }
 
+function bookingSupportHref(bookingId: string) {
+  return `mailto:support@trainr.app?subject=${encodeURIComponent('TRAINR booking payment review')}&body=${encodeURIComponent(`Booking ID: ${bookingId}\nPlease describe your cancellation or refund request:\n`)}`
+}
+
 function canStartCheckout(booking: Booking) {
   return !booking.creditFunding && ['PENDING', 'CONFIRMED'].includes(booking.status) && booking.totalAmountInCents > 0 &&
     (!booking.payment || ['PENDING', 'FAILED'].includes(booking.payment.status))
@@ -192,6 +196,7 @@ export default function ParentDashboard() {
             <TabsTrigger value="upcoming">Open ({counts.PENDING + counts.CONFIRMED})</TabsTrigger>
             <TabsTrigger value="past">Past ({counts.COMPLETED + counts.CANCELLED + counts.NO_SHOW + counts.RESCHEDULED})</TabsTrigger>
           </TabsList>
+          <p className="mt-3 text-sm text-slate-300">Need to cancel a paid booking or request a cash refund? Email <a href="mailto:support@trainr.app" className="text-emerald-300 underline">support@trainr.app</a> with your booking ID. Cancelling a reservation does not issue a refund. <Link href="/legal/refunds" className="text-emerald-300 underline">Refund policy</Link></p>
 
           <TabsContent value="upcoming" className="mt-4">
             {upcomingBookings.length === 0 ? (
@@ -208,6 +213,7 @@ export default function ParentDashboard() {
                           <Badge variant="outline">{b.creditFunding ? 'Package credit' : b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
+                        {!b.creditFunding && b.payment && <a href={bookingSupportHref(b.id)} className="mt-2 inline-block text-sm text-emerald-300 underline">Contact support about this payment</a>}
                         <PaymentHoldSummary booking={b} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title} • {b.athleteProfile.firstName} {b.athleteProfile.lastName}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">
@@ -265,6 +271,7 @@ export default function ParentDashboard() {
                           <Badge variant="outline">{b.creditFunding ? 'Package credit' : b.payment ? `Payment: ${b.payment.status}` : 'Payment not recorded'}</Badge>
                         </div>
                         <RefundSummary payment={b.payment} />
+                        {!b.creditFunding && b.payment && <a href={bookingSupportHref(b.id)} className="mt-2 inline-block text-sm text-emerald-300 underline">Contact support about this payment</a>}
                         <PaymentHoldSummary booking={b} />
                         <div className="mt-1 text-sm text-slate-300">{b.serviceOffering.title}</div>
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-400">

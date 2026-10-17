@@ -87,6 +87,7 @@ export function PackagePurchaseHistory({ role }: { role: 'PARENT' | 'TRAINER' })
             {role === 'PARENT' ? <Button asChild variant="outline" className="mt-3"><Link href={`/parent/packages/${encodeURIComponent(purchase.id)}/book`}><CalendarCheck className="mr-2 h-4 w-4" />View session credits</Link></Button>
               : <p className="mt-3 text-sm text-slate-400">Session credits are shared across the parent&apos;s children.</p>}
             <RefundSummary payment={purchase} />
+            {role === 'PARENT' && <p className="mt-3 text-sm text-slate-300">Need a package refund review? Email <a href={`mailto:support@trainr.app?subject=${encodeURIComponent('TRAINR package refund request')}&body=${encodeURIComponent(`Purchase ID: ${purchase.id}\n`)}`} className="text-emerald-300 underline">support@trainr.app</a>. <Link href="/legal/refunds" className="text-emerald-300 underline">Refund policy</Link></p>}
           </div>
           <div className="min-w-0 md:text-right">
             <p className="text-xs text-slate-400">Package total</p><p className="break-words text-xl font-semibold">{formatCurrency(purchase.amountInCents)}</p>
