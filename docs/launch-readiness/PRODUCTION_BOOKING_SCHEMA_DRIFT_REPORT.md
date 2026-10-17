@@ -4,7 +4,7 @@
 
 ## Reproduction
 
-The approved existing parent and trainer demo accounts each signed in through `/auth/signin`. Opt-in, read-only Playwright command: `TRAINR_PUBLIC_DEMO_STATUS=1 npm run test:e2e -- e2e/production-booking-read.spec.ts --project=chromium --workers=1`. Each test requested `GET /api/bookings?page=1&limit=10` and expected HTTP 200 with a bookings array and pagination. **Actual: 500 for both roles; 0/2 passed.** No booking POST, checkout, refund or payout was attempted. The cases are intentionally red until Production is repaired.
+The approved existing parent `jennifer.davis@email.com` and trainer `marcus.johnson@email.com` demo accounts each signed in through `/auth/signin`; no passwords are recorded here. Opt-in, read-only Playwright command: `TRAINR_PUBLIC_DEMO_STATUS=1 npm run test:e2e -- e2e/production-booking-read.spec.ts --project=chromium --workers=1`. Each test requested `GET /api/bookings?page=1&limit=10` and expected HTTP 200 with a bookings array and pagination. **Actual: 500 for both roles; 0/2 passed.** No booking POST, checkout, refund or payout was attempted. The cases are intentionally red until Production is repaired.
 
 The `trainr-node` Vercel Request Logs at **2026-10-17 21:01:45.910 UTC** and **21:03:39.250 UTC** show `PrismaClientKnownRequestError P2022` on `prisma.booking.findMany()`: **`The column payments.stripeCheckoutSessionId does not exist in the current database.`** `GET /api/bookings` returned 500 while the trainer page and `GET /api/trainer/stripe-connect` returned 200. A public `/api/health` database-connected result therefore cannot be treated as booking-schema proof.
 
