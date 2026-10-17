@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { voiceToolAuthStatus } from '@/lib/voice-tool-auth'
 import { TRAINR_PHONE_AGENT_PROMPT, TRAINR_PHONE_TOOLS } from '@/lib/trainr-phone-agent'
 import { createTrainerProfileDraft, lookupTrainerByPhone, saveOnboardingProgress, startSecurePayment } from '@/lib/trainr-phone-tools'
 
 export const runtime = 'nodejs'
-
-function authorized(req: NextRequest) {
-  const secret = process.env.TRAINR_VOICE_TOOL_SECRET
-  if (!secret) return true
-  return req.headers.get('x-trainr-voice-secret') === secret
-}
 
 export async function GET() {
   return NextResponse.json({
@@ -21,7 +16,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const authStatus = voiceToolAuthStatus(req.headers.get('x-trainr-voice-secret'))
+  if (authStatus !== 200) return NextResponse.json({ error: authStatus === 503 ? 'Voice tools are not configured' : 'Unauthorized' }, { status: authStatus })
 
   const body = await req.json().catch(() => ({}))
   const tool = String(body.tool || body.name || '')
