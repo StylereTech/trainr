@@ -1,0 +1,28 @@
+# Manual Refund V1 Validation
+
+**2026-10-17 17:39 UTC. Decision: Production HOLD.** Owner selected a clearly disclosed manual-support refund process for v1. Source commits `e95a2fd84f6e8869d7fb523eddb836cf37b39700` (policy/support path) and `bb2ae9078b59805ab40d52593176686713135edd` (legal-page contrast). Environment: Windows local checkout and isolated TRAINR Vercel Preview alias `https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app`; Production, main, Story and real money were not changed. GitHub [Preview deployment for `bb2ae90`](https://github.com/StylereTech/trainr/deployments/7143287680) reports `success`, completed 2026-10-17 17:36:52 UTC, immutable URL `https://trainr-mvztl7rz6-styleres-projects.vercel.app`.
+
+## Scope And Accounts
+
+- Public routes: `GET /legal/refunds`, `/legal/terms`, `/legal/privacy`, `/legal/cookies`. No login required.
+- Parent UI: `/parent/dashboard`; approved synthetic Preview PARENT account from ignored `.postgres-test/preview-test-accounts.json`, passed to Playwright as process-only environment variables. One `CONFIRMED` payment DTO was intercepted at `GET /api/dashboard/bookings`; it was **synthetic UI data**, not a database record or Stripe charge. The support link was inspected, not activated to send mail.
+- Parent package history support entry: code inspection in `src/components/shared/PackagePurchaseHistory.tsx`; no hosted paid package row existed for a browser assertion.
+- Admin `POST /api/admin/refunds`: code inspection confirms only `action: reconcile` is accepted. This endpoint reads Stripe status; it does not submit a refund. Actual Stripe Dashboard manual refund and coupon redemption were **not** performed.
+
+## Steps, Expected And Actual
+
+| Step | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| Compare published refund/Terms copy with `applyBookingAction`, admin refund route and coupon path | No unsupported automatic money/credit promise; preserve full/50% and trainer-cancellation entitlements | Policy now states support review, exact 24-hour boundary, original-payment refund status, manual one-use 10% discount; Terms agrees; cancellation still issues no cash refund | **PASS for copy/code alignment**, NOT refund execution |
+| Run `npm run check` on first policy commit | Lint, types, 1,795 units and build pass | First run: 1 esbuild 5s timeout; focused file 5/5; second full run: **1,795/1,795**, lint 42 warnings, types and build pass | **PASS after documented retry** |
+| Inspect 320px screenshot of first deployed policy | Heading/date readable | H1 inherited nearly white text on white; date low contrast | **FAIL**, reproduced visually |
+| Fix refund/Terms headings/date plus matching Privacy/Cookie pages, then run final local checks | Readable foreground; code compiles | Full gate attempt: 1,794/1,795 due `connect ENOBUFS 127.0.0.1:65533` in esbuild security test; exact file **5/5**; subsequent final `npm test` **1,795/1,795**, changed-file ESLint **PASS**, production build/types **PASS** | **PASS for final component checks**; full one-command `npm run check` on final source remains unproven because of the loopback failure |
+| On Ready Preview, run public policy/Terms/Privacy/Cookie browser checks and 320px layout | Correct support link, policy rules, dark headings, no horizontal overflow | Playwright **5/5 PASS** public cases; computed H1 `rgb(17, 24, 39)`; refreshed [mobile screenshot](evidence/refund-policy-mobile-20261017.png) visually reviewed | **PASS for tested pages** |
+| Sign in synthetic parent, intercept one paid booking, inspect support entry | Link visible and email draft contains booking ID; mobile layout fits | Playwright **1/1 PASS**; `mailto:support@trainr.app` and decoded `Booking ID: synthetic-paid-support-review`; 390px viewport fit; no email sent | **PASS for synthetic UI only** |
+| Inspect latest GitHub CI for final runtime commit | Both jobs execute and pass | [Run 39054466421](https://github.com/StylereTech/trainr/actions/runs/39054466421): `check` and `migrations` never started; GitHub annotation says account locked due to billing | **FAIL, external account gate** |
+
+The final deployed focused run was **6/6 PASS in 25.5 seconds**, no browser retries. The approved synthetic account credentials are not included in this report or committed. No real booking/payment database mutation, support inbox delivery, Stripe refund ID, transfer reversal, application-fee refund, coupon redemption, bank payout or Production smoke is claimed.
+
+## Manual Operation And Remaining Gate
+
+Follow [V1 Manual Ops Runbook](V1_MANUAL_OPS_RUNBOOK.md#cancellation-and-refund-exceptions): log the request, verify the original booking/purchase and Stripe charge, obtain approved refund amount, submit against the original payment in the matching Stripe mode, reconcile refund/transfer/fee status and customer display after refresh, and only then tell the customer the refund succeeded. The one-use 10% code is manual and **not parent-bound** by the current coupon model; issuance/redemption must be tracked by support. The inbound `support@trainr.app` mailbox and response service were not tested. The restricted sandbox trainer account still prevents a real paid booking, so actual refund and credit fulfillment remain **HOLD**. No claim of production or money-flow signoff is warranted.

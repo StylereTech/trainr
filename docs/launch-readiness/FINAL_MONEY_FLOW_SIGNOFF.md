@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+**2026-10-17 17:39 UTC, NOT SIGNED OFF:** manual-support refund disclosure is deployed on the isolated audit Preview at source `bb2ae9078b59805ab40d52593176686713135edd`; public policy and a synthetic parent support link passed **6/6** focused hosted browser cases. No refund, transfer reversal, application-fee adjustment, one-use discount redemption or support inbox delivery was exercised. Restricted trainer Connect capabilities still block an actual sandbox paid booking, and GitHub CI did not start due billing. [Exact evidence and remaining refund operations](MANUAL_REFUND_V1_REPORT.md). Copy alignment is not money movement or a payout receipt. Main/Production unchanged.
+
 **2026-10-16 09:59 UTC:** package purchase/checkout and related SQL regressions now pass 444/444 focused and 1,212/1,212 full guarded local cases, with no remaining synthetic fixtures. [Retest proof](PACKAGE_CONNECT_READINESS_REPORT.md#guarded-postgresql-retest-2026-10-16-0959-utc). Provider responses were simulated; actual Stripe charge/webhook/transfer/payout and refund execution remain unverified. **NOT SIGNED OFF.**
 
 **2026-10-16 09:44 UTC:** [Package Connect readiness](PACKAGE_CONNECT_READINESS_REPORT.md) now fails closed for a known restricted trainer before a new pending purchase, and the deployed parent offer shows the hold. Unit/build gate passes, but guarded SQL cases and actual sandbox package payment/webhook/credits/transfer were not run. **NOT SIGNED OFF.**
