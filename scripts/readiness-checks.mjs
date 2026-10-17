@@ -72,3 +72,16 @@ export async function verifyDatabaseQuery(client) {
   const result = await client.$queryRawUnsafe('SELECT 1 AS readiness')
   return Array.isArray(result) && result.length === 1 && result[0].readiness === 1
 }
+
+export async function missingDatabaseColumns(client, models, schema = 'public') {
+  const rows = await client.$queryRawUnsafe(
+    'SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = $1', schema)
+  if (!Array.isArray(rows) || rows.some(row => typeof row.table_name !== 'string' || typeof row.column_name !== 'string')) {
+    throw new Error('Invalid schema inspection response')
+  }
+  const present = new Set(rows.map(row => `${row.table_name}.${row.column_name}`))
+  return models.flatMap(model => model.fields
+    .filter(field => field.kind !== 'object')
+    .map(field => `${model.dbName || model.name}.${field.dbName || field.name}`)
+    .filter(column => !present.has(column))).sort()
+}

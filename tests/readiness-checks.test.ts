@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { databaseCheckUrl, loadReadinessEnv, productionEnvErrors, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
+import { databaseCheckUrl, loadReadinessEnv, missingDatabaseColumns, productionEnvErrors, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
 
 const validEnv = () => ({
   DATABASE_URL: 'postgresql://synthetic:synthetic@localhost:55439/disposable',
@@ -87,5 +87,41 @@ describe('database query verification', () => {
     expect(await verifyDatabaseQuery(client)).toBe(false)
     client.$queryRawUnsafe.mockRejectedValue(new Error('authentication failed'))
     await expect(verifyDatabaseQuery(client)).rejects.toThrow('authentication failed')
+  })
+})
+
+describe('read-only schema column verification', () => {
+  const models = [
+    { name: 'Payment', dbName: 'payments', fields: [
+      { name: 'id', kind: 'scalar' },
+      { name: 'stripeCheckoutSessionId', kind: 'scalar' },
+      { name: 'booking', kind: 'object' },
+    ] },
+    { name: 'Booking', dbName: 'bookings', fields: [{ name: 'date', dbName: 'booking_date', kind: 'scalar' }] },
+  ]
+
+  it('detects missing payment columns while respecting mapped names and excluding relations', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([
+      { table_name: 'payments', column_name: 'id' },
+      { table_name: 'bookings', column_name: 'booking_date' },
+    ]) }
+    expect(await missingDatabaseColumns(client, models)).toEqual(['payments.stripeCheckoutSessionId'])
+    expect(client.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = $1', 'public')
+  })
+
+  it('passes only when every expected column is present in the chosen schema', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([
+      { table_name: 'payments', column_name: 'id' },
+      { table_name: 'payments', column_name: 'stripeCheckoutSessionId' },
+      { table_name: 'bookings', column_name: 'booking_date' },
+    ]) }
+    expect(await missingDatabaseColumns(client, models, 'trainr')).toEqual([])
+    expect(client.$queryRawUnsafe).toHaveBeenCalledWith(expect.any(String), 'trainr')
+  })
+
+  it('fails closed on a malformed inspection result', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([{ table_name: 'payments' }]) }
+    await expect(missingDatabaseColumns(client, models)).rejects.toThrow('Invalid schema inspection response')
   })
 })
