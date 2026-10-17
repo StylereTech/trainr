@@ -133,11 +133,14 @@ export async function createPaymentIntent(
 }
 
 export async function verifyWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event | null> {
+  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || ''
+  if (platformSecret && platformSecret === connectSecret) throw new Error('Stripe webhook scopes share a signing secret')
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '')
+    event = stripe.webhooks.constructEvent(payload, signature, platformSecret)
+    if (event.account && event.type === 'account.updated') throw new Error('Connected-account update used the platform webhook scope')
   } catch (platformError) {
-    const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || ''
     if (!connectSecret || placeholderPrefixes.some((prefix) => connectSecret.startsWith(prefix))) throw platformError
 
     // Stripe signs platform and connected-account destinations with different secrets.

@@ -17,7 +17,7 @@ export function loadReadinessEnv(cwd, env = process.env) {
 export function productionEnvErrors(env) {
   const errors = []
   const required = ['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET',
-    'NEXT_PUBLIC_STRIPE_PUBLIC_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
+    'NEXT_PUBLIC_STRIPE_PUBLIC_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_CONNECT_WEBHOOK_SECRET',
     'RESEND_API_KEY', 'EMAIL_FROM', 'NEXT_PUBLIC_APP_URL']
   for (const key of required) {
     const value = env[key]?.trim() || ''
@@ -34,6 +34,8 @@ export function productionEnvErrors(env) {
   if (env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY && !/^pk_live_\S+$/.test(env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY)) errors.push('NEXT_PUBLIC_STRIPE_PUBLIC_KEY must be live mode for production verification')
   if (env.STRIPE_PUBLIC_KEY && env.STRIPE_PUBLIC_KEY !== env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY) errors.push('Stripe publishable keys do not match')
   if (env.STRIPE_WEBHOOK_SECRET && !/^whsec_\S+$/.test(env.STRIPE_WEBHOOK_SECRET)) errors.push('STRIPE_WEBHOOK_SECRET has an invalid format')
+  if (env.STRIPE_CONNECT_WEBHOOK_SECRET && !/^whsec_\S+$/.test(env.STRIPE_CONNECT_WEBHOOK_SECRET)) errors.push('STRIPE_CONNECT_WEBHOOK_SECRET has an invalid format')
+  if (env.STRIPE_WEBHOOK_SECRET && env.STRIPE_CONNECT_WEBHOOK_SECRET === env.STRIPE_WEBHOOK_SECRET) errors.push('Stripe platform and Connect webhook secrets must be distinct')
   if (env.DATABASE_URL && !databaseCheckUrl(env.DATABASE_URL)) errors.push('DATABASE_URL must be a valid PostgreSQL URL')
   return errors
 }

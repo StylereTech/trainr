@@ -9,7 +9,8 @@ const validEnv = () => ({
   NEXTAUTH_URL: 'https://trainr.cc', NEXT_PUBLIC_APP_URL: 'https://trainr.cc',
   NEXTAUTH_SECRET: 'synthetic-long-secret-for-validation-only',
   STRIPE_SECRET_KEY: 'sk_live_synthetic', NEXT_PUBLIC_STRIPE_PUBLIC_KEY: 'pk_live_synthetic',
-  STRIPE_WEBHOOK_SECRET: 'whsec_synthetic', RESEND_API_KEY: 're_synthetic', EMAIL_FROM: 'test@example.invalid',
+  STRIPE_WEBHOOK_SECRET: 'whsec_synthetic', STRIPE_CONNECT_WEBHOOK_SECRET: 'whsec_connect_synthetic',
+  RESEND_API_KEY: 're_synthetic', EMAIL_FROM: 'test@example.invalid',
 })
 
 describe('production readiness configuration', () => {
@@ -17,7 +18,7 @@ describe('production readiness configuration', () => {
     expect(productionEnvErrors(validEnv())).toEqual([])
   })
   it('requires values without echoing them', () => {
-    expect(productionEnvErrors({})).toHaveLength(9)
+    expect(productionEnvErrors({})).toHaveLength(10)
     const errors = productionEnvErrors({ ...validEnv(), NEXTAUTH_URL: 'https://private.invalid/?secret=do-not-print' })
     expect(errors.join(' ')).not.toContain('do-not-print')
     expect(errors).toHaveLength(1)
@@ -30,6 +31,11 @@ describe('production readiness configuration', () => {
   })
   it('rejects mismatched optional public key, weak auth and placeholders', () => {
     expect(productionEnvErrors({ ...validEnv(), STRIPE_PUBLIC_KEY: 'pk_live_other', NEXTAUTH_SECRET: 'short', STRIPE_WEBHOOK_SECRET: 'whsec_xxx' })).toHaveLength(3)
+  })
+  it('requires an independent Connect webhook signing secret', () => {
+    expect(productionEnvErrors({ ...validEnv(), STRIPE_CONNECT_WEBHOOK_SECRET: '' })).toContain('STRIPE_CONNECT_WEBHOOK_SECRET is missing')
+    expect(productionEnvErrors({ ...validEnv(), STRIPE_CONNECT_WEBHOOK_SECRET: 'invalid' })).toContain('STRIPE_CONNECT_WEBHOOK_SECRET has an invalid format')
+    expect(productionEnvErrors({ ...validEnv(), STRIPE_CONNECT_WEBHOOK_SECRET: 'whsec_synthetic' })).toContain('Stripe platform and Connect webhook secrets must be distinct')
   })
   it('uses native dotenv parsing and preserves explicit environment precedence', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'trainr-readiness-'))

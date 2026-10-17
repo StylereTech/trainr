@@ -39,6 +39,15 @@ describe('separate platform and Connect webhook signing secrets', () => {
     expect(await verify(connectedEvent)).toEqual(connectedEvent)
   })
 
+  it('rejects a connected-account event signed by the platform destination', async () => {
+    await expect(verify(connectedEvent, platformSecret)).rejects.toThrow()
+  })
+
+  it('fails closed when both destination secrets are configured identically', async () => {
+    vi.stubEnv('STRIPE_CONNECT_WEBHOOK_SECRET', platformSecret)
+    await expect(verify(connectedEvent, platformSecret)).rejects.toThrow('share a signing secret')
+  })
+
   it('keeps the existing platform signing secret working', async () => {
     const event = { id: 'evt_platform', type: 'payment_intent.succeeded', livemode: false, data: { object: {} } }
     expect(await verify(event, platformSecret)).toEqual(event)
