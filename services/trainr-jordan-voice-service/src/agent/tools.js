@@ -1,10 +1,8 @@
-import twilio from 'twilio';
-import { config, urls } from '../config.js';
+import { config } from '../config.js';
 import { postJson } from '../lib/httpJson.js';
 import { log } from '../lib/logger.js';
 import { appendToolEvent, persistSession, upsertSession, getSession, deepMerge } from './sessionStore.js';
 import { recordToolCall } from '../lib/metrics.js';
-import { phonePaymentTerms } from '../lib/paymentTerms.js';
 
 function crmHeaders() {
   const headers = {};
@@ -28,11 +26,6 @@ async function crmTool(name, args) {
   const url = crmToolUrl();
   if (!url) return null;
   return await postJson(url, { tool: name, arguments: args }, { headers: crmHeaders(), timeoutMs: 15_000 });
-}
-
-function twilioClientOrNull() {
-  if (!config.twilioAccountSid || !config.twilioAuthToken) return null;
-  return twilio(config.twilioAccountSid, config.twilioAuthToken);
 }
 
 function normalizeCallSid(args, context) {
@@ -208,38 +201,12 @@ async function sendEmail(args, context) {
 
 async function startSecurePayment(args, context) {
   const callSid = args.call_sid || context.callSid;
-  const { planId, amount, currency } = phonePaymentTerms(args);
-
-  upsertSession(callSid, {
-    sales_status: {
-      payment_status: 'handoff_started',
-      plan_selected: planId,
-      amount,
-      currency,
-    },
-    payment_context: {
-      plan_id: planId,
-      amount,
-      currency,
-      trainer_name: args.trainer_name || '',
-      trainer_email: args.trainer_email || '',
-    },
-  });
-  await persistSession(callSid, 'payment_handoff_started');
-
-  const client = twilioClientOrNull();
-  if (!client) {
-    return {
-      ok: false,
-      payment_handoff_started: false,
-      error: 'Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN, so the service cannot redirect the live call to Twilio Pay yet.',
-      payment_url: `${urls().paymentTwiml}?callSid=${encodeURIComponent(callSid)}&planId=${encodeURIComponent(planId)}&amount=${encodeURIComponent(amount)}&currency=${encodeURIComponent(currency)}`,
-    };
+  if (callSid) {
+    upsertSession(callSid, { sales_status: { payment_status: 'manual_follow_up', follow_up_required: true } });
+    await persistSession(callSid, 'payment_follow_up_required');
   }
-
-  const paymentUrl = `${urls().paymentTwiml}?planId=${encodeURIComponent(planId)}&amount=${encodeURIComponent(amount)}&currency=${encodeURIComponent(currency)}`;
-  await client.calls(callSid).update({ url: paymentUrl, method: 'POST' });
-  return { ok: true, payment_handoff_started: true, call_sid: callSid, plan_id: planId, amount, currency };
+  return { ok: false, payment_handoff_started: false, manual_follow_up: true,
+    error: 'Trainer phone payments are paused pending provider reconciliation. Arrange an approved web or support follow-up.' };
 }
 
 async function scheduleHumanCallback(args, context) {

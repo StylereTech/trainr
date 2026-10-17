@@ -75,23 +75,6 @@ export const trainrToolSchemas = [
   },
   {
     type: 'function',
-    name: 'start_secure_payment',
-    description: 'Redirect the active Twilio call to a secure Twilio Pay step. Use only after the caller agrees to pay. Never collect card details in conversation.',
-    parameters: {
-      type: 'object',
-      properties: {
-        call_sid: { type: 'string' },
-        plan_id: { type: 'string' },
-        amount: { type: 'string', description: 'Decimal amount, e.g. 149.00' },
-        currency: { type: 'string', description: 'Currency code, defaults to USD' },
-        trainer_name: { type: 'string' },
-        trainer_email: { type: 'string' }
-      },
-      required: []
-    }
-  },
-  {
-    type: 'function',
     name: 'schedule_human_callback',
     description: 'Schedule a human Trainr team callback or mark callback requested.',
     parameters: {

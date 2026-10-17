@@ -261,7 +261,7 @@ export function attachTwilioRealtimeSocket(twilioWs, req) {
         type: 'response.create',
         response: {
           instructions: context.resumeReason === 'payment_complete'
-            ? 'The secure payment step just completed. Briefly confirm next steps and finish onboarding naturally.'
+            ? 'The payment step returned, but Trainr has not verified a charge. Do not claim payment succeeded; arrange a human follow-up.'
             : 'Start the phone call now with the Trainr/Jordan opening. Sound warm, confident, and sales-forward.',
         },
       });

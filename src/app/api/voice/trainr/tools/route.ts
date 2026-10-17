@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { TRAINR_PHONE_AGENT_PROMPT, TRAINR_PHONE_TOOLS } from '@/lib/trainr-phone-agent'
-import { createTrainerProfileDraft, lookupTrainerByPhone, saveOnboardingProgress, startSecurePayment } from '@/lib/trainr-phone-tools'
+import { createTrainerProfileDraft, lookupTrainerByPhone, saveOnboardingProgress } from '@/lib/trainr-phone-tools'
 
 export const runtime = 'nodejs'
 
@@ -60,11 +60,7 @@ export async function POST(req: NextRequest) {
       case 'start_secure_payment': {
         const parsed = paymentArgs.safeParse(args)
         if (!parsed.success) return NextResponse.json({ error: 'A valid lead and plan are required; price cannot be supplied by the caller.' }, { status: 400 })
-        const payment = await startSecurePayment({
-          leadId: parsed.data.leadId,
-          plan: parsed.data.plan,
-        })
-        return NextResponse.json({ ok: true, payment })
+        return NextResponse.json({ error: 'Trainer phone payments are paused pending provider reconciliation. Arrange an approved web or support follow-up.' }, { status: 503 })
       }
       case 'send_sms':
       case 'send_email':

@@ -1,8 +1,6 @@
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { stripe, stripeRuntimeStatus } from '@/lib/stripe'
-import { toAbsoluteAppUrl } from '@/lib/app-url'
 import { trainrPhoneOnboardingSchema, type TrainrPhoneOnboarding } from '@/lib/trainr-phone-agent'
 
 type JsonRecord = Record<string, unknown>
@@ -171,48 +169,4 @@ export async function createTrainerProfileDraft(leadId: string) {
   })
 
   return trainer
-}
-
-export async function startSecurePayment(input: {
-  leadId: string
-  plan?: 'founding_listing' | 'founding_package'
-}) {
-  const runtime = stripeRuntimeStatus()
-  if (!runtime.secretConfigured) throw new Error('Stripe is not configured')
-
-  const lead = await prisma.trainerPhoneLead.findUnique({ where: { id: input.leadId } })
-  if (!lead) throw new Error('Trainer phone lead not found')
-  const identity = (lead.trainerIdentity || {}) as any
-  const email = String(identity.email || '').trim().toLowerCase() || undefined
-  const plan = input.plan || 'founding_listing'
-  if (plan !== 'founding_listing' && plan !== 'founding_package') throw new Error('Unsupported trainer onboarding plan')
-  const amountInCents = plan === 'founding_package' ? 29900 : 9900
-  const name = plan === 'founding_package' ? 'Trainr Founding Trainer Package' : 'Trainr Founding Dallas Trainer Listing'
-
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    customer_email: email,
-    line_items: [{
-      price_data: {
-        currency: 'usd',
-        unit_amount: amountInCents,
-        product_data: { name, description: 'Trainr trainer onboarding launch offer' },
-      },
-      quantity: 1,
-    }],
-    success_url: toAbsoluteAppUrl('/trainer/onboarding?phonePayment=success'),
-    cancel_url: toAbsoluteAppUrl('/for-trainers?phonePayment=cancelled'),
-    metadata: { trainerPhoneLeadId: lead.id, plan },
-  })
-
-  await prisma.trainerPhoneLead.update({
-    where: { id: lead.id },
-    data: {
-      status: 'payment_link_created',
-      salesStatus: asInputJson(mergeJson(lead.salesStatus, { payment_status: 'checkout_created', plan_selected: plan, checkout_session_id: session.id })),
-    },
-  })
-
-  return { checkoutUrl: session.url, checkoutSessionId: session.id, amountInCents, plan }
 }
