@@ -87,3 +87,11 @@ export async function missingDatabaseColumns(client, models, schema = 'public') 
     .map(field => `${model.dbName || model.name}.${field.dbName || field.name}`)
     .filter(column => !present.has(column))).sort()
 }
+
+export async function readMigrationLedger(client, schema = 'public') {
+  if (typeof schema !== 'string' || !schema || schema.includes('\0') || Buffer.byteLength(schema, 'utf8') > 63) {
+    throw new Error('Invalid migration schema')
+  }
+  const identifier = `"${schema.replaceAll('"', '""')}"`
+  return client.$queryRawUnsafe(`SELECT migration_name, checksum, finished_at, rolled_back_at FROM ${identifier}."_prisma_migrations"`)
+}

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { databaseCheckUrl, loadReadinessEnv, missingDatabaseColumns, productionEnvErrors, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
+import { databaseCheckUrl, loadReadinessEnv, missingDatabaseColumns, productionEnvErrors, readMigrationLedger, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
 
 const validEnv = () => ({
   DATABASE_URL: 'postgresql://synthetic:synthetic@localhost:55439/disposable',
@@ -129,5 +129,26 @@ describe('read-only schema column verification', () => {
   it('fails closed on a malformed inspection result', async () => {
     const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([{ table_name: 'payments' }]) }
     await expect(missingDatabaseColumns(client, models)).rejects.toThrow('Invalid schema inspection response')
+  })
+})
+
+describe('read-only migration ledger query', () => {
+  it('queries only Prisma migration metadata in the configured schema', async () => {
+    const rows = [{ migration_name: '0_baseline', checksum: 'synthetic', finished_at: new Date(), rolled_back_at: null }]
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue(rows) }
+    expect(await readMigrationLedger(client, 'trainr-audit')).toBe(rows)
+    expect(client.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT migration_name, checksum, finished_at, rolled_back_at FROM "trainr-audit"."_prisma_migrations"')
+  })
+
+  it('quotes schema identifiers and rejects invalid names without querying', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([]) }
+    await readMigrationLedger(client, 'audit"schema')
+    expect(client.$queryRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('FROM "audit""schema"."_prisma_migrations"'))
+    client.$queryRawUnsafe.mockClear()
+    for (const schema of ['', 'a\0b', 'a'.repeat(64)]) {
+      await expect(readMigrationLedger(client, schema)).rejects.toThrow('Invalid migration schema')
+    }
+    expect(client.$queryRawUnsafe).not.toHaveBeenCalled()
   })
 })
