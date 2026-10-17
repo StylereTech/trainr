@@ -19,7 +19,7 @@ const sportDescriptions: Record<string, { tagline: string; description: string; 
     description: 'Quarterback mechanics, defensive fundamentals, speed work, and combine prep. Find a football coach who develops your athlete\'s position skills and confidence.',
     benefits: ['Position-specific drills', 'Speed & agility work', 'Film study prep', 'Combine preparation'],
     developmentFocus: 'Great for athletes building explosiveness, confidence, and football IQ at any position.',
-    trustNote: 'Coaches verified with background checks and parent reviews.',
+    trustNote: 'Listing approval is not proof of identity or background screening.',
     categoryTone: 'Explosive, disciplined, and built for game-day confidence.',
   },
   baseball: {
@@ -27,7 +27,7 @@ const sportDescriptions: Record<string, { tagline: string; description: string; 
     description: 'Hitting, pitching, catching, and fielding. Work with coaches who understand youth mechanics and know how to develop players the right way.',
     benefits: ['Hitting mechanics', 'Pitching velocity & command', 'Catching techniques', 'Defensive fundamentals'],
     developmentFocus: 'Perfect for athletes who want to sharpen their mechanics without rushing their development.',
-    trustNote: 'Coaches verified with background checks and parent reviews.',
+    trustNote: 'Listing approval is not proof of identity or background screening.',
     categoryTone: 'Technical, patient, and focused on long-term player growth.',
   },
   basketball: {
@@ -35,7 +35,7 @@ const sportDescriptions: Record<string, { tagline: string; description: string; 
     description: 'Shooting, ball handling, footwork, and game IQ. Find basketball trainers who help your athlete become a more complete player.',
     benefits: ['Shooting form & accuracy', 'Ball handling & dribbling', 'Defensive positioning', 'Game situation training'],
     developmentFocus: 'Great for guards, wings, and youth players building confidence under pressure.',
-    trustNote: 'Coaches verified with background checks and parent reviews.',
+    trustNote: 'Listing approval is not proof of identity or background screening.',
     categoryTone: 'Fast-paced, confidence-building, and game-ready.',
   },
   soccer: {
@@ -43,7 +43,7 @@ const sportDescriptions: Record<string, { tagline: string; description: string; 
     description: 'Strikers to goalkeepers. Find soccer trainers who develop technique, movement, and decision-making for your athlete\'s position.',
     benefits: ['Ball control & dribbling', 'Passing & receiving', 'Position-specific training', 'Speed & conditioning'],
     developmentFocus: 'Built for athletes focused on technical repetition and tactical awareness.',
-    trustNote: 'Coaches verified with background checks and parent reviews.',
+    trustNote: 'Listing approval is not proof of identity or background screening.',
     categoryTone: 'Technical, fluid, and focused on movement quality.',
   },
   'track-field': {
@@ -51,13 +51,13 @@ const sportDescriptions: Record<string, { tagline: string; description: string; 
     description: 'Sprints, jumps, throws, hurdles, and distance. Specialized coaches for every event who focus on mechanics and measurable improvement.',
     benefits: ['Sprint mechanics', 'Hurdle technique', 'Jump form & distance', 'Throwing fundamentals'],
     developmentFocus: 'Best for athletes who want disciplined coaching and measurable progress in their event.',
-    trustNote: 'Coaches verified with background checks and parent reviews.',
+    trustNote: 'Listing approval is not proof of identity or background screening.',
     categoryTone: 'Precise, disciplined, and results-driven.',
   },
 }
 
 const categoryHighlights = [
-  { icon: ShieldCheck, title: 'Vetted coaches', description: 'Every trainer is reviewed by parents and verified before they can accept bookings.' },
+  { icon: ShieldCheck, title: 'Credential status', description: 'Credential status applies to individual credentials, not identity or background screening.' },
   { icon: Sparkles, title: 'Sport-specific training', description: 'Coaches specialize in your athlete\'s sport with drills, skills, and development plans that match their level.' },
   { icon: Trophy, title: 'Clear expectations', description: 'See what each coach offers, what it costs, and what your kid will work on before you book.' },
 ]

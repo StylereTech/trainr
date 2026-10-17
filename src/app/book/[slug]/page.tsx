@@ -1,36 +1,35 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
+import { useEffect, useRef, useState } from 'react'
+import { AthleteEditor } from '@/components/shared/AthleteEditor'
+import { bookingTrainerSchema } from '@/lib/public-trainer-schema'
+import { requestCheckout } from '@/lib/checkout-client'
+import { useBookingQuote } from '@/lib/use-booking-quote'
+import { z } from 'zod'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import {
   Calendar,
-  ChevronDown,
-  ChevronUp,
+  ArrowLeft,
   Clock,
   CreditCard,
   Loader2,
   MapPin,
   PlusCircle,
-  ShieldCheck,
-  Sparkles,
-  Star,
+  RefreshCw,
   CheckCircle2,
   User,
   X,
 } from 'lucide-react'
-import { formatCurrency, SPORTS } from '@/lib/utils'
-import { formatDateForInput, generateAvailableTimeSlots, parseDateInputAsLocalDate } from '@/lib/trainer'
-import { getSportVisual, isLiveTrainrImage, TRAINR_IMAGE_CATALOG } from '@/lib/trainr-media'
+import { formatCurrency } from '@/lib/utils'
+import { generateAvailableTimeSlots, parseDateInputAsLocalDate } from '@/lib/trainer'
+import { bookingDates, PAID_BOOKING_LEAD_MS, resolveBookingTime } from '@/lib/booking-time'
 
 interface TrainerData {
   id: string
@@ -43,9 +42,10 @@ interface TrainerData {
   city: string | null
   state: string | null
   locationType: string
+  timeZone: string | null
   sports: { sport: { name: string; icon: string | null } }[]
   serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string }[]
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean }[]
+  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean; isAvailable: boolean; specificDate: string | null }[]
 }
 
 interface Athlete {
@@ -56,6 +56,8 @@ interface Athlete {
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const bookingAthletesSchema = z.object({ athletes: z.array(z.object({ id: z.string(), firstName: z.string(), lastName: z.string(), sports: z.array(z.object({ sport: z.object({ name: z.string() }) })) })) })
+const savedBookingSchema = z.object({ id: z.string().min(1), status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'RESCHEDULED']), totalAmountInCents: z.number().int().nonnegative() })
 
 export default function BookingPage() {
   const params = useParams()
@@ -66,12 +68,18 @@ export default function BookingPage() {
   const [trainer, setTrainer] = useState<TrainerData | null>(null)
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [loading, setLoading] = useState(true)
+  const [trainerError, setTrainerError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [bookingUncertain, setBookingUncertain] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const [bookingReviewRequired, setBookingReviewRequired] = useState(false)
+  const bookingInFlight = useRef(false)
+  const bookingRequest = useRef<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(true)
   const [showAddAthlete, setShowAddAthlete] = useState(false)
-  const [addingAthlete, setAddingAthlete] = useState(false)
-  const [newAthlete, setNewAthlete] = useState({ firstName: '', lastName: '', dateOfBirth: '', sports: [] as string[] })
+  const [athleteSavePending, setAthleteSavePending] = useState(false)
+  const [athleteError, setAthleteError] = useState('')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   const [selectedService, setSelectedService] = useState('')
   const [selectedAthlete, setSelectedAthlete] = useState('')
@@ -79,140 +87,139 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState('')
   const [notes, setNotes] = useState('')
   const [couponCode, setCouponCode] = useState('')
+  const pricing = useBookingQuote(selectedService, couponCode, Boolean(trainer && isAuthenticated))
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    setLoading(true)
+    setTrainer(null)
+    setTrainerError(false)
+    setAthleteError('')
     Promise.all([
-      fetch(`/api/trainers/${slug}`).then((r) => r.json()),
-      fetch('/api/athletes').then((r) => {
+      fetch(`/api/trainers/${encodeURIComponent(slug)}`, { signal: controller.signal }).then(async (r) => {
+        if (r.status === 404) return null
+        if (!r.ok) throw new Error('Trainer unavailable')
+        return bookingTrainerSchema.parse(await r.json())
+      }).catch(() => {
+        if (active) setTrainerError(true)
+        return null
+      }),
+      fetch('/api/athletes', { cache: 'no-store', signal: controller.signal }).then(async (r) => {
         if (r.status === 401) {
-          setIsAuthenticated(false)
+          if (active) setIsAuthenticated(false)
           return { athletes: [] }
         }
-        return r.json()
+        if (!r.ok) throw new Error(r.status === 403 ? 'A parent account is required to book.' : 'Athletes could not be loaded. Please retry.')
+        if (active) setIsAuthenticated(true)
+        return bookingAthletesSchema.parse(await r.json())
+      }).catch(error => {
+        if (active) setAthleteError(error instanceof z.ZodError ? 'Athletes could not be loaded. Please retry.' : error.message || 'Athletes could not be loaded. Please retry.')
+        return { athletes: [] }
       }),
     ])
       .then(([trainerData, athletesData]) => {
+        if (!active) return
         setTrainer(trainerData)
-        setAthletes(athletesData.athletes || [])
+        setAthletes(athletesData.athletes)
       })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [slug])
+      .finally(() => { clearTimeout(timeout); if (active) setLoading(false) })
+    return () => { active = false; clearTimeout(timeout); controller.abort() }
+  }, [slug, loadAttempt])
 
   const service = trainer?.serviceOfferings.find((s) => s.id === selectedService)
   const athlete = athletes.find((a) => a.id === selectedAthlete)
 
   const availableTimes = trainer && selectedDate
-    ? generateAvailableTimeSlots(trainer.availabilitySlots, selectedDate, service?.durationMinutes || 60)
+    ? generateAvailableTimeSlots(trainer.availabilitySlots, selectedDate, service?.durationMinutes || 60).filter(time => {
+      try { return resolveBookingTime(selectedDate, time, service?.durationMinutes || 60, trainer.timeZone).startsAt.getTime() > now + PAID_BOOKING_LEAD_MS }
+      catch { return false }
+    })
     : []
 
-  const availableDates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i + 1)
-    return formatDateForInput(d)
-  })
-
-  const sportSlug = useMemo(() => {
-    const primarySport = trainer?.sports[0]?.sport.name?.toLowerCase()
-    return SPORTS.find((sport) => sport.name.toLowerCase() === primarySport)?.slug || 'general'
-  }, [trainer])
-
-  const visual = useMemo(() => {
-    if (!trainer) return TRAINR_IMAGE_CATALOG.baseball.hero
-    return getSportVisual(sportSlug)
-  }, [sportSlug, trainer])
+  const availableDates = bookingDates(trainer?.timeZone, now)
 
   const selectedDateLabel = selectedDate
     ? parseDateInputAsLocalDate(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : 'Choose a date'
 
-  const completedSteps = [selectedService, selectedAthlete, selectedDate && selectedTime].filter(Boolean).length
-
-  const handleAddAthlete = async () => {
-    if (!newAthlete.firstName || !newAthlete.lastName || !newAthlete.dateOfBirth || newAthlete.sports.length === 0) {
-      toast({ title: 'Missing fields', description: 'Fill in name, date of birth, and select at least one sport.', variant: 'destructive' })
-      return
-    }
-    setAddingAthlete(true)
-    try {
-      const res = await fetch('/api/athletes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newAthlete, skillLevel: 'BEGINNER' }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast({ title: 'Error', description: data.error || 'Could not add athlete', variant: 'destructive' })
-        return
-      }
-      const created: Athlete = { id: data.id, firstName: data.firstName, lastName: data.lastName, sports: data.sports || [] }
-      setAthletes((prev) => [...prev, created])
-      setSelectedAthlete(created.id)
-      setShowAddAthlete(false)
-      setNewAthlete({ firstName: '', lastName: '', dateOfBirth: '', sports: [] })
-      toast({ title: 'Athlete added!', description: `${created.firstName} is ready for booking.` })
-    } catch {
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
-    } finally {
-      setAddingAthlete(false)
-    }
-  }
-
-  const toggleNewAthleteSport = (slug: string) => {
-    setNewAthlete((prev) => ({
-      ...prev,
-      sports: prev.sports.includes(slug) ? prev.sports.filter((s) => s !== slug) : [...prev.sports, slug],
-    }))
-  }
-
   const handleSubmit = async () => {
+    if (bookingInFlight.current || bookingReviewRequired) return
     if (!selectedService || !selectedAthlete || !selectedDate || !selectedTime) {
       toast({ title: 'Missing fields', description: 'Please fill in all required fields', variant: 'destructive' })
       return
     }
+    if (!bookingRequest.current && !availableTimes.includes(selectedTime)) {
+      setSelectedTime('')
+      toast({ title: 'Choose another time', description: 'The selected time is no longer available for checkout.', variant: 'destructive' })
+      return
+    }
+    if (!bookingRequest.current && !pricing.quote) {
+      setBookingError('Confirm the current price before booking.')
+      return
+    }
 
+    bookingInFlight.current = true
     setSubmitting(true)
+    setBookingError('')
     try {
+      bookingRequest.current ??= JSON.stringify({ requestId: crypto.randomUUID(), serviceOfferingId: selectedService, athleteProfileId: selectedAthlete,
+        date: selectedDate, startTime: selectedTime, timeZone: trainer?.timeZone, notes, couponCode: couponCode || undefined,
+        expectedTotalInCents: pricing.quote!.totalAmountInCents })
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceOfferingId: selectedService,
-          athleteProfileId: selectedAthlete,
-          date: selectedDate,
-          startTime: selectedTime,
-          notes,
-          couponCode: couponCode || undefined,
-        }),
+        body: bookingRequest.current,
+        signal: AbortSignal.timeout(15000),
       })
 
       const data = await res.json()
       if (!res.ok) {
-        toast({ title: 'Error', description: data.error, variant: 'destructive' })
+        const message = typeof data.error === 'string' ? data.error : 'Booking could not be confirmed.'
+        setBookingError(message)
+        if (res.status === 409 && data.code === 'PRICE_CHANGED') {
+          bookingRequest.current = null
+          setBookingUncertain(false)
+          pricing.refresh()
+        }
+        else if (res.status === 400) { bookingRequest.current = null; setBookingUncertain(false); pricing.refresh() }
+        else if ([401, 403, 404, 409].includes(res.status)) setBookingReviewRequired(true)
+        else setBookingUncertain(true)
         return
       }
 
-      // Attempt immediate checkout redirect (pay-to-book)
-      try {
-        const checkoutRes = await fetch('/api/payments/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: data.id }),
-        })
-        const checkoutData = await checkoutRes.json()
-        if (checkoutRes.ok && checkoutData.checkoutUrl) {
-          window.location.href = checkoutData.checkoutUrl
-          return
-        }
-      } catch {
-        // Stripe not configured or checkout failed — fall back to dashboard
+      const saved = savedBookingSchema.parse(data)
+      if (!['PENDING', 'CONFIRMED'].includes(saved.status)) {
+        toast({ title: 'Booking recovered', description: 'Review the current booking status on your dashboard.' })
+        router.push('/parent/dashboard')
+        return
       }
 
-      toast({ title: 'Booking Created!', description: 'Complete payment from your dashboard to confirm.' })
+      if (data.status === 'CONFIRMED' && data.totalAmountInCents === 0) {
+        toast({ title: 'Booking confirmed', description: 'No payment is due.' })
+        router.push('/parent/dashboard')
+        return
+      }
+
+      try {
+        window.location.href = await requestCheckout(saved.id)
+        return
+      } catch (error) {
+        toast({ title: 'Check booking payment', description: error instanceof Error ? error.message : 'Your booking has been saved. Check its payment status before trying again.', variant: 'destructive' })
+      }
+
       router.push('/parent/dashboard')
     } catch {
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
+      setBookingUncertain(true)
+      setBookingError('Booking could not be confirmed. Retry the same reservation or check your dashboard before starting another.')
     } finally {
+      bookingInFlight.current = false
       setSubmitting(false)
     }
   }
@@ -221,383 +228,213 @@ export default function BookingPage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
 
+  if (trainerError) {
+    return <div className="container py-20 text-center" role="alert">
+      <h1 className="mb-2 text-2xl font-bold">Trainer profile unavailable</h1>
+      <p className="mb-4 text-muted-foreground">We couldn&apos;t load this trainer. Please try again before booking.</p>
+      <Button onClick={() => setLoadAttempt(value => value + 1)}>Retry profile</Button>
+    </div>
+  }
+
   if (!trainer) {
     return (
       <div className="container py-20 text-center">
         <h2 className="mb-4 text-2xl font-bold">Trainer Not Found</h2>
-        <Link href="/browse"><Button>Browse Trainers</Button></Link>
+        <Button asChild><Link href="/browse">Browse Trainers</Link></Button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.24),_transparent_38%),linear-gradient(180deg,_#04130b_0%,_#08131f_100%)]">
-        <div className="container py-8 md:py-10">
-          <Link href={`/trainers/${trainer.slug}`} className="text-sm text-slate-300 transition hover:text-white">
-            ← Back to {trainer.firstName}&apos;s profile
+    <div className="min-h-screen bg-white text-zinc-900" style={{ letterSpacing: 0 }}>
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        <header className="mb-6 border-b border-zinc-200 pb-6">
+          <Link href={'/trainers/' + trainer.slug} className="inline-flex max-w-full items-start gap-2 text-sm text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline">
+            <ArrowLeft className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="min-w-0 break-words">Back to {trainer.firstName}&apos;s profile</span>
           </Link>
+          <h1 className="mt-4 break-words text-2xl font-semibold sm:text-3xl">Book a session with {trainer.firstName} {trainer.lastName[0]}.</h1>
+          <p className="mt-2 flex items-start gap-2 text-sm text-zinc-600">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{trainer.locationType === 'VIRTUAL' ? 'Virtual coaching' : trainer.city && trainer.state ? trainer.city + ', ' + trainer.state : 'Location shared after confirmation'}</span>
+          </p>
+        </header>
 
-          <div className="mt-4 grid gap-6 lg:grid-cols-[1.15fr_.85fr] lg:items-stretch">
-            <div className="max-w-3xl">
-              <Badge className="mb-4 border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">
-                <Sparkles className="mr-1 h-3.5 w-3.5" /> Premium booking flow
-              </Badge>
-              <h1 className="text-3xl font-bold tracking-tight md:text-5xl">Book a session with {trainer.firstName} {trainer.lastName[0]}.</h1>
-              <p className="mt-4 max-w-2xl text-sm text-slate-300 md:text-base">
-                Review the offer, match the right athlete, and request a session with clear pricing, trusted guardrails, and zero checkout confusion.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-300 md:text-sm">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.totalReviews > 0 ? `${trainer.totalReviews} verified reviews` : 'New trainer profile'}</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{trainer.locationType === 'VIRTUAL' ? 'Virtual-ready coaching' : trainer.locationType === 'BOTH' ? 'In-person + virtual' : 'In-person coaching'}</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">No charge until confirmation</span>
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {[
-                  { label: 'Trainer', value: `${trainer.firstName} ${trainer.lastName[0]}.`, icon: User },
-                  { label: 'Rating', value: trainer.totalReviews > 0 ? `${trainer.avgRating.toFixed(1)} / 5` : 'New profile', icon: Star },
-                  { label: 'Progress', value: `${completedSteps}/3 core steps done`, icon: CheckCircle2 },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300">
-                      <item.icon className="h-4 w-4" /> {item.label}
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {trainer.serviceOfferings.length === 0 ? (
+          <section className="py-8">
+            <h2 className="text-lg font-semibold">No sessions available to book.</h2>
+            <Button asChild variant="outline" className="mt-4 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900"><Link href="/browse">Browse Trainers</Link></Button>
+          </section>
+        ) : (
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+            <fieldset disabled={submitting || bookingUncertain || bookingReviewRequired} className="min-w-0 space-y-6">
+              <legend className="sr-only">Session details</legend>
+              <section aria-labelledby="service-heading" className="border-b border-zinc-200 pb-6">
+                <h2 id="service-heading" className="mb-3 text-lg font-semibold">1. Choose a service</h2>
+                <div role="group" aria-labelledby="service-heading" className="space-y-3">
+                  {trainer.serviceOfferings.map((s) => {
+                    const active = selectedService === s.id
+                    return (
+                      <button
+                        type="button"
+                        key={s.id}
+                        aria-pressed={active}
+                        onClick={() => setSelectedService(s.id)}
+                        className={'w-full rounded-lg border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ' +
+                          (active ? 'border-emerald-700 bg-emerald-50' : 'border-zinc-300 bg-white hover:border-zinc-500')}
+                      >
+                        <span className="flex min-w-0 items-start gap-3">
+                          <CheckCircle2 aria-hidden="true" className={'mt-0.5 h-5 w-5 shrink-0 ' + (active ? 'text-emerald-700' : 'text-zinc-300')} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words font-semibold">{s.title}</span>
+                            <span className="mt-1 block text-sm text-zinc-600">{s.durationMinutes} min · {s.type === 'INDIVIDUAL' ? '1-on-1' : s.type === 'GROUP' ? 'Group' : 'Virtual'}</span>
+                            {s.description && <span className="mt-2 block break-words text-sm text-zinc-600">{s.description}</span>}
+                            <span className="mt-2 block text-lg font-semibold text-emerald-800">{formatCurrency(s.id === selectedService && pricing.quote ? pricing.quote.subtotalInCents : s.priceInCents)}</span>
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
 
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 shadow-2xl">
-              {isLiveTrainrImage(visual) ? (
-                <Image src={visual.src} alt={visual.alt} width={1200} height={1200} className="h-[260px] w-full object-cover md:h-[320px]" priority />
-              ) : (
-                <div className="flex h-[260px] items-end bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.22),_transparent_35%),linear-gradient(160deg,_rgba(255,255,255,0.1),_rgba(255,255,255,0.03))] p-6 md:h-[320px]">
+              <section aria-labelledby="athlete-heading" className="border-b border-zinc-200 pb-6">
+                <h2 id="athlete-heading" className="mb-3 text-lg font-semibold">2. Choose an athlete</h2>
+                {athleteError ? (
+                  <div role="alert" className="space-y-3 text-sm"><p>{athleteError}</p><Button variant="outline" className="border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900" onClick={() => setLoadAttempt(value => value + 1)}>Retry athletes</Button></div>
+                ) : !isAuthenticated ? (
                   <div>
-                    <Badge className="border-white/15 bg-white/10 text-white hover:bg-white/10">Media placeholder</Badge>
-                    <h2 className="mt-4 text-2xl font-semibold">{visual.label}</h2>
-                    <p className="mt-2 max-w-md text-sm text-slate-300">{visual.status}. Designed for a premium {visual.tone} slot once more sport imagery lands.</p>
-                  </div>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/10 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-5">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-white">
-                    <ShieldCheck className="h-4 w-4 text-emerald-300" /> Booking designed for parent confidence
-                  </div>
-                  <p className="mt-2 text-sm text-slate-300">Athlete context, clear next steps, and transparent payment timing all stay visible on one page.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="container py-6 md:py-8">
-        <div className="mb-5 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setSummaryOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left"
-          >
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Booking summary</div>
-              <div className="mt-1 text-sm font-semibold text-white">{service ? `${service.title} • ${formatCurrency(service.priceInCents)}` : 'Select a service to start'}</div>
-            </div>
-            {summaryOpen ? <ChevronUp className="h-5 w-5 text-slate-300" /> : <ChevronDown className="h-5 w-5 text-slate-300" />}
-          </button>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_.55fr] xl:grid-cols-[1.2fr_.5fr]">
-          <div className="space-y-6">
-            <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">1</span> Choose the right service</h2>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {trainer.serviceOfferings.map((s) => {
-                  const active = selectedService === s.id
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelectedService(s.id)}
-                      className={`w-full rounded-2xl border p-4 text-left transition md:p-5 ${
-                        active ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-950">{s.title}</div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200"><Clock className="h-3 w-3" /> {s.durationMinutes} min</span>
-                            <Badge variant="secondary" className="bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-white">
-                              {s.type === 'INDIVIDUAL' ? '1-on-1' : s.type === 'GROUP' ? 'Group' : 'Virtual'}
-                            </Badge>
-                          </div>
-                          {s.description && <p className="mt-3 text-sm leading-6 text-slate-600">{s.description}</p>}
-                        </div>
-                        <div className="text-left sm:text-right">
-                          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Starting price</div>
-                          <div className="mt-1 text-2xl font-bold text-emerald-700">{formatCurrency(s.priceInCents)}</div>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </CardContent>
-            </Card>
-
-            <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">2</span> Match the athlete</h2>
-              </CardHeader>
-              <CardContent>
-                {!isAuthenticated ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center">
-                    <p className="mb-4 text-sm text-slate-600">Sign in or create an account to book a session.</p>
-                    <div className="flex items-center justify-center gap-3">
-                      <Link href={`/auth/signin?callbackUrl=/book/${slug}`}><Button size="sm">Sign In</Button></Link>
-                      <Link href={`/auth/signup?callbackUrl=/book/${slug}`}><Button variant="outline" size="sm">Sign Up</Button></Link>
+                    <p className="mb-3 text-sm text-zinc-600">Sign in or create an account to book a session.</p>
+                    <div className="flex flex-wrap gap-3">
+                      <Button asChild size="sm" className="bg-emerald-700 text-white hover:bg-emerald-800"><Link href={'/auth/signin?callbackUrl=/book/' + slug}>Sign In</Link></Button>
+                      <Button asChild variant="outline" size="sm" className="border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900"><Link href={'/auth/signup?callbackUrl=/book/' + slug}>Sign Up</Link></Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {athletes.length > 0 && (
-                      <>
+                      <div>
+                        <Label htmlFor="booking-athlete" className="text-zinc-700">Athlete</Label>
                         <Select value={selectedAthlete} onValueChange={setSelectedAthlete}>
-                          <SelectTrigger className="h-12"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
+                          <SelectTrigger id="booking-athlete" className="mt-2 h-11 min-w-0 border-zinc-300 bg-white text-zinc-900 disabled:bg-slate-100 disabled:text-slate-950 disabled:opacity-100"><SelectValue placeholder="Choose your athlete" /></SelectTrigger>
                           <SelectContent>
                             {athletes.map((a) => (
-                              <SelectItem key={a.id} value={a.id}>
-                                {a.firstName} {a.lastName} {a.sports.length > 0 ? `(${a.sports.map((s) => s.sport.name).join(', ')})` : ''}
-                              </SelectItem>
+                              <SelectItem key={a.id} value={a.id}>{a.firstName} {a.lastName}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {athlete && (
-                          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100">
-                            <div className="font-semibold text-slate-900">Selected athlete</div>
-                            <div className="mt-1">{athlete.firstName} {athlete.lastName}</div>
-                            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">Sports</div>
-                            <div className="mt-1 flex flex-wrap gap-2">
-                              {athlete.sports.length > 0 ? athlete.sports.map((sport) => (
-                                <span key={sport.sport.name} className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-slate-200">{sport.sport.name}</span>
-                              )) : <span className="text-xs text-slate-500">No sports added yet</span>}
-                            </div>
-                          </div>
-                        )}
-                      </>
+                      </div>
                     )}
-
                     {!showAddAthlete ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowAddAthlete(true)}
-                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700"
-                      >
-                        <PlusCircle className="h-4 w-4" /> {athletes.length > 0 ? 'Add another athlete' : 'Add your athlete to continue'}
+                      <button type="button" onClick={() => setShowAddAthlete(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-emerald-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700">
+                        <PlusCircle className="h-4 w-4 shrink-0" aria-hidden="true" /> {athletes.length > 0 ? 'Add another athlete' : 'Add your athlete to continue'}
                       </button>
                     ) : (
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 ring-1 ring-emerald-100">
-                        <div className="mb-4 flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-slate-900">Quick add athlete</h3>
-                          <button type="button" onClick={() => setShowAddAthlete(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-4 w-4" /></button>
+                      <div className="border-t border-zinc-200 pt-4">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <h3 className="text-sm font-semibold">Quick add athlete</h3>
+                          <button type="button" aria-label="Close athlete form" title="Close athlete form" disabled={athleteSavePending} onClick={() => setShowAddAthlete(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"><X className="h-4 w-4" /></button>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <Label className="text-xs text-slate-300">First name</Label>
-                            <Input value={newAthlete.firstName} onChange={(e) => setNewAthlete({ ...newAthlete, firstName: e.target.value })} placeholder="First name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-slate-300">Last name</Label>
-                            <Input value={newAthlete.lastName} onChange={(e) => setNewAthlete({ ...newAthlete, lastName: e.target.value })} placeholder="Last name" className="mt-1 h-10 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
-                          </div>
-                        </div>
-                        <div className="mt-3">
-                          <Label className="text-xs text-slate-300">Date of birth</Label>
-                          <Input type="date" value={newAthlete.dateOfBirth} onChange={(e) => setNewAthlete({ ...newAthlete, dateOfBirth: e.target.value })} className="mt-1 h-10 w-full border-white/10 bg-slate-950/60 text-white sm:w-48" />
-                        </div>
-                        <div className="mt-3">
-                          <Label className="text-xs text-slate-700">Sport(s)</Label>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {SPORTS.map((sport) => {
-                              const active = newAthlete.sports.includes(sport.slug)
-                              return (
-                                <button
-                                  key={sport.slug}
-                                  type="button"
-                                  onClick={() => toggleNewAthleteSport(sport.slug)}
-                                  className={`rounded-full border px-3 py-1.5 text-xs transition ${active ? 'border-emerald-500 bg-emerald-100 font-medium text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
-                                >
-                                  {sport.icon} {sport.name}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="mt-4 gradient-primary border-0 text-white"
-                          disabled={addingAthlete}
-                          onClick={handleAddAthlete}
-                        >
-                          {addingAthlete ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Saving...</> : 'Save & select'}
-                        </Button>
+                        <AthleteEditor onPendingChange={setAthleteSavePending} onSaved={created => { setAthletes(previous => [...previous.filter(item => item.id !== created.id), created]); setSelectedAthlete(created.id); setShowAddAthlete(false); setAthleteSavePending(false) }} />
                       </div>
                     )}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </section>
 
-            <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">3</span> Lock in date and time</h2>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div>
-                  <Label className="text-sm font-medium text-slate-900">Choose a date</Label>
-                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+              <section aria-labelledby="schedule-heading" className="border-b border-zinc-200 pb-6">
+                <h2 id="schedule-heading" className="text-lg font-semibold">3. Choose a date and time</h2>
+                <p className="mt-1 break-words text-sm text-zinc-600">{trainer.timeZone ? 'Session time zone: ' + trainer.timeZone.replaceAll('_', ' ') : 'Booking unavailable: trainer time zone is not set.'}</p>
+                <div className="mt-4">
+                  <h3 id="date-heading" className="text-sm font-medium">Choose a date</h3>
+                  {availableDates.length > 0 && <p className="mt-1 text-sm text-zinc-600">{parseDateInputAsLocalDate(availableDates[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {parseDateInputAsLocalDate(availableDates[availableDates.length - 1]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+                  <div role="group" aria-labelledby="date-heading" className="mt-3 grid grid-cols-7 gap-1 sm:gap-2">
                     {availableDates.map((date) => {
                       const d = parseDateInputAsLocalDate(date)
                       const isSelected = selectedDate === date
                       return (
-                        <button
-                          key={date}
+                        <button type="button" key={date} aria-pressed={isSelected} title={d.toLocaleDateString('en-US', { dateStyle: 'full' })}
                           onClick={() => { setSelectedDate(date); setSelectedTime('') }}
-                          className={`rounded-2xl border p-2.5 text-center transition ${
-                            isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className={`text-[11px] uppercase tracking-[0.12em] ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{DAY_NAMES[d.getDay()]}</div>
-                          <div className="mt-1 text-lg font-semibold">{d.getDate()}</div>
+                          className={'flex min-h-14 min-w-0 flex-col items-center justify-center rounded-md border py-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ' +
+                            (isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-zinc-300 hover:bg-zinc-50')}>
+                          <span className="text-[11px]">{DAY_NAMES[d.getDay()]}</span>
+                          <span className="text-base font-semibold">{d.getDate()}</span>
                         </button>
                       )
                     })}
                   </div>
                 </div>
-
-                <div>
-                  <Label className="text-sm font-medium text-slate-900">Choose a time</Label>
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="mt-4">
+                  <h3 id="time-heading" className="text-sm font-medium">Choose a time</h3>
+                  <div role="group" aria-labelledby="time-heading" className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {selectedDate ? availableTimes.length > 0 ? availableTimes.map((time) => {
                       const isSelected = selectedTime === time
                       return (
-                        <button
-                          key={time}
-                          onClick={() => setSelectedTime(time)}
-                          className={`rounded-2xl border px-3 py-3 text-sm transition ${
-                            isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
+                        <button type="button" key={time} aria-pressed={isSelected} onClick={() => setSelectedTime(time)}
+                          className={'min-h-11 rounded-md border px-2 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ' +
+                            (isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-zinc-300 hover:bg-zinc-50')}>
                           {time}
                         </button>
                       )
-                    }) : (
-                      <p className="col-span-full rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600 ring-1 ring-slate-100">No available times for this date.</p>
-                    ) : (
-                      <p className="col-span-full rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600 ring-1 ring-slate-100">Select a date first to see open time slots.</p>
-                    )}
+                    }) : <p className="col-span-full text-sm text-zinc-600">No available times for this date.</p>
+                      : <p className="col-span-full text-sm text-zinc-600">Select a date first to see open time slots.</p>}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </section>
 
-            <Card className="border-white/10 bg-white text-slate-950 shadow-xl">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-full gradient-primary text-xs text-white">4</span> Add session context</h2>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <Label htmlFor="notes">Notes for the trainer</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Goals, injuries, preferred drills, confidence areas, or anything the trainer should know before session day."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="mt-2 min-h-[140px]"
-                  />
+              <section aria-labelledby="notes-heading" className="space-y-4">
+                <h2 id="notes-heading" className="text-lg font-semibold">4. Session notes</h2>
+                <div>
+                  <Label htmlFor="notes" className="text-zinc-700">Notes for the trainer</Label>
+                  <Textarea id="notes" placeholder="Optional goals or session requests" value={notes} onChange={(e) => setNotes(e.target.value)}
+                    className="mt-2 min-h-24 border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-500 disabled:bg-slate-100 disabled:text-slate-950 disabled:opacity-100" />
                 </div>
-                <div className="md:col-span-2 lg:col-span-1">
-                  <Label htmlFor="coupon" className="text-slate-300">Promo code</Label>
-                  <Input id="coupon" placeholder="Enter code" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} className="mt-2 h-12 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500" />
+                <div>
+                  <Label htmlFor="coupon" className="text-zinc-700">Promo code</Label>
+                  <Input id="coupon" maxLength={32} placeholder="Enter code" value={couponCode} onChange={(e) => { setCouponCode(e.target.value); setBookingError('') }} className="mt-2 h-11 border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-500 disabled:bg-slate-100 disabled:text-slate-950 disabled:opacity-100" />
+                  <div className="mt-2 text-sm" aria-live="polite">
+                    {pricing.loading && <p>Checking price...</p>}
+                    {pricing.error && <><p role="alert" className="text-rose-700">{pricing.error}</p><Button type="button" variant="outline" onClick={pricing.refresh} className="mt-2 border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100 hover:text-zinc-900"><RefreshCw className="mr-2 h-4 w-4" />Retry check</Button></>}
+                    {pricing.quote && <p className="text-emerald-800">{pricing.quote.discountInCents > 0 ? 'Promo applied: ' + formatCurrency(pricing.quote.discountInCents) + ' off. ' : ''}Total due: {formatCurrency(pricing.quote.totalAmountInCents)}</p>}
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100 md:col-span-2 lg:col-span-1">
-                  <div className="font-semibold text-slate-900">Helpful note ideas</div>
-                  <ul className="mt-2 space-y-2">
-                    <li>• Current skill level and age group</li>
-                    <li>• Recent injuries or movement limitations</li>
-                    <li>• Session goals: confidence, mechanics, conditioning</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              </section>
+            </fieldset>
 
-          <div className={`${summaryOpen ? 'block' : 'hidden'} lg:block`}>
-            <Card className="overflow-hidden border-white/10 bg-white text-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.32)] lg:sticky lg:top-20">
-              <div className="bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.24),_transparent_42%),linear-gradient(180deg,_#04130b_0%,_#08131f_100%)] px-6 py-5 text-white">
-                <div className="flex items-center gap-2 text-sm font-medium text-white/90"><Sparkles className="h-4 w-4" /> Booking summary</div>
-                <h3 className="mt-1 text-2xl font-semibold">Everything in one place</h3>
-                <p className="mt-2 text-sm text-white/80">Review session details, parent-facing protections, and the exact next step before you request.</p>
-              </div>
-              <CardContent className="space-y-5 p-6">
+            <aside aria-labelledby="review-heading" className="min-w-0 border-t border-zinc-200 pt-6 lg:sticky lg:top-24 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <div className="space-y-5">
+                <h2 id="review-heading" className="text-lg font-semibold">Review booking</h2>
                 {service ? (
-                  <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected service</div>
-                        <div className="mt-1 font-semibold text-slate-950">{service.title}</div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200"><Clock className="h-3 w-3" /> {service.durationMinutes} min</span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200"><User className="h-3 w-3" /> {service.type === 'INDIVIDUAL' ? '1-on-1 session' : service.type === 'GROUP' ? 'Group session' : 'Virtual session'}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500">Total</div>
-                        <div className="text-2xl font-bold text-emerald-700">{formatCurrency(service.priceInCents)}</div>
-                      </div>
-                    </div>
+                  <div>
+                    <p className="break-words font-semibold">{service.title}</p>
+                    <p className="mt-1 text-sm text-zinc-600">{service.durationMinutes} min · {service.type === 'INDIVIDUAL' ? '1-on-1 session' : service.type === 'GROUP' ? 'Group session' : 'Virtual session'}</p>
                   </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Choose a service to reveal pricing, duration, and the session format.</div>
-                )}
-
-                <div className="space-y-3 rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
-                  <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-slate-500" /> {selectedDateLabel}</div>
-                  <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-slate-500" /> {selectedTime || 'Choose a time'}</div>
-                  <div className="flex items-center gap-2"><User className="h-4 w-4 text-slate-500" /> {athlete ? `${athlete.firstName} ${athlete.lastName}` : 'Choose an athlete'}</div>
-                  <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-slate-500" /> {trainer.city && trainer.state ? `${trainer.city}, ${trainer.state}` : trainer.locationType === 'VIRTUAL' ? 'Virtual coaching' : 'Location shared after confirmation'}</div>
-                </div>
-
-                <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950">
-                  <div className="font-semibold">What happens next</div>
-                  <div className="mt-3 space-y-2">
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Pay securely through Stripe to lock in your session.</div>
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Trainer is notified instantly and confirms the details.</div>
-                    <div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" /> Messaging opens for goals, logistics, and follow-up.</div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  <div className="flex items-center gap-2 font-semibold text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-700" /> Why parents trust Trainr</div>
-                  <p className="mt-2">Verified profiles, transparent pricing, and cleaner communication make the path from discovery to session day feel safer and easier.</p>
-                </div>
-
-                <Button
-                  className="w-full gradient-primary border-0 text-white"
-                  size="lg"
-                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting}
-                  onClick={handleSubmit}
-                >
-                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CreditCard className="mr-2 h-4 w-4" />Book &amp; Pay</>}
+                ) : <p className="text-sm text-zinc-600">No service selected.</p>}
+                <dl className="space-y-3 text-sm">
+                  <div><dt className="flex items-center gap-2 text-zinc-500"><User className="h-4 w-4" aria-hidden="true" />Athlete</dt><dd className="mt-1 break-words">{athlete ? athlete.firstName + ' ' + athlete.lastName : 'Not selected'}</dd></div>
+                  <div><dt className="flex items-center gap-2 text-zinc-500"><Calendar className="h-4 w-4" aria-hidden="true" />Date</dt><dd className="mt-1 break-words">{selectedDateLabel}</dd></div>
+                  <div><dt className="flex items-center gap-2 text-zinc-500"><Clock className="h-4 w-4" aria-hidden="true" />Time</dt><dd className="mt-1 break-words">{selectedTime || 'Not selected'} · {trainer.timeZone || 'Time zone unavailable'}</dd></div>
+                </dl>
+                <dl className="space-y-2 border-y border-zinc-200 py-4 text-sm" aria-live="polite">
+                  {pricing.quote && <>
+                    <div className="flex flex-wrap justify-between gap-2"><dt>Session price</dt><dd>{formatCurrency(pricing.quote.subtotalInCents)}</dd></div>
+                    {pricing.quote.discountInCents > 0 && <div className="flex flex-wrap justify-between gap-2"><dt>Promo discount</dt><dd>-{formatCurrency(pricing.quote.discountInCents)}</dd></div>}
+                  </>}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2"><dt className="font-semibold">Total due</dt><dd data-testid="booking-total" className="whitespace-nowrap text-xl font-semibold text-emerald-800">{pricing.quote ? formatCurrency(pricing.quote.totalAmountInCents) : 'Not confirmed'}</dd></div>
+                </dl>
+                {bookingError && <p role="alert" className="text-sm text-rose-700">{bookingError}</p>}
+                {(bookingUncertain || bookingReviewRequired) && <Link href="/parent/dashboard" className="block text-sm text-emerald-800 underline">Check saved bookings</Link>}
+                <Button className="h-auto min-h-11 w-full whitespace-normal border-0 bg-emerald-700 px-3 py-3 text-white hover:bg-emerald-800"
+                  disabled={!selectedService || !selectedAthlete || !selectedDate || !selectedTime || submitting || bookingReviewRequired || (!bookingUncertain && !pricing.quote)}
+                  onClick={handleSubmit}>
+                  {submitting ? <><Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />Processing...</> : bookingUncertain ? <><RefreshCw className="mr-2 h-4 w-4 shrink-0" />Retry same reservation</> : pricing.quote?.totalAmountInCents === 0 ? <><CheckCircle2 className="mr-2 h-4 w-4 shrink-0" />Confirm free booking</> : <><CreditCard className="mr-2 h-4 w-4 shrink-0" />Book &amp; Pay</>}
                 </Button>
-                <p className="text-center text-xs text-slate-500">You&apos;ll be taken to secure checkout to confirm your session.</p>
-              </CardContent>
-            </Card>
+                <p className="text-xs text-zinc-600">{pricing.quote?.totalAmountInCents === 0 ? 'No Stripe charge or trainer payout will be created.' : 'Price and availability are checked again before checkout.'}</p>
+                {pricing.quote && pricing.quote.totalAmountInCents !== 0 && <p className="text-xs text-zinc-600">Payment collected at Stripe checkout</p>}
+                <p className="border-t border-zinc-200 pt-4 text-xs text-zinc-600">Profile approval does not establish identity or background screening. <Link href="/legal/safety" className="text-emerald-800 underline">Safety guidelines</Link></p>
+              </div>
+            </aside>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

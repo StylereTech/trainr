@@ -16,6 +16,7 @@ interface AvailabilitySlot {
  * Convert "HH:MM" to minutes since midnight.
  */
 export function timeToMinutes(time: string): number {
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) && time !== '24:00') return NaN
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
 }
@@ -47,10 +48,12 @@ export function isTimeSlotAvailable(
   const bookingDayOfWeek = bookingDate.getUTCDay() // 0=Sunday, 6=Saturday
   const requestedStart = timeToMinutes(startTime)
   const requestedEnd = requestedStart + durationMinutes
+  if (!Number.isFinite(bookingDate.getTime()) || !Number.isInteger(durationMinutes) || durationMinutes <= 0 ||
+      !Number.isFinite(requestedStart) || requestedStart >= 1440 || requestedEnd > 1440) return false
+
+  let fitsAvailableWindow = false
 
   for (const slot of slots) {
-    if (!slot.isAvailable) continue
-
     // Check if slot matches the date
     let dateMatches = false
 
@@ -71,11 +74,14 @@ export function isTimeSlotAvailable(
     // Check if the full session fits within the slot's time window
     const slotStart = timeToMinutes(slot.startTime)
     const slotEnd = timeToMinutes(slot.endTime)
+    if (!Number.isFinite(slotStart) || !Number.isFinite(slotEnd) || slotEnd <= slotStart) continue
 
-    if (requestedStart >= slotStart && requestedEnd <= slotEnd) {
-      return true
+    if (!slot.isAvailable && requestedStart < slotEnd && requestedEnd > slotStart) return false
+
+    if (slot.isAvailable && requestedStart >= slotStart && requestedEnd <= slotEnd) {
+      fitsAvailableWindow = true
     }
   }
 
-  return false
+  return fitsAvailableWindow
 }

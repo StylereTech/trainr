@@ -16,21 +16,24 @@ export default function DeleteAccountPage() {
   const [confirmation, setConfirmation] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [needsReload, setNeedsReload] = useState(false)
 
-  const canDelete = confirmation.trim().toUpperCase() === 'DELETE'
+  const canDelete = confirmation.trim().toUpperCase() === 'DELETE' && !needsReload
 
   async function handleDelete() {
     if (!canDelete) return
     setIsDeleting(true)
     try {
-      const res = await fetch('/api/account', { method: 'DELETE' })
+      const res = await fetch('/api/account', { method: 'DELETE', signal: AbortSignal.timeout(45000) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Unable to delete account')
+      if (data.success !== true || data.deleted !== true) throw new Error('Deletion result is unconfirmed. Reload account settings before retrying.')
       setDeleted(true)
       toast({ title: 'Account deleted', description: 'Your Trainr account has been permanently deleted.' })
       setTimeout(() => signOut({ callbackUrl: '/' }), 1200)
     } catch (error) {
-      toast({ title: 'Deletion failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' })
+      setNeedsReload(true)
+      toast({ title: 'Deletion unconfirmed', description: error instanceof Error ? error.message : 'Reload account settings before retrying.', variant: 'destructive' })
     } finally {
       setIsDeleting(false)
     }
@@ -61,6 +64,7 @@ export default function DeleteAccountPage() {
       <div className="container mx-auto max-w-3xl space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">Account settings</p>
+          <Link href="/account/verify-email" className="inline-block text-sm text-emerald-300 underline">Email verification</Link>
           <h1 className="mt-3 text-3xl font-bold">Delete your Trainr account</h1>
           <p className="mt-2 text-slate-300">You can permanently delete your account directly in the app. No phone call or email is required.</p>
         </div>
@@ -82,6 +86,7 @@ export default function DeleteAccountPage() {
                 <p>Trainr removes or anonymizes your account email, password access, profile details, phone number, address, uploaded assets, notifications, saved favorites, and personal message content.</p>
                 <p>Records we must keep for safety, dispute, fraud prevention, payment, tax, or legal reasons may be retained in anonymized form.</p>
                 <p>After deletion, you cannot sign in with this account again. You can create a new account later with the same email.</p>
+                <p>Existing checkout links are queued for closure. Payments, bookings and refunds may still need support review; deleting your account does not refund a payment.</p>
               </CardContent>
             </Card>
 
@@ -91,6 +96,10 @@ export default function DeleteAccountPage() {
                 <CardDescription className="text-rose-50/80">Type DELETE below, then tap Delete Account to confirm.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {needsReload && <div role="alert" className="space-y-2 text-amber-200">
+                  <p>Deletion could not be confirmed. Reload account settings before retrying.</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>Reload account settings</Button>
+                </div>}
                 <div className="space-y-2">
                   <Label htmlFor="delete-confirm">Confirmation</Label>
                   <Input id="delete-confirm" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder="Type DELETE" className="border-white/10 bg-slate-950/70 text-white" />

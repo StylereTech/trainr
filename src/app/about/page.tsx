@@ -41,7 +41,7 @@ export default function AboutPage() {
           <div className="grid gap-6 md:grid-cols-3">
             {[
               { icon: Target, title: 'Our Mission', description: 'Make expert youth sports coaching accessible, safe, and transparent for families everywhere.' },
-              { icon: Heart, title: 'Our Values', description: 'Safety first. Transparency always. Every trainer verified, every review earned, every payment secure.' },
+              { icon: Heart, title: 'Our Values', description: 'Safety first. Transparency always. Clear credential status, session feedback, and upfront pricing.' },
               { icon: Trophy, title: 'Our Vision', description: 'Finding a great coach should feel as easy, trusted, and organized as any modern marketplace.' },
             ].map((item) => (
               <Card key={item.title} className="h-full border-white/10 bg-white/[0.04] text-white shadow-sm">
@@ -65,11 +65,11 @@ export default function AboutPage() {
             <div className="space-y-4 text-slate-300 leading-7">
               <p>Families know the problem: kids fall in love with sports, but finding trustworthy coaching outside school or rec leagues is messy.</p>
               <p>Word-of-mouth only goes so far. Search results are noisy. Many coaches have no real reviews, no clear credibility, and no parent-friendly booking flow.</p>
-              <p>Trainr was built to change that. Parents can find, vet, and book youth sports trainers with more confidence. Trainers can grow a serious coaching business with stronger brand presence and verified social proof.</p>
+              <p>Trainr was built to change that. Parents can find, vet, and book youth sports trainers with more confidence. Trainers can grow a serious coaching business with stronger brand presence and parent feedback.</p>
               <p>The goal is simple: make better coaching easier to find and easier to trust.</p>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {['Verified coaches with real reviews', 'Covers 5 major youth sports', 'Secure booking and payments', 'Built for parents and athletes'].map((item) => (
+              {['Trainer profiles and parent reviews', 'Covers 5 major youth sports', 'Secure booking and payments', 'Built for parents and athletes'].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200 shadow-sm">
                   <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-300" />
                   {item}

@@ -23,6 +23,8 @@ model User {
   email         String   @unique
   emailVerified DateTime?
   passwordHash  String
+  sessionVersion Int    @default(0)
+  deletedAt     DateTime?
   role          Role     @default(PARENT)
   image         String?
   createdAt     DateTime @default(now())
@@ -35,6 +37,7 @@ model User {
   messageThreadsA MessageThread[]  @relation("ParticipantA")
   messageThreadsB MessageThread[]  @relation("ParticipantB")
   uploadedAssets  UploadedAsset[]
+  checkoutClosures AccountCheckoutClosure[]
   reportsFiled    ModerationReport[] @relation("Reporter")
 
   // Admin-specific
@@ -42,11 +45,33 @@ model User {
   reportsResolved ModerationReport[] @relation("Resolver")
 
   verificationToken   String?
+  verificationTokenSeed String?
   verificationExpiry  DateTime?
   resetPasswordToken  String?
+  resetPasswordTokenSeed String?
   resetPasswordExpiry DateTime?
 
+  @@index([verificationToken])
+  @@index([resetPasswordToken])
   @@map("users")
+}
+
+model AccountCheckoutClosure {
+  id        String @id @default(cuid())
+  userId    String
+  kind      String
+  targetId  String
+  status    String @default("PENDING")
+  outcome   String?
+  sessionId String?
+  checkedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, targetId])
+  @@index([status, createdAt])
+  @@map("account_checkout_closures")
 }
 
 // ==================
@@ -68,11 +93,24 @@ model ParentProfile {
 
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   athletes AthleteProfile[]
+  athleteRequests AthleteCreateRequest[]
+  bookingRequests BookingCreateRequest[]
   bookings Booking[]  @relation("ParentBookings")
+  packagePurchases PackagePurchase[]
+  assignedCoupons Coupon[] @relation("CouponRecipient")
   reviews  Review[]   @relation("ParentReviews")
   favorites Favorite[]
 
   @@map("parent_profiles")
+}
+
+model RateLimitBucket {
+  keyHash String @id
+  hits DateTime[] @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt, keyHash])
+  @@map("rate_limit_buckets")
 }
 
 model TrainerProfile {
@@ -93,6 +131,7 @@ model TrainerProfile {
   totalSessions         Int      @default(0)
   totalBookings         Int      @default(0)
   locationType          LocationType @default(IN_PERSON)
+  timeZone              String?
   address               String?
   city                  String?
   state                 String?
@@ -114,6 +153,7 @@ model TrainerProfile {
   certifications Certification[]
   serviceOfferings ServiceOffering[]
   packages        Package[]
+  packagePurchases PackagePurchase[]
   availabilitySlots AvailabilitySlot[]
   bookings        Booking[]   @relation("TrainerBookings")
   reviews         Review[]    @relation("TrainerReviews")
@@ -121,8 +161,20 @@ model TrainerProfile {
   favorites       Favorite[]
   wallet          TrainerWallet?
   phoneLeads      TrainerPhoneLead[]
+  connectAttempt ConnectAccountAttempt?
 
   @@map("trainer_profiles")
+}
+
+model ConnectAccountAttempt {
+  id               String @id @default(cuid())
+  trainerProfileId String @unique
+  email            String?
+  createdAt        DateTime @default(now())
+  stripeAccountId  String? @unique
+  trainerProfile   TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@map("connect_account_attempts")
 }
 
 model TrainerPhoneLead {
@@ -142,7 +194,7 @@ model TrainerPhoneLead {
   transcript         Json?
   summary            String?
   createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime @default(now()) @updatedAt
 
   trainerProfile TrainerProfile? @relation(fields: [trainerProfileId], references: [id], onDelete: SetNull)
 
@@ -167,8 +219,23 @@ model AthleteProfile {
   parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
   sports        AthleteSport[]
   bookings      Booking[]
+  createRequests AthleteCreateRequest[]
 
   @@map("athlete_profiles")
+}
+
+model AthleteCreateRequest {
+  parentProfileId String
+  requestId String
+  payloadHash String
+  athleteProfileId String?
+  createdAt DateTime @default(now())
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  athleteProfile AthleteProfile? @relation(fields: [athleteProfileId], references: [id], onDelete: SetNull)
+
+  @@id([parentProfileId, requestId])
+  @@index([athleteProfileId])
+  @@map("athlete_create_requests")
 }
 
 // ==================
@@ -288,6 +355,7 @@ model Package {
   trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
   items          PackageItem[]
   bookings       Booking[]
+  purchases      PackagePurchase[]
 
   @@map("packages")
 }
@@ -302,6 +370,125 @@ model PackageItem {
   serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
 
   @@map("package_items")
+}
+
+// A pending purchase is not an entitlement or a booking payment.
+model PackagePurchase {
+  id                   String @id @default(cuid())
+  parentProfileId      String
+  trainerProfileId     String
+  packageId            String
+  requestId            String
+  payloadHash          String
+  catalogRevision      DateTime @db.Timestamptz(3)
+  terms                Json
+  amountInCents        Int
+  platformFeeInCents   Int
+  trainerPayoutInCents Int
+  status               PaymentStatus @default(PENDING)
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId String? @unique
+  stripeChargeId       String? @unique
+  stripeTransferId     String? @unique
+  settlementVerifiedAt DateTime? @db.Timestamptz(3)
+  financialReview      Json?
+  refundAmountInCents Int @default(0)
+  refundPendingAmountInCents Int @default(0)
+  refundFailedCount Int @default(0)
+  refundsVerifiedAt DateTime? @db.Timestamptz(3)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  parentProfile  ParentProfile  @relation(fields: [parentProfileId], references: [id], onDelete: Restrict)
+  trainerProfile TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Restrict)
+  package        Package        @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  checkoutAttempts PackageCheckoutAttempt[]
+  refunds PackageRefund[]
+  creditGrants PackageCreditGrant[]
+  paymentReceipt PackagePaymentReceipt?
+
+  @@unique([parentProfileId, requestId])
+  @@index([trainerProfileId, createdAt])
+  @@index([packageId])
+  @@map("package_purchases")
+}
+
+// Immutable issuance evidence. Redemption and expiry are separate lifecycle decisions.
+model PackageCreditGrant {
+  purchaseId        String
+  serviceOfferingId String
+  sessionsCount     Int
+  grantedAt         DateTime @default(now()) @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  redemptions PackageCreditRedemption[]
+
+  @@id([purchaseId, serviceOfferingId])
+  @@map("package_credit_grants")
+}
+
+// One session, one funding record; restoration does not erase consumption history.
+model PackageCreditRedemption {
+  bookingId String @id
+  purchaseId String
+  serviceOfferingId String
+  redeemedAt DateTime @default(now()) @db.Timestamptz(3)
+  restoredAt DateTime? @db.Timestamptz(3)
+  restoredByUserId String?
+  restorationReason String?
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  grant PackageCreditGrant @relation(fields: [purchaseId, serviceOfferingId], references: [purchaseId, serviceOfferingId], onDelete: Restrict)
+
+  @@index([purchaseId, serviceOfferingId, restoredAt])
+  @@map("package_credit_redemptions")
+}
+
+// Success-event time, not checkout creation or the most recent reconciliation time.
+model PackagePaymentReceipt {
+  purchaseId String @id
+  stripeEventId String @unique
+  stripePaymentIntentId String @unique
+  stripeChargeId String @unique
+  stripeCheckoutSessionId String @unique
+  livemode Boolean
+  paidAt DateTime @db.Timestamptz(3)
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@map("package_payment_receipts")
+}
+
+model PackageCheckoutAttempt {
+  id                      String @id @default(cuid())
+  purchaseId              String
+  sequence                Int
+  parameters              Json
+  stripeCheckoutSessionId String? @unique
+  retiredAt               DateTime?
+  createdAt               DateTime @default(now())
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseId, sequence])
+  @@map("package_checkout_attempts")
+}
+
+model PackageRefund {
+  id String @id
+  purchaseId String
+  stripeChargeId String
+  stripePaymentIntentId String
+  amountInCents Int
+  currency String
+  status RefundStatus
+  transferReversalId String?
+  sourceTransferReversalId String?
+  failureBalanceTransactionId String?
+  failureReason String?
+  stripeCreatedAt DateTime @db.Timestamptz(3)
+  observedAt DateTime @db.Timestamptz(3)
+  purchase PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseId])
+  @@map("package_refunds")
 }
 
 // ==================
@@ -344,11 +531,15 @@ model Booking {
   trainerProfileId  String
   athleteProfileId  String
   serviceOfferingId String
+  couponId          String?
   packageId         String?
   packageSessionNumber Int?
   date              DateTime
   startTime         String
   endTime           String
+  timeZone          String?
+  startsAt          DateTime? @db.Timestamptz(3)
+  endsAt            DateTime? @db.Timestamptz(3)
   status            BookingStatus @default(PENDING)
   location          String?
   notes             String?
@@ -364,6 +555,7 @@ model Booking {
   trainerProfile   TrainerProfile  @relation("TrainerBookings", fields: [trainerProfileId], references: [id])
   athleteProfile   AthleteProfile  @relation(fields: [athleteProfileId], references: [id])
   serviceOffering  ServiceOffering @relation(fields: [serviceOfferingId], references: [id])
+  coupon           Coupon?         @relation(fields: [couponId], references: [id], onDelete: Restrict)
   package          Package?        @relation(fields: [packageId], references: [id])
   rescheduledFrom  Booking?        @relation("RescheduledBookings", fields: [rescheduledFromId], references: [id])
   rescheduledTo    Booking[]       @relation("RescheduledBookings")
@@ -372,11 +564,30 @@ model Booking {
 
   messages      Message[]
   walletEntries WalletEntry[]
+  createRequests BookingCreateRequest[]
+  creditRedemption PackageCreditRedemption?
 
   @@index([trainerProfileId, date, startTime])
+  @@index([trainerProfileId, startsAt, endsAt])
+  @@index([athleteProfileId, startsAt, endsAt])
   @@index([parentProfileId])
+  @@index([couponId])
   @@index([status])
   @@map("bookings")
+}
+
+model BookingCreateRequest {
+  parentProfileId String
+  requestId String
+  payloadHash String
+  bookingId String?
+  createdAt DateTime @default(now())
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@id([parentProfileId, requestId])
+  @@index([bookingId])
+  @@map("booking_create_requests")
 }
 
 // ==================
@@ -403,15 +614,64 @@ model Payment {
   platformFeeInCents    Int
   trainerPayoutInCents  Int
   processingFeeInCents  Int           @default(0)
+  settlementVerifiedAt DateTime?     @db.Timestamptz(3)
+  financialReview      Json?
   status                PaymentStatus @default(PENDING)
   refundAmountInCents   Int           @default(0)
+  refundPendingAmountInCents Int      @default(0)
+  refundFailedCount     Int           @default(0)
+  refundsVerifiedAt     DateTime?
   refundReason          String?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  checkoutAttempts CheckoutAttempt[]
+  refunds PaymentRefund[]
 
   @@map("payments")
+}
+
+model CheckoutAttempt {
+  id                      String   @id @default(cuid())
+  paymentId               String
+  sequence                Int
+  parameters              Json
+  stripeCheckoutSessionId String?  @unique
+  retiredAt               DateTime?
+  createdAt               DateTime @default(now())
+  payment                 Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, sequence])
+  @@map("checkout_attempts")
+}
+
+enum RefundStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model PaymentRefund {
+  id                         String @id
+  paymentId                  String
+  stripeChargeId             String
+  stripePaymentIntentId      String
+  amountInCents              Int
+  currency                   String
+  status                     RefundStatus
+  transferReversalId         String?
+  sourceTransferReversalId   String?
+  failureBalanceTransactionId String?
+  failureReason              String?
+  stripeCreatedAt            DateTime
+  observedAt                 DateTime
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_refunds")
 }
 
 // ==================
@@ -535,10 +795,15 @@ model Coupon {
   expiresAt             DateTime?
   isActive              Boolean   @default(true)
   applicableSportId     String?
+  recipientParentProfileId String?
   createdById           String
   createdAt             DateTime  @default(now())
 
   applicableSport Sport? @relation(fields: [applicableSportId], references: [id])
+  recipientParentProfile ParentProfile? @relation("CouponRecipient", fields: [recipientParentProfileId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([recipientParentProfileId])
 
   @@map("coupons")
 }

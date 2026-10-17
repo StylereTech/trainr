@@ -8,11 +8,14 @@ export function stripeRuntimeStatus() {
   const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY || process.env.STRIPE_PUBLIC_KEY || ''
   const secretConfigured = !!stripeSecretKey && !placeholderPrefixes.some((prefix) => stripeSecretKey.startsWith(prefix))
   const webhookConfigured = !!stripeWebhookSecret && !placeholderPrefixes.some((prefix) => stripeWebhookSecret.startsWith(prefix))
+  const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || ''
+  const connectWebhookConfigured = !!connectWebhookSecret && !placeholderPrefixes.some((prefix) => connectWebhookSecret.startsWith(prefix))
   const publishableConfigured = !!publishableKey && !placeholderPrefixes.some((prefix) => publishableKey.startsWith(prefix))
 
   return {
     secretConfigured,
     webhookConfigured,
+    connectWebhookConfigured,
     publishableConfigured,
     isFullyConfigured: secretConfigured && webhookConfigured && publishableConfigured,
   }
@@ -76,14 +79,23 @@ export function mapStripeError(error: unknown, fallbackMessage = 'Stripe request
   }
 }
 
-export async function createConnectedAccount(trainerId: string, email: string) {
+export async function createConnectedAccount(trainerId: string, email: string, idempotencyKey: string) {
   const account = await stripe.accounts.create({
     type: 'express',
     country: 'US',
     email,
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
     metadata: { trainerId },
-  })
+  }, { idempotencyKey, timeout: 15000, maxNetworkRetries: 0 })
   return account
+}
+
+export async function requestMissingConnectCapabilities(account: Pick<Stripe.Account, 'id' | 'capabilities'>) {
+  for (const capability of ['transfers', 'card_payments'] as const) {
+    if (account.capabilities?.[capability]) continue
+    await stripe.accounts.updateCapability(account.id, capability, { requested: true },
+      { idempotencyKey: `trainr-connect-v2-${account.id}-${capability}`, timeout: 15000, maxNetworkRetries: 0 })
+  }
 }
 
 export async function createAccountLink(accountId: string, returnUrl: string, refreshUrl: string) {
@@ -120,19 +132,24 @@ export async function createPaymentIntent(
   return paymentIntent
 }
 
-export async function refundPayment(paymentIntentId: string, amount?: number) {
-  const refund = await stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    amount,
-  })
-  return refund
-}
+export async function verifyWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event | null> {
+  let event: Stripe.Event
+  try {
+    event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '')
+  } catch (platformError) {
+    const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || ''
+    if (!connectSecret || placeholderPrefixes.some((prefix) => connectSecret.startsWith(prefix))) throw platformError
 
-export async function verifyWebhookSignature(payload: string | Buffer, signature: string) {
-  const event = stripe.webhooks.constructEvent(
-    payload,
-    signature,
-    process.env.STRIPE_WEBHOOK_SECRET || ''
-  )
-  return event
+    // Stripe signs platform and connected-account destinations with different secrets.
+    event = stripe.webhooks.constructEvent(payload, signature, connectSecret)
+    if (!event.account || typeof event.account !== 'string') throw new Error('Connect webhook account scope is missing')
+    if (event.type === 'account.updated' && event.data.object.id !== event.account) {
+      throw new Error('Connect webhook account identity does not match')
+    }
+  }
+
+  const keyMode = /^(?:sk|rk)_(test|live)_/.exec(stripeSecretKey)?.[1]
+  if (!keyMode || typeof event.livemode !== 'boolean') throw new Error('Stripe webhook mode is invalid')
+  // Connect destinations may receive both modes; authenticate before acknowledging an ignored event.
+  return event.livemode === (keyMode === 'live') ? event : null
 }

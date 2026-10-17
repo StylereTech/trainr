@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { calculateDiscount, calculateSplit } from '../src/lib/fees'
+import { calculateDiscount, calculateSplit, isSupportedBookingTotal } from '../src/lib/fees'
 
 describe('fees', () => {
+  it.each([0, 50, 51, 6000, 99999999])('accepts supported USD booking total %s', (amount) => {
+    expect(isSupportedBookingTotal(amount)).toBe(true)
+  })
+
+  it.each([-1, 1, 49, 49.5, 50.5, 100000000, NaN, Infinity])('rejects unsupported USD booking total %s', (amount) => {
+    expect(isSupportedBookingTotal(amount)).toBe(false)
+  })
+
   it('calculates the default 15/85 platform and trainer split', () => {
     expect(calculateSplit(10000)).toEqual({
       grossAmountCents: 10000,

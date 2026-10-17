@@ -1,0 +1,68 @@
+# Package Flow And Booking Contract Audit
+
+2026-10-11 checkout implementation update: [Package Checkout And Receipt Verification](PACKAGE_CHECKOUT_INTEGRATION_REPORT.md) records the internal durable checkout service, separate package payment identity and signed completion reconciliation. Checkout is not exposed publicly; credits, redemption, package financial-event/refund handling and parent package UI remain incomplete. Do not treat local simulated provider receipts as actual Stripe sandbox signoff.
+
+2026-10-11 purchase-foundation update: [Family-Shared Package Purchase Foundation](PACKAGE_PURCHASE_FOUNDATION_REPORT.md) adds an internal retry-safe pending purchase record with immutable parent-owned terms and fee split. The full local SQL suite passed 439 cases, including 35 new purchase cases; three migration rehearsal modes passed. This supersedes the historical "no purchase identity" finding only for pending preparation. There is still no package Stripe checkout, credit issuance/redemption, balance/history UI or hosted package-payment proof. Package availability remains **INCOMPLETE/HOLD**.
+
+2026-10-11 owner decision: purchased session credits are **shared across the parent's children**, not assigned to one child at purchase. The authenticated purchasing parent owns the entitlement; redemption must validate that the selected athlete belongs to that parent. This decision resolves credit ownership only, not expiry, cancellation/restoration or refund policy. Purchase and redemption remain unimplemented and unverified.
+
+2026-10-11 update: the historical missing trainer-management finding below is superseded by [Trainer Package Management](TRAINER_PACKAGE_MANAGEMENT_REPORT.md). A trainer-only catalog editor, ownership/revision checks and service-retirement protection passed the full quality gate, 392 SQL tests and all 40 affected desktop/mobile browser cases; publication status is recorded in that report. This is not package purchasing: the purchase/payment identity, credit ledger, parent balance/history and policy findings below remain **INCOMPLETE/HOLD**.
+
+## Identity
+
+- Date: 2026-10-08 UTC. Baseline `a92204dcc6e52bd738f84549804105e664fd1115`, branch `codex/payment-readiness-20261006`. Source publication follows below.
+- Environments: repository source; guarded disposable local PostgreSQL 16.15 (`trainr_audit_20261008`, role `trainr_test`, loopback 55439); built local app for focused browser regression. No production account or database write and no Stripe money movement.
+- Accounts: synthetic parent/trainer `@example.test` fixtures. Package fixture: five sessions, 25,000 cents, 90 days, belonging to the same trainer/service as the requested booking. This is test data, not a verified commercial offer.
+- Tested boundary: authenticated `POST /api/bookings`, `bookingSchema`, direct `createBooking`, request replay, coupon/notification/payment persistence. Source-inspected surfaces: both public trainer profiles, trainer profile/onboarding, parent dashboard, booking form, package/payment schema and API inventory.
+- Overall verdict: **FAIL / INCOMPLETE for package purchase and entitlement flows**. The contract repair below is not package implementation and does not remove the original package requirement.
+
+## Current Evidence
+
+| Requirement | Authoritative evidence | Result |
+| --- | --- | --- |
+| Package catalog storage | `Package` and `PackageItem` models store title, price, validity and per-service counts; SQL fixture creates a valid package | Present locally; not a purchase ledger |
+| Trainer package creation/editing | Trainer onboarding/profile request/UI paths expose services and availability but no package mutation; API file inventory contains no package purchase/management route | Missing |
+| Parent package selection/purchase | Both public profile pages render package title/items/price/validity without a package purchase action; booking form sends only a service reservation | Missing |
+| Purchase/payment identity | `Payment.bookingId` is mandatory and unique; no package purchase/payment-attempt model; `Booking.packageId` alone cannot represent a purchased credit balance | Missing |
+| Credit redemption/expiry/refund history | No durable purchased entitlement, redemption, restoration or expiry ledger in the current schema/booking implementation | Missing |
+| Parent refresh persistence | No package balance/history in the parent dashboard | Missing |
+| Real Stripe package checkout/Connect/payout | Not attempted; no implemented package purchase path to exercise | Not verified |
+
+This evidence is based on the actual schema, exports, route inventory and form code, not a claim that a text search alone proves runtime behavior. Single-session payment test results must not be reused as package-flow signoff.
+
+## Reproduced Contract Defect
+
+The booking schema accepted unknown properties by stripping them. An otherwise valid request carrying `packageId` was accepted as an ordinary service booking. Likewise, adding `packagePurchaseId` to a previously committed request could return the existing single-session reservation. A successful HTTP response therefore did not mean the requested purchase semantics were honored.
+
+Before the repair, five unit cases (`packageId`, `packagePurchaseId`, `sessionCreditId`, `timeZone`, caller-supplied total) returned 201 where 400 was expected. Two authenticated real-SQL package/replay cases also failed with 201 rather than 400. Those tests used a real synthetic catalog package, not only an arbitrary absent ID. No Stripe call occurred.
+
+## Repair And Retest
+
+The existing booking schema is now strict. Unsupported fields return 400 with `Unsupported booking fields` at the API boundary; direct transaction-helper callers are also validated before any writes. The accepted single-session fields and server-calculated prices remain unchanged. This is a deliberate contract tightening: undocumented clients sending extra fields must use the supported contract, not assume package/credit/timezone data was accepted.
+
+- Focused unit retest: **99 passed / 4 files**, including 18 booking API cases. No valid-input assertion was removed.
+- Focused real-SQL retest: **15 passed**. A package request leaves zero bookings, booking request records, payments and notifications and does not consume its coupon. The direct helper rejects the same unsupported body. Adding purchase semantics to a committed request does not create/rewrite another booking or consume the coupon again.
+- `npm run check` exited 0: lint (existing warnings), typecheck, **944 unit tests / 46 files** (11.01 seconds), regenerated Prisma client and production build (73 pages). No schema/dependency change.
+- Rebuilt-client full SQL suite: **317 passed / 11 files**, zero failed/pending, 2026-10-08 **20:06:27-20:07:19 UTC**. JSON artifact: `test-results/package-contract-postgres-20261008.json`.
+- Built app at `http://127.0.0.1:3107`, installed Edge, one worker: **14 passed in 1.3 minutes** across `booking-local-regression.spec.ts` and `booking-retry-local-regression.spec.ts`. Desktop/mobile supported requests still reserve once, retain failure/uncertain states, recover identical requests, preserve coupon use and reload persisted state. Artifacts: `test-results/package-contract-browser-20261008/`. These are single-session regressions, not package purchase tests or a rerun of the entire 18-file browser matrix.
+- Stopped Next; verified exact database/user/disposable guard, zero users/bookings/payments/notifications/packages/package items/booking requests, and absence of the injected booking-request constraint. Stopped disposable PostgreSQL cleanly. No required local process remains running.
+
+## Publication
+
+- Source committed/pushed as `af208b9dfb0e2e963b43e54e9974f2d2ee7b00cf`, `fix: reject unsupported package semantics in booking requests`, on `codex/payment-readiness-20261006`. Freshly fetched main remained `2067e743c54ffee669cd484f26dc472b157f1881`; no production promotion or settings change occurred.
+- Hosted [Actions run 37837407434](https://github.com/StylereTech/trainr/actions/runs/37837407434): `migrations` (113517876595) and `check` (113517876916) both failed with **zero steps executed**. Exact annotation on each: `The job was not started because your account is locked due to a billing issue.` No hosted pass is claimed.
+- Source Vercel status was **pending**, `Vercel is deploying your app`, with [deployment status](https://vercel.com/styleres-projects/trainr/6oxRQKihU4gEv2HH8yADKnV2iRLv). A usable preview, configured staging database and production promotion are not proven by that status.
+- Anonymous post-push live smoke at **2026-10-08 20:10:18-20 UTC**: `/api/health` 200 (`ok: true`, `dbConnected: true`); tokenless `/api/auth/verify` 400; `/api/bookings`, `/api/payments/connect`, `/api/trainer/stripe-connect`, `/api/admin/bookings`, `/api/notifications` 401; `/notifications` 404. Health and anonymous-denial expectations passed; inbox/live parity failed. No production package/booking write or real payment was attempted, so the new validation is not marked verified live.
+- This documentation follow-up records publication only. Package implementation and the full audit goal remain incomplete.
+
+## Required Next Work
+
+Owner confirmed on 2026-10-11 that purchased session credits are shared across the parent's children. Implement parent-owned balances with an owned-athlete check on each redemption; do not lock credits to a selected child at purchase.
+
+Current implementation boundaries re-read on 2026-10-11: `checkout-attempts.ts`, `stripe-settlement.ts` and `stripe-payment-events.ts` bind immutable checkout parameters, provider receipts and notifications to one booking. `booking-creation.ts` treats a zero-due reservation as a separate zero-dollar payment. Neither path is a package purchase or redemption mechanism. Package work must preserve those existing contracts while introducing an explicit purchase identity, immutable per-service credit quantities and idempotent parent-owned redemption; it must not disguise a package redemption as another Stripe charge or a free-session receipt.
+
+An owner question is pending for automatic restoration of one credit when a parent cancels more than 24 hours before a package-funded session. The public refund page contains package refund wording but does not fully specify credit restoration, late cancellation, expiry timing or partial multi-service allocation. Those decisions remain distinct from the confirmed shared-family ownership decision.
+
+Package completion still requires trainer CRUD with validated owned service counts/pricing, immutable purchase terms, payment-attempt identity and current Stripe receipt verification, ownership-scoped atomic credit redemption, persisted booking linkage, expiry and cancellation/refund/credit policy, parent balance/history, migration rehearsal and end-to-end refresh/retry/concurrency tests. The advertised validity period is not permission to invent missing refund/expiry rules. Package payouts must use the defined Stripe destination-charge path without a second wallet payment.
+
+Do not sell a package by charging an unrelated single booking or manually labeling a payment as package-paid. Existing package listings are not evidence of purchasability. Scheduling and cancellation decisions, isolated staging, production migration/backup review, actual Stripe test/live proof and correct-project rollout remain open. Production and money-flow signoff remain **HOLD**.

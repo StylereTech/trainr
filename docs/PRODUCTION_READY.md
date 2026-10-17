@@ -13,7 +13,7 @@
 - README upgraded from stub to a real operator-facing entrypoint
 - ESLint config added so lint is non-interactive
 - Scripts normalized for lint, typecheck, build, Vitest, and Playwright
-- Playwright production smoke target defaults to `https://trainr.cc`
+- Credential-free, read-only Playwright smoke defaults to `https://trainr.cc`; it does not verify signed-in roles or payments
 
 ### Code / deployment surface
 - Prisma schema aligned with live payment retry flow

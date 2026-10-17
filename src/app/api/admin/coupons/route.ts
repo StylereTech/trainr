@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { normalizeCouponCode } from '@/lib/booking-price'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 async function requireAdmin() {
@@ -12,13 +14,17 @@ async function requireAdmin() {
 }
 
 const couponSchema = z.object({
-  code: z.string().min(3).max(20).transform(s => s.toUpperCase().replace(/[^A-Z0-9]/g, '')),
-  discountPercent: z.number().min(1).max(100).optional(),
-  discountAmountInCents: z.number().min(100).optional(),
-  maxUses: z.number().min(1).default(100),
-  expiresAt: z.string().optional(),
-  applicableSportId: z.string().optional(),
-})
+  code: z.string().trim().min(3).max(20).transform(normalizeCouponCode).pipe(z.string().min(3).max(20)),
+  discountPercent: z.number().int().min(1).max(100).optional(),
+  discountAmountInCents: z.number().int().min(100).max(99_999_999).optional(),
+  maxUses: z.number().int().min(1).max(100_000).default(1),
+  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
+    const date = new Date(value)
+    return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
+  }).optional(),
+  applicableSportId: z.string().min(1).optional(),
+  recipientParentEmail: z.string().trim().email().transform(value => value.toLowerCase()).optional(),
+}).strict().refine(data => (data.discountPercent === undefined) !== (data.discountAmountInCents === undefined))
 
 // GET /api/admin/coupons — List coupons
 export async function GET(req: NextRequest) {
@@ -36,7 +42,7 @@ export async function GET(req: NextRequest) {
   const [coupons, total] = await Promise.all([
     prisma.coupon.findMany({
       where,
-      include: { applicableSport: { select: { name: true } } },
+      include: { applicableSport: { select: { name: true } }, recipientParentProfile: { select: { user: { select: { email: true } } } } },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
@@ -56,26 +62,35 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const adminUserId = session.user.id
-  const body = await req.json()
-  const data = couponSchema.parse(body)
-
-  if (!data.discountPercent && !data.discountAmountInCents) {
-    return NextResponse.json({ error: 'Must specify discountPercent or discountAmountInCents' }, { status: 400 })
-  }
-
-  const coupon = await prisma.coupon.create({
-    data: {
+  const input = couponSchema.safeParse(await req.json().catch(() => null))
+  if (!input.success) return NextResponse.json({ error: 'Enter a valid code, exactly one discount, a whole-number use limit, and a valid expiry date.' }, { status: 400 })
+  try {
+    const data = input.data
+    const recipient = data.recipientParentEmail ? await prisma.user.findFirst({
+      where: { email: { equals: data.recipientParentEmail, mode: 'insensitive' }, role: 'PARENT', deletedAt: null },
+      select: { parentProfile: { select: { id: true } } },
+    }) : null
+    if (data.recipientParentEmail && !recipient?.parentProfile) {
+      return NextResponse.json({ error: 'No active parent account matches that email.' }, { status: 400 })
+    }
+    const coupon = await prisma.coupon.create({ data: {
       code: data.code,
       discountPercent: data.discountPercent,
       discountAmountInCents: data.discountAmountInCents,
       maxUses: data.maxUses,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       applicableSportId: data.applicableSportId || null,
+      recipientParentProfileId: recipient?.parentProfile?.id ?? null,
       createdById: adminUserId,
-    },
-  })
-
-  return NextResponse.json(coupon, { status: 201 })
+    } })
+    return NextResponse.json(coupon, { status: 201 })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ error: 'This coupon code already exists.' }, { status: 409 })
+    }
+    console.error('Admin coupon creation failed')
+    return NextResponse.json({ error: 'Coupon could not be created. Check existing codes before retrying.' }, { status: 503 })
+  }
 }
 
 // PATCH /api/admin/coupons — Update coupon (toggle active, extend expiry)

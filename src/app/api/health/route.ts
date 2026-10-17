@@ -6,12 +6,11 @@ const startTime = Date.now()
 export async function GET() {
   let dbConnected = false
 
-  let dbError = ''
   try {
     await prisma.$queryRaw`SELECT 1`
     dbConnected = true
-  } catch (err: any) {
-    dbError = err?.message?.substring(0, 200) || 'unknown error'
+  } catch {
+    // Database exceptions can contain connection details; keep them private.
   }
 
   return NextResponse.json({
@@ -19,6 +18,5 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     uptimeMs: Date.now() - startTime,
     dbConnected,
-    ...(dbError ? { dbError } : {}),
   }, { status: dbConnected ? 200 : 503 })
 }

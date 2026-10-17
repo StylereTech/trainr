@@ -1,0 +1,17 @@
+Source: Playwright trace from the second full local browser run.
+Environment: optimized Next build, http://127.0.0.1:3107, disposable SQL.
+Baseline: c193cfe52453c3fff0550418870944d08c509bef plus shared-rate changes.
+Account: synthetic TRAINER fixture, desktop 1440px.
+Only method/path/status/error retained; cookies and fixture identifiers omitted.
+
+2026-10-08T16:24:39.603Z PATCH /api/bookings/[synthetic-id] status=200
+2026-10-08T16:24:39.681Z GET /api/dashboard/bookings?view=pending&page=2&limit=10 status=200
+2026-10-08T16:24:39.871Z PATCH /api/bookings/[synthetic-id] status=200
+2026-10-08T16:24:40.038Z GET /api/dashboard/bookings?view=pending&page=2&limit=10 status=-1
+Browser console: Failed to load resource: net::ERR_INSUFFICIENT_RESOURCES
+Observed UI: Unable to load current bookings. / Retry bookings
+Expected UI: Page 1 of 1 (10 bookings)
+
+No HTTP response was recorded for the failed read. Exact exhausted resource
+not established. No dashboard application code, assertions or timeouts changed.
+Unchanged complete dashboard-file retest: 8 passed (33.0s).

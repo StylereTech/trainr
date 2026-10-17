@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { publicPagination, publicTrainerCardSelect } from '@/lib/public-trainer'
 
 
 export async function GET(req: NextRequest) {
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest) {
     const rating = searchParams.get('rating')
     const locationType = searchParams.get('locationType')
     const sort = searchParams.get('sort') || 'rating'
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '12')
+    const pagination = publicPagination(searchParams)
+    if (!pagination) return NextResponse.json({ error: 'Invalid pagination' }, { status: 400 })
+    const { page, limit } = pagination
     const skip = (page - 1) * limit
 
     const where: any = {
@@ -80,12 +82,7 @@ export async function GET(req: NextRequest) {
     const [trainers, total] = await Promise.all([
       prisma.trainerProfile.findMany({
         where,
-        include: {
-          sports: { include: { sport: true } },
-          specialties: { include: { specialty: true } },
-          serviceOfferings: { where: { isActive: true }, take: 1, orderBy: { priceInCents: 'asc' } },
-          assets: { where: { type: 'PHOTO' }, orderBy: { order: 'asc' }, take: 1 },
-        },
+        select: publicTrainerCardSelect,
         orderBy,
         skip,
         take: limit,

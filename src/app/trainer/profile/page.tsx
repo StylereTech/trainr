@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -13,13 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { SPORTS } from '@/lib/utils'
-import { formatCurrency } from '@/lib/utils'
-import { getSpecialtyOptionsForSports } from '@/lib/trainer'
+import { TrainerPayouts } from '@/components/shared/TrainerPayouts'
+import { ScheduleTimeZoneSelect } from '@/components/shared/ScheduleTimeZoneSelect'
+import { canonicalTimeZone } from '@/lib/time-zone'
+import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
 import {
   Loader2, Plus, Trash2, Save, User, DollarSign, Calendar, Briefcase,
-  Building2, CreditCard, CheckCircle2, AlertTriangle, ExternalLink, ArrowLeft,
-  Clock, MapPin, Sparkles, Shield, BanknoteIcon, TrendingUp, XCircle
+  ArrowLeft,
+  Clock, MapPin, Shield
 } from 'lucide-react'
 
 const TABS = [
@@ -34,6 +35,7 @@ const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','
 
 interface ServiceForm {
   id?: string
+  sportId?: string | null
   title: string
   description: string
   durationMinutes: number
@@ -49,41 +51,11 @@ interface AvailSlot {
 }
 
 interface CertForm {
+  id?: string
   name: string
   issuingOrg: string
-}
-
-interface WalletData {
-  availableBalance: number
-  pendingBalance: number
-  withdrawnTotal: number
-  totalEarned: number
-}
-
-interface WalletEntry {
-  id: string
-  type: string
-  amountInCents: number
-  description: string
-  createdAt: string
-  booking?: { id: string; date: string; startTime: string; serviceOffering: { title: string } }
-}
-
-interface WithdrawalReq {
-  id: string
-  amountInCents: number
-  status: string
-  createdAt: string
-}
-
-interface StripeStatus {
-  connected: boolean
-  stripeConfigured: boolean
-  hasAccount: boolean
-  chargesEnabled?: boolean
-  payoutsEnabled?: boolean
-  detailsSubmitted?: boolean
-  onboardingComplete?: boolean
+  credentialId?: string
+  isVerified?: boolean
 }
 
 function TrainerProfileContent() {
@@ -93,84 +65,56 @@ function TrainerProfileContent() {
 
   const initialTab = searchParams.get('tab') || 'profile'
   const [activeTab, setActiveTab] = useState(initialTab)
+  const activeTabButton = useRef<HTMLButtonElement>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [revision, setRevision] = useState<string | null>(null)
+  const [minServicePrice, setMinServicePrice] = useState(1500)
 
   // Profile data
   const [profile, setProfile] = useState({
     firstName: '', lastName: '', headline: '', bio: '', phone: '',
-    yearsExperience: 0, locationType: 'BOTH',
+    yearsExperience: 0, locationType: 'BOTH', timeZone: '',
     address: '', city: '', state: '', zipCode: '', travelRadius: 25,
     slug: '', email: '', approvalStatus: '', stripeOnboardingComplete: false,
   })
   const [selectedSports, setSelectedSports] = useState<string[]>([])
+  const [catalog, setCatalog] = useState<TrainerCatalogSport[]>([])
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
   const [certifications, setCertifications] = useState<CertForm[]>([])
   const [services, setServices] = useState<ServiceForm[]>([])
   const [availability, setAvailability] = useState<AvailSlot[]>([])
 
-  // Wallet data
-  const [wallet, setWallet] = useState<WalletData | null>(null)
-  const [walletEntries, setWalletEntries] = useState<WalletEntry[]>([])
-  const [pendingWithdrawals, setPendingWithdrawals] = useState<WithdrawalReq[]>([])
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [withdrawing, setWithdrawing] = useState(false)
-
-  // Stripe Connect
-  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null)
-  const [connectingStripe, setConnectingStripe] = useState(false)
+  useEffect(() => {
+    activeTabButton.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTab, loading])
 
   useEffect(() => {
     fetchProfile()
-    if (initialTab === 'payouts') {
-      fetchWallet()
-      fetchStripeStatus()
-    }
   }, [])
-
-  useEffect(() => {
-    if (activeTab === 'payouts' && !wallet) {
-      fetchWallet()
-      fetchStripeStatus()
-    }
-  }, [activeTab])
 
   const fetchProfile = async () => {
     try {
       const res = await fetch('/api/trainer/onboarding')
       if (!res.ok) throw new Error('Failed to fetch profile')
       const data = await res.json()
-      setProfile(data.profile)
+      if (!Array.isArray(data.catalog)) throw new Error('Unable to load sport catalog')
+      setCatalog(data.catalog)
+      setRevision(data.revision)
+      setMinServicePrice(data.minServicePriceInCents ?? 1500)
+      setProfile({ ...data.profile, timeZone: data.profile.timeZone || '' })
       setSelectedSports(data.sports)
       setSelectedSpecialties(data.specialties)
       setCertifications(data.certifications.length > 0 ? data.certifications : [])
       setServices(data.services)
       setAvailability(data.availability)
     } catch (error) {
+      setRevision(null)
       console.error(error)
       toast({ title: 'Error', description: 'Failed to load profile', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }
-
-  const fetchWallet = async () => {
-    try {
-      const res = await fetch('/api/trainer/wallet')
-      if (!res.ok) return
-      const data = await res.json()
-      setWallet(data.wallet)
-      setWalletEntries(data.entries || [])
-      setPendingWithdrawals(data.pendingWithdrawals || [])
-    } catch { /* wallet might not exist yet */ }
-  }
-
-  const fetchStripeStatus = async () => {
-    try {
-      const res = await fetch('/api/trainer/stripe-connect')
-      if (!res.ok) return
-      setStripeStatus(await res.json())
-    } catch { /* ignore */ }
   }
 
   const handleSave = async () => {
@@ -182,12 +126,26 @@ function TrainerProfileContent() {
       toast({ title: 'Missing fields', description: 'Select at least one sport', variant: 'destructive' })
       return
     }
+    if (selectedSpecialties.length === 0) {
+      toast({ title: 'Missing fields', description: 'Select at least one specialty', variant: 'destructive' })
+      return
+    }
     if (services.length === 0 || !services[0].title) {
       toast({ title: 'Missing fields', description: 'Add at least one service', variant: 'destructive' })
       return
     }
-    if (availability.length === 0) {
-      toast({ title: 'Missing fields', description: 'Set your availability for at least one day', variant: 'destructive' })
+    if (services.some(service => !catalog.some(sport => sport.id === service.sportId && sport.isActive && selectedSports.includes(sport.slug)))) {
+      setActiveTab('services')
+      toast({ title: 'Missing sport', description: 'Choose an active sport you coach for every service.', variant: 'destructive' })
+      return
+    }
+    if (!canonicalTimeZone(profile.timeZone)) {
+      setActiveTab('availability')
+      toast({ title: 'Missing time zone', description: 'Choose a valid schedule time zone.', variant: 'destructive' })
+      return
+    }
+    if (!revision) {
+      toast({ title: 'Reload required', description: 'Load the saved profile before making changes.', variant: 'destructive' })
       return
     }
 
@@ -198,9 +156,10 @@ function TrainerProfileContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...profile,
+          revision,
           sports: selectedSports,
-          specialties: selectedSpecialties.length > 0 ? selectedSpecialties : selectedSports,
-          certifications: certifications.filter(c => c.name),
+          specialties: selectedSpecialties,
+          certifications: certifications.filter(c => c.id || c.name.trim()).map(({ id, name, issuingOrg, credentialId }) => ({ id, name, issuingOrg, credentialId })),
           services: services.filter(s => s.title),
           availability,
         }),
@@ -209,6 +168,12 @@ function TrainerProfileContent() {
         const data = await res.json()
         throw new Error(data.error || 'Save failed')
       }
+      const saved = await res.json()
+      setServices(saved.services)
+      setCertifications(saved.certifications)
+      setSelectedSpecialties(saved.specialties)
+      setRevision(saved.revision)
+      setProfile(current => ({ ...current, timeZone: saved.timeZone }))
       toast({ title: 'Profile saved', description: 'Your changes have been saved successfully.' })
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' })
@@ -217,48 +182,10 @@ function TrainerProfileContent() {
     }
   }
 
-  const handleStripeConnect = async () => {
-    setConnectingStripe(true)
-    try {
-      const res = await fetch('/api/trainer/stripe-connect', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      window.location.href = data.url
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' })
-      setConnectingStripe(false)
-    }
-  }
-
-  const handleWithdraw = async () => {
-    const cents = Math.round(parseFloat(withdrawAmount) * 100)
-    if (isNaN(cents) || cents < 500) {
-      toast({ title: 'Invalid amount', description: 'Minimum withdrawal is $5.00', variant: 'destructive' })
-      return
-    }
-    setWithdrawing(true)
-    try {
-      const res = await fetch('/api/trainer/wallet/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountInCents: cents }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      toast({ title: 'Withdrawal requested', description: data.message })
-      setWithdrawAmount('')
-      fetchWallet()
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' })
-    } finally {
-      setWithdrawing(false)
-    }
-  }
-
   const toggleSport = (slug: string) => {
     setSelectedSports(prev => {
       const next = prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
-      const allowed = new Set(getSpecialtyOptionsForSports(next).map(s => s.slug))
+      const allowed = new Set(catalogSpecialties(catalog, next).map(s => s.id))
       setSelectedSpecialties(curr => curr.filter(s => allowed.has(s)))
       return next
     })
@@ -273,8 +200,8 @@ function TrainerProfileContent() {
     }
   }
 
-  const updateAvailTime = (day: number, field: 'startTime' | 'endTime', value: string) => {
-    setAvailability(prev => prev.map(a => a.dayOfWeek === day ? { ...a, [field]: value } : a))
+  const updateAvailTime = (index: number, field: 'startTime' | 'endTime', value: string) => {
+    setAvailability(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a))
   }
 
   const addService = () => {
@@ -318,6 +245,8 @@ function TrainerProfileContent() {
           {TABS.map(tab => (
             <button
               key={tab.id}
+              ref={activeTab === tab.id ? activeTabButton : undefined}
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                 activeTab === tab.id ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:bg-white/5 hover:text-white'
@@ -337,30 +266,30 @@ function TrainerProfileContent() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label>First Name *</Label>
-                    <Input value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-first-name">First Name *</Label>
+                    <Input id="profile-first-name" value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>Last Name *</Label>
-                    <Input value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-last-name">Last Name *</Label>
+                    <Input id="profile-last-name" value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
                 <div>
-                  <Label>Headline</Label>
-                  <Input value={profile.headline} onChange={e => setProfile(p => ({ ...p, headline: e.target.value }))} placeholder="e.g. Elite Quarterback Coaching" className="mt-1.5 bg-white/5 border-white/10" maxLength={100} />
+                  <Label htmlFor="profile-headline">Headline</Label>
+                  <Input id="profile-headline" value={profile.headline} onChange={e => setProfile(p => ({ ...p, headline: e.target.value }))} placeholder="e.g. Elite Quarterback Coaching" className="mt-1.5 bg-white/5 border-white/10" maxLength={100} />
                 </div>
                 <div>
-                  <Label>Bio</Label>
-                  <Textarea value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} placeholder="Tell families about your coaching experience, philosophy, and what makes your sessions special." className="mt-1.5 min-h-[120px] bg-white/5 border-white/10" maxLength={2000} />
+                  <Label htmlFor="profile-bio">Bio</Label>
+                  <Textarea id="profile-bio" value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} placeholder="Tell families about your coaching experience, philosophy, and what makes your sessions special." className="mt-1.5 min-h-[120px] bg-white/5 border-white/10" maxLength={2000} />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label>Phone</Label>
-                    <Input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+1 (555) 123-4567" className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-phone">Phone</Label>
+                    <Input id="profile-phone" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+1 (555) 123-4567" className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>Years of Experience</Label>
-                    <Input type="number" value={profile.yearsExperience} onChange={e => setProfile(p => ({ ...p, yearsExperience: parseInt(e.target.value) || 0 }))} min={0} max={50} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-experience">Years of Experience</Label>
+                    <Input id="profile-experience" type="number" value={profile.yearsExperience} onChange={e => setProfile(p => ({ ...p, yearsExperience: parseInt(e.target.value) || 0 }))} min={0} max={50} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
               </CardContent>
@@ -371,9 +300,9 @@ function TrainerProfileContent() {
               <CardHeader><h2 className="flex items-center gap-2 text-lg font-semibold"><MapPin className="h-5 w-5 text-emerald-300" /> Training Location</h2></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Location Type</Label>
+                  <Label htmlFor="profile-location-type">Location Type</Label>
                   <Select value={profile.locationType} onValueChange={v => setProfile(p => ({ ...p, locationType: v }))}>
-                    <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="profile-location-type" className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="IN_PERSON">In-Person Only</SelectItem>
                       <SelectItem value="VIRTUAL">Virtual Only</SelectItem>
@@ -382,31 +311,31 @@ function TrainerProfileContent() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Address / Facility</Label>
-                  <Input value={profile.address} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="e.g. North Dallas Sports Complex" className="mt-1.5 bg-white/5 border-white/10" />
+                  <Label htmlFor="profile-address">Address / Facility</Label>
+                  <Input id="profile-address" value={profile.address} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="e.g. North Dallas Sports Complex" className="mt-1.5 bg-white/5 border-white/10" />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <Label>City</Label>
-                    <Input value={profile.city} onChange={e => setProfile(p => ({ ...p, city: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-city">City</Label>
+                    <Input id="profile-city" value={profile.city} onChange={e => setProfile(p => ({ ...p, city: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                   <div>
-                    <Label>State</Label>
+                    <Label htmlFor="profile-state">State</Label>
                     <Select value={profile.state} onValueChange={v => setProfile(p => ({ ...p, state: v }))}>
-                      <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectTrigger id="profile-state" className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label>ZIP Code</Label>
-                    <Input value={profile.zipCode} onChange={e => setProfile(p => ({ ...p, zipCode: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
+                    <Label htmlFor="profile-zip">ZIP Code</Label>
+                    <Input id="profile-zip" value={profile.zipCode} onChange={e => setProfile(p => ({ ...p, zipCode: e.target.value }))} className="mt-1.5 bg-white/5 border-white/10" />
                   </div>
                 </div>
                 <div>
-                  <Label>Travel Radius (miles)</Label>
-                  <Input type="number" value={profile.travelRadius} onChange={e => setProfile(p => ({ ...p, travelRadius: parseInt(e.target.value) || 25 }))} min={5} max={100} className="mt-1.5 w-32 bg-white/5 border-white/10" />
+                  <Label htmlFor="profile-radius">Travel Radius (miles)</Label>
+                  <Input id="profile-radius" type="number" value={profile.travelRadius} onChange={e => setProfile(p => ({ ...p, travelRadius: parseInt(e.target.value) || 25 }))} min={5} max={100} className="mt-1.5 w-32 bg-white/5 border-white/10" />
                 </div>
               </CardContent>
             </Card>
@@ -418,9 +347,10 @@ function TrainerProfileContent() {
                 <div>
                   <Label>Sports You Coach *</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {SPORTS.map(sport => (
+                    {catalog.filter(sport => sport.isActive || selectedSports.includes(sport.slug)).map(sport => (
                       <button
                         key={sport.slug}
+                        aria-pressed={selectedSports.includes(sport.slug)}
                         onClick={() => toggleSport(sport.slug)}
                         className={`rounded-full border px-4 py-2 text-sm transition ${
                           selectedSports.includes(sport.slug)
@@ -428,26 +358,28 @@ function TrainerProfileContent() {
                             : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                         }`}
                       >
-                        {sport.icon} {sport.name}
+                        {sport.icon} {sport.name}{!sport.isActive ? ' (Unavailable)' : ''}
                       </button>
                     ))}
                   </div>
                 </div>
-                {getSpecialtyOptionsForSports(selectedSports).length > 0 && (
+                {catalog.length === 0 && <p role="status">No sports are currently available.</p>}
+                {catalogSpecialties(catalog, selectedSports).length > 0 && (
                   <div>
                     <Label>Specialties</Label>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {getSpecialtyOptionsForSports(selectedSports).map(spec => (
+                      {catalogSpecialties(catalog, selectedSports).map(spec => (
                         <button
-                          key={spec.slug}
-                          onClick={() => setSelectedSpecialties(prev => prev.includes(spec.slug) ? prev.filter(s => s !== spec.slug) : [...prev, spec.slug])}
-                          className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                            selectedSpecialties.includes(spec.slug)
+                          key={spec.id}
+                          aria-pressed={selectedSpecialties.includes(spec.id)}
+                          onClick={() => setSelectedSpecialties(prev => prev.includes(spec.id) ? prev.filter(s => s !== spec.id) : [...prev, spec.id])}
+                          className={`max-w-full break-words rounded-full border px-3 py-1.5 text-xs transition ${
+                            selectedSpecialties.includes(spec.id)
                               ? 'border-emerald-500 bg-emerald-500/20 text-emerald-100'
                               : 'border-white/10 text-slate-400 hover:border-white/20'
                           }`}
                         >
-                          {spec.name}
+                          {spec.name} ({spec.sportName})
                         </button>
                       ))}
                     </div>
@@ -467,12 +399,14 @@ function TrainerProfileContent() {
               <CardContent className="space-y-3">
                 {certifications.length === 0 && <p className="text-sm text-slate-400">No certifications added. Certifications build trust with families.</p>}
                 {certifications.map((cert, i) => (
-                  <div key={i} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div key={cert.id || `new-${i}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex-1 grid gap-3 sm:grid-cols-2">
-                      <Input value={cert.name} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, name: e.target.value } : c))} placeholder="Certification name" className="bg-white/5 border-white/10" />
-                      <Input value={cert.issuingOrg} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, issuingOrg: e.target.value } : c))} placeholder="Issuing organization" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} name`} value={cert.name} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, name: e.target.value, isVerified: false } : c))} placeholder="Certification name" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} organization`} value={cert.issuingOrg} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, issuingOrg: e.target.value, isVerified: false } : c))} placeholder="Issuing organization" className="bg-white/5 border-white/10" />
+                      <Input aria-label={`Certification ${i + 1} credential ID`} value={cert.credentialId || ''} onChange={e => setCertifications(prev => prev.map((c, idx) => idx === i ? { ...c, credentialId: e.target.value, isVerified: false } : c))} placeholder="Credential ID" className="bg-white/5 border-white/10" />
+                      <span className="self-center text-sm text-slate-300">{cert.isVerified ? 'Verified' : 'Not verified'}</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => removeCert(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" aria-label={`Remove certification ${i + 1}`} title="Remove certification" onClick={() => removeCert(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
               </CardContent>
@@ -482,6 +416,7 @@ function TrainerProfileContent() {
 
         {activeTab === 'services' && (
           <div className="space-y-4">
+            <Link href="/trainer/packages" className="inline-flex items-center gap-2 text-sm text-emerald-300"><Briefcase className="h-4 w-4" />Programs &amp; Packages</Link>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Your Services</h2>
               <Button variant="outline" size="sm" onClick={addService} className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Plus className="mr-1 h-3 w-3" /> Add Service</Button>
@@ -492,35 +427,42 @@ function TrainerProfileContent() {
                   <div className="flex items-start justify-between">
                     <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-500/30">Service {i + 1}</Badge>
                     {services.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removeService(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" aria-label={`Remove service ${i + 1}`} title={`Remove service ${i + 1}`} onClick={() => removeService(i)} className="text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></Button>
                     )}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <Label>Service Title *</Label>
-                      <Input value={svc.title} onChange={e => updateService(i, 'title', e.target.value)} placeholder="e.g. Private Football Session" className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-sport-${i}`}>Sport *</Label>
+                      <Select value={catalog.some(sport => sport.id === svc.sportId && sport.isActive && selectedSports.includes(sport.slug)) ? svc.sportId! : ''} onValueChange={value => updateService(i, 'sportId', value)}>
+                        <SelectTrigger id={`service-sport-${i}`} aria-label={`Service ${i + 1} sport`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue placeholder="Choose sport" /></SelectTrigger>
+                        <SelectContent>{catalog.filter(sport => sport.isActive && selectedSports.includes(sport.slug)).map(sport => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
+                      </Select>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Description</Label>
-                      <Textarea value={svc.description} onChange={e => updateService(i, 'description', e.target.value)} placeholder="What does this session include?" className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-title-${i}`}>Service Title *</Label>
+                      <Input id={`service-title-${i}`} value={svc.title} onChange={e => updateService(i, 'title', e.target.value)} placeholder="e.g. Private Football Session" className="mt-1.5 bg-white/5 border-white/10" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor={`service-description-${i}`}>Description</Label>
+                      <Textarea id={`service-description-${i}`} value={svc.description} onChange={e => updateService(i, 'description', e.target.value)} placeholder="What does this session include?" className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div>
-                      <Label>Price ($) *</Label>
-                      <Input type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={15} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-price-${i}`}>Price ($) *</Label>
+                      <Input id={`service-price-${i}`} type="number" value={(svc.priceInCents / 100).toFixed(2)} onChange={e => updateService(i, 'priceInCents', Math.round(parseFloat(e.target.value) * 100) || 0)} min={minServicePrice / 100} step={0.01} className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                     <div>
-                      <Label>Duration (minutes)</Label>
+                      <Label htmlFor={`service-duration-${i}`}>Duration (minutes)</Label>
                       <Select value={String(svc.durationMinutes)} onValueChange={v => updateService(i, 'durationMinutes', parseInt(v))}>
-                        <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`service-duration-${i}`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {[30, 45, 60, 75, 90, 120].map(d => <SelectItem key={d} value={String(d)}>{d} min</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label>Session Type</Label>
+                      <Label htmlFor={`service-type-${i}`}>Session Type</Label>
                       <Select value={svc.type} onValueChange={v => updateService(i, 'type', v)}>
-                        <SelectTrigger className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`service-type-${i}`} className="mt-1.5 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="INDIVIDUAL">1-on-1</SelectItem>
                           <SelectItem value="GROUP">Group</SelectItem>
@@ -529,8 +471,8 @@ function TrainerProfileContent() {
                       </Select>
                     </div>
                     <div>
-                      <Label>Max Participants</Label>
-                      <Input type="number" value={svc.maxParticipants} onChange={e => updateService(i, 'maxParticipants', parseInt(e.target.value) || 1)} min={1} max={50} className="mt-1.5 bg-white/5 border-white/10" />
+                      <Label htmlFor={`service-participants-${i}`}>Max Participants</Label>
+                      <Input id={`service-participants-${i}`} type="number" value={svc.maxParticipants} onChange={e => updateService(i, 'maxParticipants', parseInt(e.target.value) || 1)} min={1} max={50} className="mt-1.5 bg-white/5 border-white/10" />
                     </div>
                   </div>
                 </CardContent>
@@ -543,24 +485,31 @@ function TrainerProfileContent() {
           <Card className="border-white/10 bg-white/[0.04] text-white">
             <CardHeader><h2 className="flex items-center gap-2 text-lg font-semibold"><Clock className="h-5 w-5 text-emerald-300" /> Weekly Availability</h2></CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-400">Toggle each day and set your available hours. Parents will only see open time slots when booking.</p>
+              <ScheduleTimeZoneSelect value={profile.timeZone} onChange={timeZone => setProfile(current => ({ ...current, timeZone }))} />
               {DAY_NAMES.map((name, day) => {
-                const slot = availability.find(a => a.dayOfWeek === day)
+                const slots = availability.map((slot, index) => ({ slot, index })).filter(({ slot }) => slot.dayOfWeek === day)
                 return (
-                  <div key={day} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center">
+                  <div key={day} data-testid={`availability-day-${day}`} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center">
                     <button
                       onClick={() => toggleDay(day)}
+                      aria-pressed={slots.length > 0}
                       className={`w-28 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        slot ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                        slots.length ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'
                       }`}
                     >
                       {name}
                     </button>
-                    {slot ? (
-                      <div className="flex items-center gap-2">
-                        <Input type="time" value={slot.startTime} onChange={e => updateAvailTime(day, 'startTime', e.target.value)} className="w-32 bg-white/5 border-white/10" />
-                        <span className="text-slate-400">to</span>
-                        <Input type="time" value={slot.endTime} onChange={e => updateAvailTime(day, 'endTime', e.target.value)} className="w-32 bg-white/5 border-white/10" />
+                    {slots.length ? (
+                      <div className="flex w-full min-w-0 flex-col gap-3">
+                        {slots.map(({ slot, index }, window) => (
+                          <div key={index} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                            <Input type="time" aria-label={`${name} window ${window + 1} start time`} value={slot.startTime} onChange={e => updateAvailTime(index, 'startTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32 [color-scheme:dark]" />
+                            <span className="text-slate-400">to</span>
+                            <Input type="time" aria-label={`${name} window ${window + 1} end time`} value={slot.endTime} onChange={e => updateAvailTime(index, 'endTime', e.target.value)} className="w-full min-w-0 bg-white/5 border-white/10 sm:w-32 [color-scheme:dark]" />
+                            <Button size="icon" variant="ghost" aria-label={`Remove ${name} window ${window + 1}`} title={`Remove ${name} window ${window + 1}`} onClick={() => setAvailability(prev => prev.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        ))}
+                        <Button size="icon" variant="ghost" aria-label={`Add ${name} window`} title={`Add ${name} window`} onClick={() => setAvailability(prev => [...prev, { dayOfWeek: day, startTime: '13:00', endTime: '17:00' }])}><Plus className="h-4 w-4" /></Button>
                       </div>
                     ) : (
                       <span className="text-sm text-slate-500">Unavailable</span>
@@ -572,134 +521,7 @@ function TrainerProfileContent() {
           </Card>
         )}
 
-        {activeTab === 'payouts' && (
-          <div className="space-y-6">
-            {/* Stripe Connect */}
-            <Card className="border-white/10 bg-white/[0.04] text-white">
-              <CardHeader>
-                <h2 className="flex items-center gap-2 text-lg font-semibold"><BanknoteIcon className="h-5 w-5 text-emerald-300" /> Bank Account & Payouts</h2>
-              </CardHeader>
-              <CardContent>
-                {stripeStatus === null ? (
-                  <div className="flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Checking payout status...</div>
-                ) : stripeStatus.onboardingComplete ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                      <div>
-                        <div className="font-semibold text-emerald-200">Bank account connected</div>
-                        <div className="text-sm text-emerald-300/80">Payouts are enabled. Your earnings will be transferred to your bank.</div>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={handleStripeConnect} disabled={connectingStripe} className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
-                      {connectingStripe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                      Update Bank Details
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
-                      <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-400" />
-                      <div>
-                        <div className="font-semibold text-amber-200">Bank account not connected</div>
-                        <div className="text-sm text-amber-300/80">Connect your bank account through Stripe to receive direct deposits of your earnings. This is required to withdraw funds.</div>
-                      </div>
-                    </div>
-                    <Button className="gradient-primary border-0 text-white" onClick={handleStripeConnect} disabled={connectingStripe}>
-                      {connectingStripe ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting...</> : <><CreditCard className="mr-2 h-4 w-4" /> Connect Bank Account</>}
-                    </Button>
-                    <p className="text-xs text-slate-400">You&apos;ll be redirected to Stripe to securely enter your bank details. Trainr never sees your account numbers.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Earnings Overview */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: 'Available', value: wallet?.availableBalance ?? 0, icon: DollarSign, color: 'text-emerald-300' },
-                { label: 'Pending', value: wallet?.pendingBalance ?? 0, icon: Clock, color: 'text-amber-300' },
-                { label: 'Withdrawn', value: wallet?.withdrawnTotal ?? 0, icon: TrendingUp, color: 'text-blue-300' },
-                { label: 'Total Earned', value: wallet?.totalEarned ?? 0, icon: Sparkles, color: 'text-white' },
-              ].map(item => (
-                <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300"><item.icon className={`h-4 w-4 ${item.color}`} /> {item.label}</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">{formatCurrency(item.value)}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Withdraw */}
-            {(wallet?.availableBalance ?? 0) > 0 && stripeStatus?.onboardingComplete && (
-              <Card className="border-white/10 bg-white/[0.04] text-white">
-                <CardHeader><h2 className="text-lg font-semibold">Request Withdrawal</h2></CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div className="flex-1">
-                      <Label>Amount ($)</Label>
-                      <Input
-                        type="number"
-                        value={withdrawAmount}
-                        onChange={e => setWithdrawAmount(e.target.value)}
-                        placeholder="0.00"
-                        min={5}
-                        step={0.01}
-                        max={(wallet?.availableBalance ?? 0) / 100}
-                        className="mt-1.5 bg-white/5 border-white/10"
-                      />
-                      <p className="mt-1 text-xs text-slate-400">Available: {formatCurrency(wallet?.availableBalance ?? 0)} — Min: $5.00</p>
-                    </div>
-                    <Button className="gradient-primary border-0 text-white" onClick={handleWithdraw} disabled={withdrawing}>
-                      {withdrawing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Request Withdrawal'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Pending Withdrawals */}
-            {pendingWithdrawals.length > 0 && (
-              <Card className="border-white/10 bg-white/[0.04] text-white">
-                <CardHeader><h2 className="text-lg font-semibold">Pending Withdrawals</h2></CardHeader>
-                <CardContent className="space-y-2">
-                  {pendingWithdrawals.map(w => (
-                    <div key={w.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <div>
-                        <div className="font-semibold">{formatCurrency(w.amountInCents)}</div>
-                        <div className="text-xs text-slate-400">{new Date(w.createdAt).toLocaleDateString()}</div>
-                      </div>
-                      <Badge className={w.status === 'PENDING' ? 'bg-amber-500/20 text-amber-200 border-amber-500/30' : 'bg-blue-500/20 text-blue-200 border-blue-500/30'}>{w.status}</Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Transaction History */}
-            <Card className="border-white/10 bg-white/[0.04] text-white">
-              <CardHeader><h2 className="text-lg font-semibold">Transaction History</h2></CardHeader>
-              <CardContent>
-                {walletEntries.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-slate-400">No transactions yet. Complete sessions to start earning.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {walletEntries.map(entry => (
-                      <div key={entry.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <div>
-                          <div className="text-sm font-medium">{entry.description || entry.booking?.serviceOffering.title || entry.type}</div>
-                          <div className="text-xs text-slate-400">{new Date(entry.createdAt).toLocaleDateString()}</div>
-                        </div>
-                        <div className={`font-semibold ${entry.amountInCents >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {entry.amountInCents >= 0 ? '+' : ''}{formatCurrency(Math.abs(entry.amountInCents))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {activeTab === 'payouts' && <TrainerPayouts />}
 
         {/* Save button at bottom for mobile */}
         {activeTab !== 'payouts' && (

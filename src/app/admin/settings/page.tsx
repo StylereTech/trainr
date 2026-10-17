@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Settings, Save, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Loader2, Settings, Save, RefreshCw, CheckCircle2 } from 'lucide-react'
 
 interface FeeConfig {
   id: string
@@ -26,6 +26,8 @@ export default function AdminSettings() {
   const [history, setHistory] = useState<FeeConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [stale, setStale] = useState(false)
   const [form, setForm] = useState({
     platformCommissionPercent: 15,
     stripeFeePercent: 2.9,
@@ -33,23 +35,25 @@ export default function AdminSettings() {
     minBookingAmountCents: 1500,
   })
 
-  useEffect(() => {
-    fetch('/api/admin/settings')
-      .then((r) => r.json())
-      .then((data) => {
-        setHistory(data.configs || [])
-        if (data.active) {
-          setConfig(data.active)
-          setForm({
-            platformCommissionPercent: data.active.platformCommissionPercent,
-            stripeFeePercent: data.active.stripeFeePercent,
-            processingFeeCents: data.active.processingFeeCents,
-            minBookingAmountCents: data.active.minBookingAmountCents,
-          })
-        }
-      })
-      .finally(() => setLoading(false))
+  const loadSettings = useCallback(async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const response = await fetch('/api/admin/settings', { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to load fee settings.')
+      const values = data.active || data.defaults
+      if (!values || !Array.isArray(data.configs)) throw new Error('Invalid fee settings response.')
+      setHistory(data.configs)
+      setConfig(data.active)
+      setForm({ platformCommissionPercent: values.platformCommissionPercent, stripeFeePercent: values.stripeFeePercent,
+        processingFeeCents: values.processingFeeCents, minBookingAmountCents: values.minBookingAmountCents })
+      setStale(false)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load fee settings.')
+    } finally { setLoading(false) }
   }, [])
+  useEffect(() => { void loadSettings() }, [loadSettings])
 
   const handleSave = async () => {
     setSaving(true)
@@ -57,19 +61,16 @@ export default function AdminSettings() {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, expectedConfigId: config?.id || null }),
       })
       if (res.ok) {
         const newConfig = await res.json()
         setConfig(newConfig)
+        setHistory((current) => [newConfig, ...current.map((item) => ({ ...item, isActive: false }))].slice(0, 10))
         toast({ title: 'Settings saved', description: 'New fee configuration is now active.' })
-        const historyRes = await fetch('/api/admin/settings')
-        if (historyRes.ok) {
-          const data = await historyRes.json()
-          setHistory(data.configs || [])
-        }
       } else {
         const data = await res.json()
+        if (res.status === 409) setStale(true)
         toast({ title: 'Error', description: data.error, variant: 'destructive' })
       }
     } catch {
@@ -79,6 +80,7 @@ export default function AdminSettings() {
   }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-emerald-300" /></div>
+  if (loadError) return <section className="space-y-4"><h1 className="text-2xl font-semibold">Fee settings</h1><p role="alert">{loadError}</p><Button onClick={loadSettings}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button></section>
 
   const sampleSession = 100
   const platformFee = sampleSession * form.platformCommissionPercent / 100
@@ -86,11 +88,11 @@ export default function AdminSettings() {
 
   return (
     <div className="space-y-6 text-white">
-      <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.16),_transparent_32%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] md:p-7">
-        <Badge className="border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10"><Sparkles className="mr-1 h-3.5 w-3.5" /> Fee configuration</Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Set platform economics from a cleaner private finance surface.</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">Commission inputs, processing assumptions, and history now live inside the same premium admin system rather than a default settings panel.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Fee settings</h1>
+        <Button variant="outline" onClick={loadSettings} disabled={saving}><RefreshCw className="mr-2 h-4 w-4" />Reload</Button>
       </div>
+      {stale && <p role="alert" className="text-amber-300">Fee settings changed. Reload before saving.</p>}
 
       <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
         <Card className="border-white/10 bg-white/[0.04] text-white">
@@ -105,19 +107,19 @@ export default function AdminSettings() {
                 <p className="text-xs text-slate-400">Percent of each booking retained as platform fee.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stripeFee">Stripe fee (%)</Label>
+                <Label htmlFor="stripeFee">Estimated Stripe fee (%)</Label>
                 <Input id="stripeFee" type="number" step="0.01" min="0" max="10" value={form.stripeFeePercent} onChange={(e) => setForm((prev) => ({ ...prev, stripeFeePercent: parseFloat(e.target.value) || 0 }))} className="h-12 border-white/10 bg-slate-950/60 text-white" />
                 <p className="text-xs text-slate-400">Reference value for finance planning.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="processingCents">Processing fee (cents)</Label>
+                <Label htmlFor="processingCents">Estimated processing fee (cents)</Label>
                 <Input id="processingCents" type="number" min="0" step="1" value={form.processingFeeCents} onChange={(e) => setForm((prev) => ({ ...prev, processingFeeCents: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-slate-950/60 text-white" />
-                <p className="text-xs text-slate-400">Flat transaction fee in cents.</p>
+                <p className="text-xs text-slate-400">Reference estimate, not an additional parent charge.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="minBooking">Minimum booking amount (cents)</Label>
-                <Input id="minBooking" type="number" min="0" step="100" value={form.minBookingAmountCents} onChange={(e) => setForm((prev) => ({ ...prev, minBookingAmountCents: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-slate-950/60 text-white" />
-                <p className="text-xs text-slate-400">Minimum session price allowed on platform.</p>
+                <Input id="minBooking" type="number" min="1500" max="10000000" step="1" value={form.minBookingAmountCents} onChange={(e) => setForm((prev) => ({ ...prev, minBookingAmountCents: Number(e.target.value) }))} className="h-12 border-white/10 bg-slate-950/60 text-white" />
+                <p className="text-xs text-slate-400">Minimum service price before discounts.</p>
               </div>
             </div>
 
@@ -130,7 +132,7 @@ export default function AdminSettings() {
               </div>
             </div>
 
-            <Button className="w-full gradient-primary border-0 text-white" onClick={handleSave} disabled={saving}>
+            <Button className="w-full gradient-primary border-0 text-white" onClick={handleSave} disabled={saving || stale}>
               {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
               Save configuration
             </Button>

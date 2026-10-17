@@ -1,0 +1,293 @@
+{
+  "base": "https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app",
+  "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+  "aliasMappingRequiresIndependentVerification": true,
+  "results": [
+    {
+      "at": "2026-10-14T04:19:45.618Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/auth/signin",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 200,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.204Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/auth/signup",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 200,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.426Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/account/verify-email",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 200,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.632Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/parent/dashboard",
+      "expectedStatus": 307,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 307,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.703Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/trainer/dashboard",
+      "expectedStatus": 307,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 307,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.780Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/admin",
+      "expectedStatus": 307,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 307,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:46.879Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/api/auth/session",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 200,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.004Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/api/bookings",
+      "expectedStatus": 401,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 401,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.081Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/api/payments/connect",
+      "expectedStatus": 401,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 401,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.189Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/api/trainer/wallet",
+      "expectedStatus": 401,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 401,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.266Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/api/package-purchases",
+      "expectedStatus": 401,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 401,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.337Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "POST",
+      "path": "/api/payments/webhook",
+      "expectedStatus": 400,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 400,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    },
+    {
+      "at": "2026-10-14T04:19:47.451Z",
+      "source": "4667039b9c88cb9dd0444c2c5059647436abbcc2",
+      "method": "GET",
+      "path": "/header-audit-not-found",
+      "expectedStatus": 404,
+      "expectedHeaders": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "authenticated": false,
+      "status": 404,
+      "headers": {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer"
+      },
+      "pass": true
+    }
+  ]
+}

@@ -63,3 +63,4 @@ attached_assets/
 test-results/
 e2e-report/
 /playwright/.cache/
+/.postgres-test/

@@ -1,112 +1,120 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CheckoutConflict } from '@/lib/checkout-attempts'
 
-const mockCheckoutCreate = vi.fn()
+const mock = vi.hoisted(() => ({ user: vi.fn(), booking: vi.fn(), account: vi.fn(), updateTrainer: vi.fn(), checkout: vi.fn(), runtime: { secretConfigured: true, webhookConfigured: true } }))
+vi.mock('@/lib/auth', () => ({ getRequestUser: mock.user }))
+vi.mock('@/lib/prisma', () => ({ prisma: { booking: { findUnique: mock.booking }, trainerProfile: { update: mock.updateTrainer } } }))
+vi.mock('@/lib/checkout-attempts', () => ({ CheckoutConflict: class extends Error {}, startOrResumeCheckout: mock.checkout }))
+vi.mock('@/lib/connect-readiness', () => ({ refreshConnectReadiness: mock.account }))
+vi.mock('@/lib/stripe', () => ({
+  stripeRuntimeStatus: () => mock.runtime,
+  mapStripeError: () => ({ message: 'Checkout temporarily unavailable', detail: 'private provider detail', status: 503 }),
+  stripe: { accounts: { retrieve: mock.account } },
+}))
 
-const mockPrisma = {
-  booking: {
-    findUnique: vi.fn(),
-  },
-  payment: {
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
+beforeEach(() => {
+  vi.resetAllMocks()
+  mock.runtime.secretConfigured = true
+  mock.runtime.webhookConfigured = true
+  mock.user.mockResolvedValue({ id: 'parent', role: 'PARENT', email: 'parent@example.test' })
+  mock.booking.mockResolvedValue({
+    id: 'booking', status: 'PENDING', parentProfile: { userId: 'parent' }, timeZone: 'UTC', startsAt: new Date('2030-11-01T09:00:00Z'), endsAt: new Date('2030-11-01T10:00:00Z'),
+    trainerProfile: { id: 'trainer', stripeAccountId: 'acct_ready', stripeOnboardingComplete: true, isActive: true, approvalStatus: 'APPROVED' },
+  })
+  mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers: 'active' } })
+  mock.checkout.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/test', paymentId: 'payment' })
+})
+
+async function send(body = JSON.stringify({ bookingId: 'booking' })) {
+  const { POST } = await import('@/app/api/payments/checkout/route')
+  return POST(new Request('http://localhost/api/payments/checkout', { method: 'POST', body }) as any)
 }
 
-vi.mock('@/lib/auth', () => ({
-  getRequestUser: vi.fn().mockResolvedValue({
-    id: 'parent-user-1',
-    email: 'parent@example.com',
-    role: 'PARENT',
-  }),
-}))
-
-vi.mock('@/lib/prisma', () => ({
-  prisma: mockPrisma,
-}))
-
-vi.mock('@/lib/app-url', () => ({
-  toAbsoluteAppUrl: (path: string) => `http://localhost:3000${path}`,
-}))
-
-vi.mock('@/lib/stripe', () => ({
-  stripeRuntimeStatus: () => ({ secretConfigured: true }),
-  mapStripeError: (error: any, fallback: string) => ({
-    message: error?.message || fallback,
-    detail: undefined,
-    status: 500,
-  }),
-  stripe: {
-    checkout: {
-      sessions: {
-        create: mockCheckoutCreate,
-        retrieve: vi.fn(),
-        expire: vi.fn(),
-      },
-    },
-  },
-}))
-
-describe('Payments checkout API', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+describe('checkout route boundaries', () => {
+  it.each(['secretConfigured', 'webhookConfigured'] as const)('does not create a payable session without %s', async field => {
+    mock.runtime[field] = false
+    const response = await send()
+    expect(response.status).toBe(503)
+    expect(mock.booking).not.toHaveBeenCalled()
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
   })
-
-  it('creates a Stripe checkout session for a pending booking from the booking flow', async () => {
-    mockPrisma.booking.findUnique.mockResolvedValue({
-      id: 'booking-1',
-      status: 'PENDING',
-      totalAmountInCents: 7300,
-      platformFeeInCents: 1095,
-      trainerPayoutInCents: 6205,
-      parentProfile: { id: 'parent-profile-1', userId: 'parent-user-1' },
-      trainerProfile: {
-        id: 'trainer-profile-1',
-        firstName: 'Marcus',
-        lastName: 'Johnson',
-        stripeAccountId: 'acct_ready',
-        stripeOnboardingComplete: true,
-      },
-      serviceOffering: { id: 'service-1', title: 'Private football Session' },
-      athleteProfile: { id: 'athlete-1' },
-      payment: null,
-      date: new Date('2026-04-27T00:00:00.000Z'),
-      startTime: '09:00',
+  it.each(['inactive', 'pending', undefined])('does not prepare checkout without active transfers: %s', transfers => {
+    mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: true, capabilities: { transfers } })
+    return send().then(response => {
+      expect(response.status).toBe(400)
+      expect(mock.checkout).not.toHaveBeenCalled()
     })
-    mockPrisma.payment.create.mockResolvedValue({
-      id: 'payment-1',
-      status: 'PENDING',
-    })
-    mockCheckoutCreate.mockResolvedValue({
-      id: 'cs_test_123',
-      url: 'https://checkout.stripe.com/c/pay/cs_test_123',
-    })
-    mockPrisma.payment.update.mockResolvedValue({
-      id: 'payment-1',
-      stripeCheckoutSessionId: 'cs_test_123',
-    })
-
-    const { POST } = await import('@/app/api/payments/checkout/route')
-    const response = await POST(
-      new Request('http://localhost:3000/api/payments/checkout', {
-        method: 'POST',
-        body: JSON.stringify({ bookingId: 'booking-1' }),
-      }) as any
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123',
-      paymentId: 'payment-1',
-    })
-    expect(mockCheckoutCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'payment',
-        payment_intent_data: expect.objectContaining({
-          application_fee_amount: 1095,
-          transfer_data: { destination: 'acct_ready' },
-        }),
-      })
-    )
+  })
+  it.each(['missing', 'past'])('rejects %s booking time before contacting Stripe', async condition => {
+    const booking = await mock.booking()
+    if (condition === 'missing') booking.timeZone = null
+    else booking.startsAt = new Date(Date.now() - 1)
+    expect((await send()).status).toBe(409)
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it.each(['PENDING', 'REJECTED', 'SUSPENDED', 'INACTIVE'])('blocks checkout for a trainer who is %s before contacting Stripe', async status => {
+    const booking = await mock.booking()
+    booking.trainerProfile = { ...booking.trainerProfile, ...(status === 'INACTIVE' ? { isActive: false } : { approvalStatus: status }) }
+    mock.booking.mockResolvedValue(booking)
+    expect((await send()).status).toBe(409)
+    expect(mock.account).not.toHaveBeenCalled()
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it('passes only the authenticated buyer and verified trainer destination to checkout', async () => {
+    expect((await send()).status).toBe(200)
+    expect(mock.checkout).toHaveBeenCalledWith('booking', { id: 'parent', role: 'PARENT', email: 'parent@example.test' }, 'acct_ready')
+  })
+  it('requires authentication', async () => {
+    mock.user.mockResolvedValue(null)
+    expect((await send()).status).toBe(401)
+    expect(mock.account).not.toHaveBeenCalled()
+  })
+  it.each(['TRAINER', 'ADMIN', 'UNKNOWN'])('rejects role %s', async (role) => {
+    mock.user.mockResolvedValue({ id: 'parent', role })
+    expect((await send()).status).toBe(403)
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it.each(['{', '{}', '{"bookingId":{}}', '{"bookingId":" "}'])('rejects malformed input %s', async (body) => {
+    expect((await send(body)).status).toBe(400)
+    expect(mock.booking).not.toHaveBeenCalled()
+  })
+  it('rejects another parent booking', async () => {
+    const booking = await mock.booking()
+    mock.booking.mockResolvedValue({ ...booking, parentProfile: { userId: 'someone-else' } })
+    expect((await send()).status).toBe(403)
+    expect(mock.account).not.toHaveBeenCalled()
+  })
+  it('blocks restricted accounts and revokes a stale cached flag', async () => {
+    mock.account.mockResolvedValue({ details_submitted: true, charges_enabled: true, payouts_enabled: false })
+    expect((await send()).status).toBe(400)
+    expect(mock.account).toHaveBeenCalledWith('acct_ready')
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it('recovers a stale false readiness flag', async () => {
+    const booking = await mock.booking()
+    mock.booking.mockResolvedValue({ ...booking, trainerProfile: { ...booking.trainerProfile, stripeOnboardingComplete: false } })
+    expect((await send()).status).toBe(200)
+    expect(mock.account).toHaveBeenCalledWith('acct_ready')
+  })
+  it('refuses checkout when the saved account is no longer linked', async () => {
+    mock.account.mockResolvedValue(null)
+    expect((await send()).status).toBe(400)
+    expect(mock.checkout).not.toHaveBeenCalled()
+    expect(mock.updateTrainer).not.toHaveBeenCalled()
+  })
+  it('fails closed on provider outages without exposing raw details', async () => {
+    mock.account.mockRejectedValue(new Error('private provider detail'))
+    const response = await send()
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('private provider detail')
+    expect(mock.checkout).not.toHaveBeenCalled()
+  })
+  it('returns a reconciliation conflict without a payable URL', async () => {
+    mock.checkout.mockRejectedValue(new CheckoutConflict('Reconciliation required'))
+    const response = await send()
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Reconciliation required' })
   })
 })

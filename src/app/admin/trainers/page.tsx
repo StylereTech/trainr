@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, CheckCircle2, XCircle, Eye, Sparkles, ShieldCheck, Clock3, ArrowUpRight } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Eye, ShieldCheck, Clock3, ArrowUpRight, RefreshCw } from 'lucide-react'
 
 interface PendingTrainer {
   id: string
@@ -22,6 +22,7 @@ interface PendingTrainer {
   city: string | null
   state: string | null
   createdAt: string
+  updatedAt: string
   sports: { sport: { name: string; icon: string } }[]
   user: { email: string; createdAt: string }
   _count?: { bookings: number; reviews: number }
@@ -35,66 +36,94 @@ export default function AdminTrainers() {
   const [rejectReason, setRejectReason] = useState('')
   const [dialogMode, setDialogMode] = useState<'approve' | 'reject' | 'view'>('view')
   const [actionLoading, setActionLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const requestVersion = useRef(0)
 
-  const fetchTrainers = async () => {
+  const fetchTrainers = useCallback(async () => {
+    const version = ++requestVersion.current
     setLoading(true)
-    const res = await fetch('/api/admin?view=trainers-pending')
-    if (res.ok) {
+    setLoadError('')
+    setSelectedTrainer(null)
+    setRejectReason('')
+    try {
+      const res = await fetch('/api/admin?view=trainers-pending', { cache: 'no-store' })
+      if (!res.ok) throw new Error('Unable to load trainer applications.')
       const data = await res.json()
-      setTrainers(data.trainers || [])
+      if (!Array.isArray(data.trainers) || data.trainers.some((trainer: PendingTrainer) => !trainer.updatedAt || !Number.isFinite(Date.parse(trainer.updatedAt)))) {
+        throw new Error('Trainer applications did not include a valid review revision.')
+      }
+      if (version !== requestVersion.current) return
+      setTrainers(data.trainers)
+      setActionError('')
+    } catch (error) {
+      if (version !== requestVersion.current) return
+      setLoadError(error instanceof Error ? error.message : 'Unable to load trainer applications.')
+    } finally {
+      if (version === requestVersion.current) setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [])
 
-  useEffect(() => { fetchTrainers() }, [])
+  useEffect(() => { void fetchTrainers() }, [fetchTrainers])
 
-  const handleAction = async (trainerId: string, action: string, reason?: string) => {
+  const handleAction = async (trainer: PendingTrainer, action: 'approve' | 'reject', reason?: string) => {
+    if (actionLoading || actionError || loading || loadError) return
     setActionLoading(true)
     try {
-      const res = await fetch(`/api/admin/trainers/${trainerId}`, {
+      const res = await fetch(`/api/admin/trainers/${trainer.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reason }),
+        body: JSON.stringify({ action, reason, revision: trainer.updatedAt }),
       })
       if (res.ok) {
         toast({ title: `Trainer ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'updated'}` })
         setSelectedTrainer(null)
         setRejectReason('')
-        fetchTrainers()
+        await fetchTrainers()
       } else {
-        const data = await res.json()
-        toast({ title: 'Error', description: data.error, variant: 'destructive' })
+        const data = await res.json().catch(() => ({}))
+        setActionError(typeof data.error === 'string' ? data.error : 'Unable to save the decision. Reload before retrying.')
+        setSelectedTrainer(null)
       }
     } catch {
-      toast({ title: 'Error', variant: 'destructive' })
+      setActionError('The decision could not be confirmed. Reload before retrying.')
+      setSelectedTrainer(null)
     }
     setActionLoading(false)
   }
 
   return (
     <div className="space-y-6 text-white">
-      <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.16),_transparent_32%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 md:p-7">
-        <Badge className="border border-emerald-400/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10"><Sparkles className="mr-1 h-3.5 w-3.5" /> Trainer approvals</Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">Review applicants in the same premium command flow as the rest of admin.</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">This page now prioritizes trust signals, profile clarity, and mobile-safe decision controls instead of default stacked cards.</p>
+      <div>
+        <h1 className="text-2xl font-semibold">Trainer approvals</h1>
         <div className="mt-6 grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {[
             { label: 'Pending trainers', value: trainers.length.toString(), note: 'awaiting review' },
-            { label: 'Profile checks', value: trainers.filter((trainer) => !!trainer.headline && !!trainer.bio).length.toString(), note: 'headline + bio present' },
+            { label: 'Profile details', value: trainers.filter((trainer) => !!trainer.headline && !!trainer.bio).length.toString(), note: 'headline + bio present' },
             { label: 'With location', value: trainers.filter((trainer) => !!trainer.city && !!trainer.state).length.toString(), note: 'city/state included' },
-            { label: 'Ready to process', value: trainers.length > 0 ? 'Yes' : 'Clear', note: 'action queue state' },
           ].map((item) => (
-            <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+            <div key={item.label} className="border-b border-white/10 py-3">
               <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">{item.label}</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{item.value}</div>
+              <div className="mt-2 text-2xl font-semibold text-white">{loading || loadError ? 'Unavailable' : item.value}</div>
               <div className="mt-1 text-xs text-slate-400">{item.note}</div>
             </div>
           ))}
         </div>
       </div>
 
+      {actionError && !loading && !loadError && (
+        <div role="alert" className="space-y-3 border-l-2 border-amber-400 pl-4 text-amber-100">
+          <p>{actionError}</p>
+          <Button variant="outline" onClick={() => void fetchTrainers()} disabled={actionLoading}><RefreshCw className="mr-2 h-4 w-4" />Reload</Button>
+        </div>
+      )}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-emerald-300" /></div>
+      ) : loadError ? (
+        <div role="alert" className="space-y-3 border-l-2 border-rose-400 pl-4 text-rose-100">
+          <p>{loadError}</p>
+          <Button variant="outline" onClick={() => void fetchTrainers()}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button>
+        </div>
       ) : trainers.length === 0 ? (
         <Card className="border-white/10 bg-white/[0.04] text-white">
           <CardContent className="py-12 text-center">
@@ -132,10 +161,10 @@ export default function AdminTrainers() {
                     <div className="mt-2 text-xs text-slate-500">{trainer.user.email}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(trainer.id, 'approve')} disabled={actionLoading}>
+                    <Button size="sm" className="gradient-primary border-0 text-white" onClick={() => handleAction(trainer, 'approve')} disabled={actionLoading || !!actionError}>
                       <CheckCircle2 className="mr-1 h-3 w-3" />Approve
                     </Button>
-                    <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => { setSelectedTrainer(trainer); setDialogMode('reject') }}>
+                    <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" disabled={actionLoading || !!actionError} onClick={() => { setSelectedTrainer(trainer); setRejectReason(''); setDialogMode('reject') }}>
                       <XCircle className="mr-1 h-3 w-3" />Reject
                     </Button>
                     <Button size="sm" variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => { setSelectedTrainer(trainer); setDialogMode('view') }}>
@@ -188,10 +217,10 @@ export default function AdminTrainers() {
                 ))}
               </div>
               <div className="flex gap-2 pt-2">
-                <Button className="flex-1 gradient-primary border-0 text-white" onClick={() => handleAction(selectedTrainer.id, 'approve')} disabled={actionLoading}>
+                <Button className="flex-1 gradient-primary border-0 text-white" onClick={() => handleAction(selectedTrainer, 'approve')} disabled={actionLoading || !!actionError}>
                   <CheckCircle2 className="mr-1 h-4 w-4" />Approve
                 </Button>
-                <Button variant="outline" className="flex-1 border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" onClick={() => setDialogMode('reject')}>
+                <Button variant="outline" className="flex-1 border-white/15 bg-white/5 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200" disabled={actionLoading || !!actionError} onClick={() => setDialogMode('reject')}>
                   <XCircle className="mr-1 h-4 w-4" />Reject
                 </Button>
               </div>
@@ -200,10 +229,10 @@ export default function AdminTrainers() {
           {selectedTrainer && dialogMode === 'reject' && (
             <div className="space-y-4 py-2">
               <p className="text-sm text-slate-400">Provide a clean reason for rejecting {selectedTrainer.firstName}&apos;s application.</p>
-              <Textarea placeholder="Rejection reason..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={4} className="border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
+              <Textarea aria-label="Rejection reason" placeholder="Rejection reason..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} maxLength={2000} rows={4} className="border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" onClick={() => setDialogMode('view')}>Cancel</Button>
-                <Button variant="destructive" className="flex-1" onClick={() => handleAction(selectedTrainer.id, 'reject', rejectReason)} disabled={actionLoading || !rejectReason.trim()}>
+                <Button variant="destructive" className="flex-1" onClick={() => handleAction(selectedTrainer, 'reject', rejectReason)} disabled={actionLoading || !!actionError || !rejectReason.trim()}>
                   {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="mr-1 h-4 w-4" />}Reject
                 </Button>
               </div>
@@ -212,10 +241,6 @@ export default function AdminTrainers() {
         </DialogContent>
       </Dialog>
 
-      <Card className="border-white/10 bg-white/[0.04] text-white">
-        <CardHeader className="pb-3"><CardTitle className="text-base">Approval pass consistency</CardTitle></CardHeader>
-        <CardContent className="text-sm text-slate-300">Trainer approvals now match the premium admin shell, with tighter mobile rows, stronger status cues, and cleaner reviewer dialogs.</CardContent>
-      </Card>
     </div>
   )
 }

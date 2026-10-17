@@ -1,14 +1,17 @@
 import { defineConfig } from 'vitest/config'
-import path from 'path'
+import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Security compatibility tests spawn toolchains; keep their resource use bounded.
+    fileParallelism: false,
+    maxWorkers: 1,
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 })

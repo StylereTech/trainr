@@ -1,6 +1,8 @@
 # Trainr DB-Ready Runbook
 
-This project is ready for DB hookup, but **runtime verification is blocked until `DATABASE_URL` points to a reachable PostgreSQL database**.
+**Not a production-readiness signoff.** Database connectivity is only one prerequisite. Use [Current Launch Gates](launch-readiness/CURRENT_LAUNCH_GATES.md) and its dated evidence for authentication, booking, Stripe, security and release status.
+
+**Do not run `npm run db:seed` against Preview, Production or any database containing records that must be retained.** The guarded legacy demo seed still performs unfiltered deletions and installs fixed-password demo users after its disposable-local checks pass. It is not an additive account-provisioning command. Supplying its documented credentials does not create those accounts in another database.
 
 ## 1) Exact DB requirements
 
@@ -44,20 +46,25 @@ RESEND_API_KEY=...
 EMAIL_FROM=...
 ```
 
-## 3) Commands to run as soon as DATABASE_URL exists
+## 3) Verify The Target Before Any Writes
 
-Run from project root:
+From the intended checkout, identify the environment, database owner, host and database name without publishing connection credentials. Confirm the target is authorized and take a restorable backup before an approved schema change. Do not copy Production credentials into a test environment.
+
+Read-only checks:
 
 ```bash
-cd /home/jeane/.openclaw/workspace/trainr
-cp .env.example .env   # if .env does not already exist
-# then edit .env and set DATABASE_URL to the real reachable Postgres URL
 npm run db:check
 npx prisma validate
-npm run db:push
-npm run db:seed
+npx prisma migrate status
+```
+
+Use reviewed, versioned migrations for an authorized deployment, not `prisma db push` as an operational shortcut. The isolated audit Preview has its own guarded initialization path in `scripts/prepare-staging.mjs`; do not copy its ownership marker or opt-in settings to another database. See [Staging Provisioning](launch-readiness/STAGING_PROVISIONING_REPORT.md).
+
+After environment and schema verification, run local quality checks with an appropriate isolated test configuration:
+
+```bash
 npm run build
-npm test -- --run
+npm test
 npm run dev
 ```
 
@@ -113,36 +120,31 @@ npm run db:check
 npx prisma validate
 ```
 
-### Apply schema
+### Inspect migration state without applying changes
+
 ```bash
-npm run db:push
+npx prisma migrate status
 ```
 
-### Seed realistic data
-```bash
-npm run db:seed
-```
+### Test data and accounts
 
-## 6) What "DB-ready" means now
+Do not use the legacy demo seed to repair a missing account. Its destructive fixture behavior remains, but `scripts/seed-safety.ts` now rejects hosted/Production environments and verifies the explicitly opted-in disposable local target before invoking any seed write. The seed's compatibility with the current financial schema is not verified by this guard.
 
-Current repo state is ready for immediate DB hookup because:
-- Prisma schema validates
-- seed script is schema-aligned and transpiles
-- build passes
-- typecheck passes
-- tests pass
-- route protection is in place
-- a DB reachability check script now exists
+For an independently authorized, disposable local fixture database only, the guard requires all of the following:
 
-## 7) The only real blocker
+- Exported `DATABASE_URL` using PostgreSQL on `127.0.0.1` or `localhost`, user `trainr_seed`, database `trainr_seed_<suffix>` and schema `public`. Only `schema`, `connection_limit`, `pool_timeout` and `connect_timeout` query parameters are accepted, with no duplicates or connection-routing overrides.
+- `TRAINR_ALLOW_DESTRUCTIVE_SEED` exactly equal to that database's name; this explicitly acknowledges replacement of its records. A generic `1` is not accepted.
+- No `VERCEL`, `VERCEL_ENV` or `TRAINR_STAGING_INIT` value, and no `NODE_ENV=production`.
+- The connected database's actual name, current role and schema must match the expected target. `public.trainr_seed_guard` must already contain exactly one row whose `purpose` is `disposable local demo seed`.
 
-**A reachable PostgreSQL `DATABASE_URL`.**
+The guard does not create the database, role, schema or ownership marker, and must not be disabled to make a hosted seed work. Never install this marker in Preview, Production or a database whose records must be retained. Seed failures exit nonzero with a sanitized error code. This command remains inappropriate for normal account provisioning; use a reviewed additive workflow instead.
 
-Until that exists, no honest score increase is possible for DB/runtime-sensitive categories like:
-- auth/account runtime
-- backend reliability
-- API integrity
-- trainer/profile persistence
-- booking persistence
-- admin runtime
-- production readiness
+Preview test-account creation must be separately authorized, additive and limited to the intended environment. Never change an existing user's role or password to manufacture a test login, and never mark synthetic financial records paid as a substitute for Stripe evidence. Do not publish credentials in reports or commits.
+
+The audit Preview reference catalog uses the separately reviewed `scripts/staging-reference-data.sql`, not the demo seed. It does not provision users or payment data; see [Catalog Validation](launch-readiness/STAGING_CATALOG_VALIDATION_REPORT.md).
+
+## 6) Evidence Required For Readiness
+
+A connected database, a successful build or historical test results do not establish production readiness. Verify current-source parent/trainer login and persistence, role isolation, booking and package purchase, actual sandbox Checkout and signed webhooks, trainer Connect capabilities, destination transfer and payout state. Also resolve the current refund-policy/execution, dependency, reliability, CI and release gates. Do not carry forward historical pass claims without their environment, source SHA, date and test scope.
+
+Main/Production release, domain changes, migrations, backup/restore and rollback require their own approved plan and verification. The isolated Preview is not the Production environment.

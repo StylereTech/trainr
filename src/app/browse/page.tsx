@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TrainerCard } from '@/components/shared/TrainerCard'
 import { Input } from '@/components/ui/input'
@@ -51,7 +51,7 @@ const initialFilters = (searchParams: URLSearchParams): FilterState => ({
 })
 
 const refinementSignals = [
-  { icon: ShieldCheck, title: 'Verified coaches only', text: 'Every trainer on Trainr has a complete profile with real credentials and parent reviews.' },
+  { icon: ShieldCheck, title: 'Credential status', text: 'Listing approval does not establish identity or background screening. Credential status is shown on individual profiles.' },
   { icon: Sparkles, title: 'Filter by what matters', text: 'Narrow by sport, location, rating, and session type to find the right fit fast.' },
   { icon: LayoutGrid, title: 'Compare side by side', text: 'See ratings, pricing, specialties, and availability at a glance across every coach.' },
 ]
@@ -60,13 +60,19 @@ function BrowsePage() {
   const searchParams = useSearchParams()
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const activeRequest = useRef<AbortController | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<FilterState>(() => initialFilters(searchParams))
 
   const fetchTrainers = useCallback(async () => {
+    activeRequest.current?.abort()
+    const controller = new AbortController()
+    activeRequest.current = controller
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams()
       if (filters.sport) params.set('sport', filters.sport)
@@ -78,21 +84,28 @@ function BrowsePage() {
       params.set('page', page.toString())
       params.set('limit', '12')
 
-      const res = await fetch(`/api/trainers?${params.toString()}`)
+      const res = await fetch(`/api/trainers?${params.toString()}`, { signal: controller.signal })
+      if (!res.ok) throw new Error('Trainer search failed')
       const data = await res.json()
-      setTrainers(data.trainers || [])
-      setTotal(data.pagination?.total || 0)
-    } catch (err) {
-      console.error('Failed to fetch trainers:', err)
+      if (!Array.isArray(data?.trainers) || !Number.isSafeInteger(data?.pagination?.total) || data.pagination.total < 0) {
+        throw new Error('Invalid trainer search response')
+      }
+      if (controller.signal.aborted) return
+      setTrainers(data.trainers)
+      setTotal(data.pagination.total)
+    } catch {
+      if (controller.signal.aborted) return
+      setError('Trainer search is unavailable. Please try again.')
       setTrainers([])
       setTotal(0)
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }, [filters, page])
 
   useEffect(() => {
-    fetchTrainers()
+    void fetchTrainers()
+    return () => activeRequest.current?.abort()
   }, [fetchTrainers])
 
   const updateFilter = (key: keyof FilterState, value: string) => {
@@ -102,7 +115,7 @@ function BrowsePage() {
   }
 
   const clearFilters = () => {
-    setFilters({ sport: '', location: '', state: TRAINR_LAUNCH_STATE, sort: 'rating', rating: '', locationType: '' })
+    setFilters({ sport: '', location: '', state: '', sort: 'rating', rating: '', locationType: '' })
     setPage(1)
   }
 
@@ -134,7 +147,7 @@ function BrowsePage() {
                 ].map((item) => (
                   <div key={item.label} className="premium-stat">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">{item.label}</div>
-                    <div className="mt-2 text-2xl font-semibold">{item.value}</div>
+                    <div className="mt-2 text-2xl font-semibold">{loading ? '...' : error ? 'Unavailable' : item.value}</div>
                     <div className="mt-1 text-xs text-slate-400">{item.note}</div>
                   </div>
                 ))}
@@ -166,6 +179,7 @@ function BrowsePage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
+                  aria-label="City, state, or zip code"
                   placeholder="City, state, or zip code"
                   className="h-12 rounded-2xl border-white/10 bg-white pl-10 text-slate-900 placeholder:text-slate-500"
                   value={filters.location}
@@ -176,6 +190,8 @@ function BrowsePage() {
                 <Button
                   variant="outline"
                   onClick={() => setShowFilters(!showFilters)}
+                  aria-expanded={showFilters}
+                  aria-controls="trainer-search-filters"
                   className="h-12 rounded-2xl gap-2 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white lg:flex-none"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
@@ -186,7 +202,7 @@ function BrowsePage() {
                     </Badge>
                   )}
                 </Button>
-                <Button className="h-12 rounded-2xl gradient-primary border-0 text-white lg:px-6">
+                <Button onClick={() => void fetchTrainers()} disabled={loading} className="h-12 rounded-2xl gradient-primary border-0 text-white lg:px-6">
                   Explore
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -200,6 +216,7 @@ function BrowsePage() {
                   <button
                     key={sport.slug}
                     onClick={() => updateFilter('sport', active ? '' : sport.slug)}
+                    aria-pressed={active}
                     className={`mobile-scroll-card rounded-full border px-4 py-3 text-sm transition ${
                       active
                         ? 'border-emerald-400 bg-emerald-400/15 text-emerald-100'
@@ -213,11 +230,11 @@ function BrowsePage() {
             </div>
 
             {showFilters && (
-              <div className="mt-4 grid grid-cols-1 gap-4 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4 md:grid-cols-2 xl:grid-cols-4">
+              <div id="trainer-search-filters" className="mt-4 grid grid-cols-1 gap-4 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-4 md:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">State</label>
                   <Select value={filters.state || 'all'} onValueChange={(v) => updateFilter('state', v)}>
-                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All States" /></SelectTrigger>
+                    <SelectTrigger aria-label="State" className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All States" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All States</SelectItem>
                       {US_STATES.map((state) => (
@@ -231,7 +248,7 @@ function BrowsePage() {
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">Sport</label>
                   <Select value={filters.sport || 'all'} onValueChange={(v) => updateFilter('sport', v)}>
-                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All Sports" /></SelectTrigger>
+                    <SelectTrigger aria-label="Sport" className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="All Sports" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Sports</SelectItem>
                       {SPORTS.map((s) => (
@@ -244,7 +261,7 @@ function BrowsePage() {
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">Session Type</label>
                   <Select value={filters.locationType || 'all'} onValueChange={(v) => updateFilter('locationType', v)}>
-                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="Any" /></SelectTrigger>
+                    <SelectTrigger aria-label="Session Type" className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="Any" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Any</SelectItem>
                       <SelectItem value="IN_PERSON">In Person</SelectItem>
@@ -257,7 +274,7 @@ function BrowsePage() {
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">Min Rating</label>
                   <Select value={filters.rating || 'all'} onValueChange={(v) => updateFilter('rating', v)}>
-                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="Any" /></SelectTrigger>
+                    <SelectTrigger aria-label="Min Rating" className="border-white/10 bg-white text-slate-900"><SelectValue placeholder="Any" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Any</SelectItem>
                       <SelectItem value="4">4+ Stars</SelectItem>
@@ -269,7 +286,7 @@ function BrowsePage() {
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-200">Sort By</label>
                   <Select value={filters.sort} onValueChange={(v) => updateFilter('sort', v)}>
-                    <SelectTrigger className="border-white/10 bg-white text-slate-900"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Sort By" className="border-white/10 bg-white text-slate-900"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="rating">Highest Rated</SelectItem>
                       <SelectItem value="sessions">Most Sessions</SelectItem>
@@ -307,10 +324,10 @@ function BrowsePage() {
         <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <p className="text-sm text-slate-300">
-              {loading ? 'Searching for top trainers…' : `${total} trainer${total !== 1 ? 's' : ''} found`}
+              {loading ? 'Searching for trainers…' : error ? 'Search unavailable' : `${total} trainer${total !== 1 ? 's' : ''} found`}
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400">
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><Sparkles className="h-3.5 w-3.5" /> {featuredCount} featured profiles on this page</span>
+              {!loading && !error && <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><Sparkles className="h-3.5 w-3.5" /> {featuredCount} featured profiles on this page</span>}
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><MapPin className="h-3.5 w-3.5" /> Filter by state, city, or zip</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><Star className="h-3.5 w-3.5" /> Sort defaults to highest rated</span>
             </div>
@@ -321,31 +338,31 @@ function BrowsePage() {
               {filters.sport && (
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {SPORTS.find((s) => s.slug === filters.sport)?.icon} {SPORTS.find((s) => s.slug === filters.sport)?.name}
-                  <button onClick={() => updateFilter('sport', '')}><X className="h-3 w-3" /></button>
+                  <button aria-label="Remove sport filter" title="Remove sport filter" onClick={() => updateFilter('sport', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
               {filters.location && (
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {filters.location}
-                  <button onClick={() => updateFilter('location', '')}><X className="h-3 w-3" /></button>
+                  <button aria-label="Remove location filter" title="Remove location filter" onClick={() => updateFilter('location', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
               {filters.state && (
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {US_STATES.find((state) => state.code === filters.state)?.name || filters.state}
-                  <button onClick={() => updateFilter('state', '')}><X className="h-3 w-3" /></button>
+                  <button aria-label="Remove state filter" title="Remove state filter" onClick={() => updateFilter('state', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
               {filters.locationType && (
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {filters.locationType === 'IN_PERSON' ? 'In Person' : filters.locationType === 'VIRTUAL' ? 'Virtual' : 'In Person & Virtual'}
-                  <button onClick={() => updateFilter('locationType', '')}><X className="h-3 w-3" /></button>
+                  <button aria-label="Remove session type filter" title="Remove session type filter" onClick={() => updateFilter('locationType', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
               {filters.rating && (
                 <Badge variant="secondary" className="gap-1 bg-white/10 text-white hover:bg-white/10">
                   {filters.rating}+ Stars
-                  <button onClick={() => updateFilter('rating', '')}><X className="h-3 w-3" /></button>
+                  <button aria-label="Remove rating filter" title="Remove rating filter" onClick={() => updateFilter('rating', '')}><X className="h-3 w-3" /></button>
                 </Badge>
               )}
             </div>
@@ -355,6 +372,11 @@ function BrowsePage() {
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+          </div>
+        ) : error ? (
+          <div role="alert" className="border border-rose-400/30 px-6 py-12 text-center">
+            <p className="mb-4 text-rose-100">{error}</p>
+            <Button variant="outline" onClick={() => void fetchTrainers()}>Retry search</Button>
           </div>
         ) : trainers.length === 0 ? (
           <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] px-6 py-20 text-center">
@@ -391,7 +413,7 @@ function BrowsePage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Not finding the right fit?</div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Try adjusting your filters or searching a nearby city. New coaches join Trainr every week.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Try adjusting your filters or searching a nearby city.</p>
             </div>
             <Button variant="outline" className="w-full rounded-2xl border-white/15 bg-transparent text-white hover:bg-white/10 hover:text-white md:w-auto" onClick={clearFilters}>
               Reset search

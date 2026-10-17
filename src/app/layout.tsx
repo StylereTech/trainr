@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: 'Trainr — Find Youth Sports Trainers Near You',
     template: '%s | Trainr',
   },
-  description: 'Connect with vetted, qualified sports trainers for football, baseball, basketball, soccer, and track & field. Book sessions, track progress, and help your athlete excel.',
+  description: 'Connect with youth sports trainers for football, baseball, basketball, soccer, and track & field. Book sessions, track progress, and help your athlete excel.',
   keywords: ['youth sports', 'sports training', 'football trainer', 'baseball trainer', 'basketball trainer', 'soccer trainer', 'track and field coach'],
   openGraph: {
     type: 'website',
@@ -21,12 +21,12 @@ export const metadata: Metadata = {
     url: 'https://trainr.app',
     siteName: 'Trainr',
     title: 'Trainr — Find Youth Sports Trainers Near You',
-    description: 'Connect with vetted, qualified sports trainers for your young athlete.',
+    description: 'Connect with youth sports trainers for your young athlete.',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Trainr — Find Youth Sports Trainers Near You',
-    description: 'Connect with vetted, qualified sports trainers for your young athlete.',
+    description: 'Connect with youth sports trainers for your young athlete.',
   },
 }
 

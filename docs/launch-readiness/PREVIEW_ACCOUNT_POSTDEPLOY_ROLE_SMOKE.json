@@ -1,0 +1,231 @@
+{
+  "recordedAt": "2026-10-16T08:10:35.943Z",
+  "environment": "https://trainr-git-codex-payment-readiness-20261006-styleres-projects.vercel.app",
+  "results": [
+    {
+      "role": "PARENT",
+      "path": "/api/auth/session",
+      "status": 200,
+      "pass": true,
+      "loginStatus": 200
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/athletes",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "athleteCount": 2
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/bookings",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/package-purchases",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/trainer/onboarding",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/trainer/packages",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/trainer/stripe-connect",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/trainer/wallet",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/admin?tab=overview",
+      "status": 401,
+      "expected": 401,
+      "pass": true
+    },
+    {
+      "role": "PARENT",
+      "path": "/api/auth/verify",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "verified": false
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/auth/session",
+      "status": 200,
+      "pass": true,
+      "loginStatus": 200
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/athletes",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/bookings",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/package-purchases",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/trainer/onboarding",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/trainer/packages",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/trainer/stripe-connect",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "connect": {
+        "connected": true,
+        "stripeConfigured": true,
+        "hasAccount": true,
+        "chargesEnabled": false,
+        "payoutsEnabled": false,
+        "transfersEnabled": false,
+        "detailsSubmitted": false,
+        "onboardingComplete": false,
+        "error": ""
+      }
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/trainer/wallet",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/admin?tab=overview",
+      "status": 401,
+      "expected": 401,
+      "pass": true
+    },
+    {
+      "role": "TRAINER",
+      "path": "/api/auth/verify",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "verified": false
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/auth/session",
+      "status": 200,
+      "pass": true,
+      "loginStatus": 200
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/athletes",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/bookings",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/package-purchases",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/trainer/onboarding",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/trainer/packages",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/trainer/stripe-connect",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/trainer/wallet",
+      "status": 403,
+      "expected": 403,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/admin?tab=overview",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "role": "ADMIN",
+      "path": "/api/auth/verify",
+      "status": 200,
+      "expected": 200,
+      "pass": true,
+      "verified": false
+    }
+  ]
+}

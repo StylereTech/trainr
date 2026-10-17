@@ -17,6 +17,7 @@ export async function getPublicTrainerBySlug(slug: string) {
       city: true,
       state: true,
       locationType: true,
+      timeZone: true,
       travelRadius: true,
       yearsExperience: true,
       avgRating: true,
@@ -84,13 +85,14 @@ export async function getPublicTrainerBySlug(slug: string) {
         },
       },
       availabilitySlots: {
-        where: { isAvailable: true },
         orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
         select: {
           dayOfWeek: true,
           startTime: true,
           endTime: true,
           isRecurring: true,
+          isAvailable: true,
+          specificDate: true,
         },
       },
       assets: {
@@ -114,15 +116,6 @@ export async function getPublicTrainerBySlug(slug: string) {
           punctualityRating: true,
           comment: true,
           createdAt: true,
-          parentProfile: {
-            select: {
-              user: {
-                select: {
-                  email: true,
-                },
-              },
-            },
-          },
         },
       },
       _count: {

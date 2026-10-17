@@ -17,11 +17,58 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '20')
+  const page = Number(searchParams.get('page') || '1')
+  const limit = Number(searchParams.get('limit') || '20')
+  const view = searchParams.get('view') || 'legacy'
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger((page - 1) * limit)) {
+    return NextResponse.json({ error: 'Invalid pagination' }, { status: 400 })
+  }
+  if (!['payments', 'legacy'].includes(view)) {
+    return NextResponse.json({ error: 'Invalid payout view' }, { status: 400 })
+  }
+  const statuses = view === 'payments'
+    ? ['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED']
+    : ['PENDING', 'APPROVED', 'PROCESSING', 'PAID', 'FAILED', 'CANCELLED']
+  if (status && !statuses.includes(status)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  }
 
   const where: any = {}
   if (status) where.status = status
+
+  if (view === 'payments') {
+    try {
+      const [payments, total, captured, pending] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          include: { booking: { select: {
+            trainerProfile: { select: { firstName: true, lastName: true, stripeAccountId: true, stripeOnboardingComplete: true } },
+            parentProfile: { select: { user: { select: { email: true } } } },
+            serviceOffering: { select: { title: true } },
+          } } },
+          orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit,
+        }),
+        prisma.payment.count({ where }),
+        prisma.payment.aggregate({
+          where: { status: { in: ['SUCCEEDED', 'REFUNDED', 'PARTIALLY_REFUNDED'] } },
+          _sum: { amountInCents: true, refundAmountInCents: true },
+        }),
+        prisma.payment.aggregate({
+          where: { status: { in: ['PENDING', 'PROCESSING'] } },
+          _sum: { amountInCents: true },
+        }),
+      ])
+      const grossCaptured = captured._sum.amountInCents ?? 0
+      const recordedRefunds = captured._sum.refundAmountInCents ?? 0
+      return NextResponse.json({
+        payments,
+        summary: { grossCaptured, recordedRefunds, netCaptured: grossCaptured - recordedRefunds, awaitingPayment: pending._sum.amountInCents ?? 0 },
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      }, { headers: { 'Cache-Control': 'private, no-store' } })
+    } catch {
+      return NextResponse.json({ error: 'Unable to load recorded payments' }, { status: 503 })
+    }
+  }
 
   const [withdrawals, total] = await Promise.all([
     prisma.withdrawalRequest.findMany({
@@ -55,139 +102,12 @@ export async function GET(req: NextRequest) {
   })
 }
 
-// PATCH /api/admin/payouts — Update withdrawal status
-export async function PATCH(req: NextRequest) {
+// Legacy ledger records remain readable until reconciled against Stripe.
+export async function PATCH(_req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const body = await req.json()
-  const { withdrawalId, action, reason } = body
-
-  if (!withdrawalId || !action) {
-    return NextResponse.json({ error: 'withdrawalId and action required' }, { status: 400 })
-  }
-
-  const withdrawal = await prisma.withdrawalRequest.findUnique({
-    where: { id: withdrawalId },
-    include: { wallet: true },
-  })
-
-  if (!withdrawal) {
-    return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 })
-  }
-
-  switch (action) {
-    case 'approve': {
-      if (withdrawal.status !== 'PENDING') {
-        return NextResponse.json({ error: 'Can only approve pending withdrawals' }, { status: 400 })
-      }
-      await prisma.withdrawalRequest.update({
-        where: { id: withdrawalId },
-        data: { status: 'APPROVED' },
-      })
-      break
-    }
-
-    case 'process': {
-      if (withdrawal.status !== 'APPROVED') {
-        return NextResponse.json({ error: 'Can only process approved withdrawals' }, { status: 400 })
-      }
-      await prisma.withdrawalRequest.update({
-        where: { id: withdrawalId },
-        data: { status: 'PROCESSING' },
-      })
-      break
-    }
-
-    case 'complete': {
-      if (withdrawal.status !== 'PROCESSING') {
-        return NextResponse.json({ error: 'Can only complete processing withdrawals' }, { status: 400 })
-      }
-      await prisma.$transaction(async (tx: any) => {
-        await tx.withdrawalRequest.update({
-          where: { id: withdrawalId },
-          data: { status: 'PAID', processedAt: new Date() },
-        })
-        // Move from pending to withdrawn
-        await tx.trainerWallet.update({
-          where: { id: withdrawal.walletId },
-          data: {
-            pendingBalance: { decrement: withdrawal.amountInCents },
-            withdrawnTotal: { increment: withdrawal.amountInCents },
-          },
-        })
-      })
-      break
-    }
-
-    case 'fail': {
-      if (!['APPROVED', 'PROCESSING'].includes(withdrawal.status)) {
-        return NextResponse.json({ error: 'Invalid status for failure' }, { status: 400 })
-      }
-      await prisma.$transaction(async (tx: any) => {
-        await tx.withdrawalRequest.update({
-          where: { id: withdrawalId },
-          data: { status: 'FAILED', failureReason: reason || 'Payout failed' },
-        })
-        // Return funds to available balance
-        await tx.trainerWallet.update({
-          where: { id: withdrawal.walletId },
-          data: {
-            pendingBalance: { decrement: withdrawal.amountInCents },
-            availableBalance: { increment: withdrawal.amountInCents },
-          },
-        })
-        // Reversal ledger entry
-        await tx.walletEntry.create({
-          data: {
-            walletId: withdrawal.walletId,
-            type: 'ADJUSTMENT',
-            amountInCents: withdrawal.amountInCents,
-            description: `Withdrawal #${withdrawalId} failed — funds returned`,
-          },
-        })
-      })
-      break
-    }
-
-    case 'cancel': {
-      if (withdrawal.status !== 'PENDING') {
-        return NextResponse.json({ error: 'Can only cancel pending withdrawals' }, { status: 400 })
-      }
-      await prisma.$transaction(async (tx: any) => {
-        await tx.withdrawalRequest.update({
-          where: { id: withdrawalId },
-          data: { status: 'CANCELLED' },
-        })
-        // Return funds to available
-        await tx.trainerWallet.update({
-          where: { id: withdrawal.walletId },
-          data: {
-            pendingBalance: { decrement: withdrawal.amountInCents },
-            availableBalance: { increment: withdrawal.amountInCents },
-          },
-        })
-        // Reversal ledger entry
-        await tx.walletEntry.create({
-          data: {
-            walletId: withdrawal.walletId,
-            type: 'ADJUSTMENT',
-            amountInCents: withdrawal.amountInCents,
-            description: `Withdrawal #${withdrawalId} cancelled — funds returned`,
-          },
-        })
-      })
-      break
-    }
-
-    default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-  }
-
-  const updated = await prisma.withdrawalRequest.findUnique({
-    where: { id: withdrawalId },
-    include: { wallet: { include: { trainerProfile: { select: { firstName: true, lastName: true } } } } },
-  })
-
-  return NextResponse.json(updated)
+  return NextResponse.json({
+    error: 'Legacy wallet payouts are read-only. Reconcile existing requests with Stripe transfers and bank payouts before any manual disbursement.',
+    code: 'STRIPE_MANAGED_PAYOUTS',
+  }, { status: 409 })
 }

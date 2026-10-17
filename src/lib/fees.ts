@@ -1,3 +1,9 @@
+// TRAINR checkout currently creates USD card payments only.
+export function isSupportedBookingTotal(amountInCents: number): boolean {
+  return Number.isSafeInteger(amountInCents) &&
+    (amountInCents === 0 || (amountInCents >= 50 && amountInCents <= 99999999))
+}
+
 /**
  * Centralized marketplace fee/split calculation.
  * Single source of truth for all booking fee math.

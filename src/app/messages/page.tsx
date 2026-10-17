@@ -30,6 +30,8 @@ interface Thread {
 function MessagesContent() {
   const searchParams = useSearchParams()
   const toParam = searchParams.get('to')
+  const trainerParam = searchParams.get('trainer')
+  const hasRecipient = Boolean(toParam || trainerParam)
 
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThread, setActiveThread] = useState<string | null>(null)
@@ -37,6 +39,8 @@ function MessagesContent() {
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
+  const sendInFlight = useRef(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -70,11 +74,14 @@ function MessagesContent() {
     : null
 
   const handleSend = async () => {
-    if (!newMessage.trim()) return
+    if (!newMessage.trim() || sendInFlight.current) return
+    sendInFlight.current = true
     setSending(true)
+    setSendError('')
     try {
-      const body: { content: string; threadId?: string; recipientId?: string } = { content: newMessage.trim() }
+      const body: { content: string; threadId?: string; recipientId?: string; trainerProfileId?: string } = { content: newMessage.trim() }
       if (activeThread) body.threadId = activeThread
+      else if (trainerParam) body.trainerProfileId = trainerParam
       else if (toParam) body.recipientId = toParam
 
       const res = await fetch('/api/messages', {
@@ -85,7 +92,7 @@ function MessagesContent() {
       const msg = await res.json()
 
       if (!res.ok) {
-        console.error(msg)
+        setSendError(typeof msg?.error === 'string' ? msg.error : 'Message could not be sent. Your draft has been kept.')
         return
       }
 
@@ -95,10 +102,16 @@ function MessagesContent() {
 
       setMessages((prev) => [...prev, msg])
       setNewMessage('')
+      void fetch('/api/messages').then(async response => {
+        if (!response.ok) throw new Error('Conversation refresh failed')
+        const data = await response.json()
+        setThreads(data.threads || [])
+      }).catch(() => setSendError('Message sent, but the conversation list could not be refreshed. Reload your messages.'))
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setSendError('Send could not be confirmed. Reload the conversation before sending again. Your draft has been kept.')
     } finally {
+      sendInFlight.current = false
       setSending(false)
     }
   }
@@ -110,14 +123,14 @@ function MessagesContent() {
       <div className="container max-w-6xl py-8">
         <div className="mb-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_36%),linear-gradient(180deg,_rgba(255,255,255,0.06),_rgba(255,255,255,0.03))] p-5 md:p-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-200"><Sparkles className="h-4 w-4 text-emerald-300" /> Messaging hub</div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] md:text-4xl">Keep trainer and parent communication inside one calmer thread.</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">This surface now behaves more like a finished premium inbox, with better thread context, clearer unread cues, and message bubbles that correctly distinguish both sides of the conversation.</p>
+          <h1 className="mt-4 text-3xl font-semibold md:text-4xl">Messages</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">Training plans, session details, and questions.</p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
               { label: 'Open threads', value: threads.length.toString(), note: 'active conversations' },
               { label: 'Unread now', value: threads.reduce((sum, thread) => sum + (thread._count?.messages || 0), 0).toString(), note: 'messages from the other side' },
-              { label: 'Start point', value: toParam ? 'Direct' : 'Inbox', note: toParam ? 'opened from a trainer profile or booking flow' : 'browse all existing threads' },
+              { label: 'Start point', value: hasRecipient ? 'Direct' : 'Inbox', note: hasRecipient ? 'opened from a trainer profile or booking flow' : 'browse all existing threads' },
             ].map((item) => (
               <div key={item.label} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-slate-300">{item.label}</div>
@@ -133,11 +146,11 @@ function MessagesContent() {
             <CardContent className="flex h-full flex-col p-0">
               <div className="border-b border-white/10 p-4">
                 <div className="text-sm font-semibold text-white">Conversations</div>
-                <p className="mt-1 text-xs text-slate-400">Switch between parent and trainer threads without leaving the premium shell.</p>
+                <p className="mt-1 text-xs text-slate-400">Your conversations</p>
               </div>
 
               <div className="flex-1 divide-y divide-white/10 overflow-y-auto">
-                {threads.length === 0 && !toParam ? (
+                {threads.length === 0 && !hasRecipient ? (
                   <div className="p-8 text-center text-slate-400">
                     <MessageSquare className="mx-auto mb-2 h-8 w-8" />
                     <p className="text-sm">No conversations yet.</p>
@@ -167,15 +180,15 @@ function MessagesContent() {
                   })
                 )}
 
-                {toParam && threads.length === 0 && (
+                {hasRecipient && threads.length === 0 && (
                   <div className="p-4 text-sm text-slate-400">New conversation ready to start.</div>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`border-white/10 bg-white/[0.04] text-white ${!activeThread && !toParam ? 'hidden md:flex' : 'flex'} flex-col`}>
-            {activeThread || toParam ? (
+          <Card className={`border-white/10 bg-white/[0.04] text-white ${!activeThread && !hasRecipient ? 'hidden md:flex' : 'flex'} flex-col`}>
+            {activeThread || hasRecipient ? (
               <>
                 <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
                   <div className="flex items-center gap-3">
@@ -221,12 +234,13 @@ function MessagesContent() {
 
                 <div className="border-t border-white/10 p-4">
                   <form onSubmit={(e) => { e.preventDefault(); handleSend() }} className="space-y-3">
+                    {sendError && <p role="alert" className="text-sm text-rose-200">{sendError}</p>}
                     <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-3 text-xs text-slate-400">
                       Keep it useful: confirm timing, athlete goals, field/court details, or anything the other side should know before session day.
                     </div>
                     <div className="flex gap-2">
                       <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 border-white/10 bg-slate-900 text-white placeholder:text-slate-500" />
-                      <Button type="submit" className="gradient-primary border-0 text-white" disabled={sending || !newMessage.trim()}>
+                      <Button type="submit" aria-label="Send message" title="Send message" className="gradient-primary border-0 text-white" disabled={sending || !newMessage.trim()}>
                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       </Button>
                     </div>

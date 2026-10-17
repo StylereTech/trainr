@@ -11,14 +11,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { SPORTS, TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
+import { TRAINR_LAUNCH_STATE, US_STATES } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
-import { getSpecialtyOptionsForSports, normalizeSpecialtySelections } from '@/lib/trainer'
+import { catalogSpecialties, type TrainerCatalogSport } from '@/lib/trainer'
+import { ScheduleTimeZoneSelect } from '@/components/shared/ScheduleTimeZoneSelect'
+import { canonicalTimeZone } from '@/lib/time-zone'
 import { Loader2, ChevronLeft, ChevronRight, Check, Plus, Trash2 } from 'lucide-react'
 
 const STEPS = ['Sports', 'Profile', 'Services', 'Availability', 'Review']
 
 interface ServiceForm {
+  sportId?: string
   title: string; description: string; durationMinutes: number; priceInCents: number; type: string; maxParticipants: number;
 }
 interface AvailSlot { dayOfWeek: number; startTime: string; endTime: string; }
@@ -29,13 +32,28 @@ export default function TrainerOnboardingPage() {
   const { toast } = useToast()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [minServicePrice, setMinServicePrice] = useState(1500)
+  const [pricingError, setPricingError] = useState('')
+  const [pricingLoaded, setPricingLoaded] = useState(false)
+  const [catalog, setCatalog] = useState<TrainerCatalogSport[]>([])
+  useEffect(() => {
+    fetch('/api/trainer/onboarding', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
+      const data = await response.json()
+      if (!Array.isArray(data.catalog)) throw new Error('Unable to load sport catalog. Reload before continuing.')
+      setCatalog(data.catalog)
+      if (!Number.isInteger(data.minServicePriceInCents)) throw new Error('Unable to load current pricing requirements. Reload before continuing.')
+      setMinServicePrice(data.minServicePriceInCents)
+      setPricingLoaded(true)
+    }).catch((error) => setPricingError(error.message))
+  }, [])
 
   const [selectedSports, setSelectedSports] = useState<string[]>([])
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
 
   const [profile, setProfile] = useState({
     firstName: '', lastName: '', headline: '', bio: '', phone: '',
-    yearsExperience: 0, locationType: 'BOTH',
+    yearsExperience: 0, locationType: 'BOTH', timeZone: '',
     address: '', city: 'Dallas', state: TRAINR_LAUNCH_STATE, zipCode: '', travelRadius: 25,
   })
 
@@ -50,7 +68,7 @@ export default function TrainerOnboardingPage() {
   const toggleSport = (slug: string) => {
     setSelectedSports((prev) => {
       const nextSports = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-      const allowedSpecialties = new Set(getSpecialtyOptionsForSports(nextSports).map((spec) => spec.slug))
+      const allowedSpecialties = new Set(catalogSpecialties(catalog, nextSports).map((spec) => spec.id))
       setSelectedSpecialties((current) => current.filter((spec) => allowedSpecialties.has(spec)))
       return nextSports
     })
@@ -62,7 +80,7 @@ export default function TrainerOnboardingPage() {
     )
   }
 
-  const availableSpecialties = getSpecialtyOptionsForSports(selectedSports)
+  const availableSpecialties = catalogSpecialties(catalog, selectedSports)
 
   const toggleDayAvailability = (day: number) => {
     const existing = availability.find(a => a.dayOfWeek === day)
@@ -80,6 +98,11 @@ export default function TrainerOnboardingPage() {
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
   const handleSubmit = async () => {
+    if (!canonicalTimeZone(profile.timeZone)) {
+      setStep(3)
+      toast({ title: 'Missing time zone', description: 'Choose a valid schedule time zone.', variant: 'destructive' })
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/trainer/onboarding', {
@@ -90,7 +113,7 @@ export default function TrainerOnboardingPage() {
           yearsExperience: Number(profile.yearsExperience),
           travelRadius: Number(profile.travelRadius),
           sports: selectedSports,
-          specialties: normalizeSpecialtySelections(selectedSpecialties),
+          specialties: selectedSpecialties,
           certifications: certifications.filter(c => c.name),
           services: services.map(s => ({ ...s, priceInCents: Number(s.priceInCents), durationMinutes: Number(s.durationMinutes), maxParticipants: Number(s.maxParticipants) })),
           availability,
@@ -113,11 +136,12 @@ export default function TrainerOnboardingPage() {
   }
 
   const canProceed = () => {
+    if (!pricingLoaded) return false
     switch (step) {
       case 0: return selectedSports.length > 0 && selectedSpecialties.length > 0
       case 1: return profile.firstName && profile.lastName && profile.bio
-      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= 1500)
-      case 3: return availability.length > 0
+      case 2: return services.length > 0 && services.every(s => s.title && s.priceInCents >= minServicePrice && catalog.some(sport => sport.id === s.sportId && sport.isActive && selectedSports.includes(sport.slug)))
+      case 3: return availability.length > 0 && !!canonicalTimeZone(profile.timeZone)
       default: return true
     }
   }
@@ -125,6 +149,7 @@ export default function TrainerOnboardingPage() {
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       <div className="container max-w-2xl">
+        {pricingError && <p role="alert" className="mb-4 text-red-700">{pricingError}</p>}
         {/* Progress */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -140,8 +165,8 @@ export default function TrainerOnboardingPage() {
             ))}
           </div>
           <div className="text-center">
-            <h2 className="text-lg font-bold">{STEPS[step]}</h2>
-            <p className="text-sm text-muted-foreground">Step {step + 1} of {STEPS.length}</p>
+            <h2 className="text-lg font-bold text-gray-900">{STEPS[step]}</h2>
+            <p className="text-sm text-gray-600">Step {step + 1} of {STEPS.length}</p>
           </div>
         </div>
 
@@ -152,14 +177,15 @@ export default function TrainerOnboardingPage() {
               <div>
                 <Label className="text-base font-semibold">Which sports do you coach?</Label>
                 <div className="grid grid-cols-2 gap-3 mt-3">
-                  {SPORTS.map(sport => (
-                    <button key={sport.slug} type="button" onClick={() => toggleSport(sport.slug)}
-                      className={`p-4 rounded-lg border-2 text-left transition-colors ${selectedSports.includes(sport.slug) ? 'border-primary bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  {catalog.filter(sport => sport.isActive).map(sport => (
+                    <button key={sport.slug} type="button" aria-pressed={selectedSports.includes(sport.slug)} onClick={() => toggleSport(sport.slug)}
+                      className={`p-4 rounded-lg border-2 text-left transition-colors ${selectedSports.includes(sport.slug) ? 'border-primary bg-green-50 text-green-950' : 'border-gray-200 hover:border-gray-300'}`}>
                       <span className="text-2xl">{sport.icon}</span>
                       <div className="font-medium mt-1">{sport.name}</div>
                     </button>
                   ))}
                 </div>
+                {pricingLoaded && !catalog.some(sport => sport.isActive) && <p role="status">No sports are currently available.</p>}
               </div>
 
               {selectedSports.length > 0 && (
@@ -167,9 +193,9 @@ export default function TrainerOnboardingPage() {
                   <Label className="text-base font-semibold">What are your specialties?</Label>
                   <div className="flex flex-wrap gap-2 mt-3">
                     {availableSpecialties.map(spec => (
-                      <button key={spec.slug} type="button" onClick={() => toggleSpecialty(spec.slug)}
-                        className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedSpecialties.includes(spec.slug) ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-gray-300'}`}>
-                        {spec.name}
+                      <button key={spec.id} type="button" aria-pressed={selectedSpecialties.includes(spec.id)} onClick={() => toggleSpecialty(spec.id)}
+                        className={`max-w-full break-words px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedSpecialties.includes(spec.id) ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-gray-300'}`}>
+                        {spec.name} ({spec.sportName})
                       </button>
                     ))}
                   </div>
@@ -184,18 +210,18 @@ export default function TrainerOnboardingPage() {
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>First Name</Label><Input value={profile.firstName} onChange={e => setProfile({...profile, firstName: e.target.value})} /></div>
-                <div><Label>Last Name</Label><Input value={profile.lastName} onChange={e => setProfile({...profile, lastName: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-first-name">First Name</Label><Input id="onboarding-first-name" value={profile.firstName} onChange={e => setProfile({...profile, firstName: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-last-name">Last Name</Label><Input id="onboarding-last-name" value={profile.lastName} onChange={e => setProfile({...profile, lastName: e.target.value})} /></div>
               </div>
-              <div><Label>Headline</Label><Input placeholder="e.g. Former D1 QB Coach, 10+ years experience" value={profile.headline} onChange={e => setProfile({...profile, headline: e.target.value})} maxLength={100} /></div>
-              <div><Label>Bio</Label><Textarea placeholder="Tell parents about yourself, your coaching philosophy, and experience..." value={profile.bio} onChange={e => setProfile({...profile, bio: e.target.value})} maxLength={2000} rows={5} /></div>
-              <div><Label>Phone</Label><Input placeholder="(555) 123-4567" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} /></div>
+              <div><Label htmlFor="onboarding-headline">Headline</Label><Input id="onboarding-headline" placeholder="e.g. Former D1 QB Coach, 10+ years experience" value={profile.headline} onChange={e => setProfile({...profile, headline: e.target.value})} maxLength={100} /></div>
+              <div><Label htmlFor="onboarding-bio">Bio</Label><Textarea id="onboarding-bio" placeholder="Tell parents about yourself, your coaching philosophy, and experience..." value={profile.bio} onChange={e => setProfile({...profile, bio: e.target.value})} maxLength={2000} rows={5} /></div>
+              <div><Label htmlFor="onboarding-phone">Phone</Label><Input id="onboarding-phone" placeholder="(555) 123-4567" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>Years Experience</Label><Input type="number" min={0} max={50} value={profile.yearsExperience} onChange={e => setProfile({...profile, yearsExperience: parseInt(e.target.value) || 0})} /></div>
+                <div><Label htmlFor="onboarding-experience">Years Experience</Label><Input id="onboarding-experience" type="number" min={0} max={50} value={profile.yearsExperience} onChange={e => setProfile({...profile, yearsExperience: parseInt(e.target.value) || 0})} /></div>
                 <div>
-                  <Label>Location Type</Label>
+                  <Label htmlFor="onboarding-location-type">Location Type</Label>
                   <Select value={profile.locationType} onValueChange={v => setProfile({...profile, locationType: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="onboarding-location-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="IN_PERSON">In Person</SelectItem>
                       <SelectItem value="VIRTUAL">Virtual Only</SelectItem>
@@ -205,11 +231,11 @@ export default function TrainerOnboardingPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>City</Label><Input value={profile.city} onChange={e => setProfile({...profile, city: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-city">City</Label><Input id="onboarding-city" value={profile.city} onChange={e => setProfile({...profile, city: e.target.value})} /></div>
                 <div>
-                  <Label>State</Label>
+                  <Label htmlFor="onboarding-state">State</Label>
                   <Select value={profile.state} onValueChange={state => setProfile({...profile, state})}>
-                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectTrigger id="onboarding-state"><SelectValue placeholder="Select state" /></SelectTrigger>
                     <SelectContent>
                       {US_STATES.map(state => (
                         <SelectItem key={state.code} value={state.code}>{state.name}</SelectItem>
@@ -219,8 +245,8 @@ export default function TrainerOnboardingPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>Zip Code</Label><Input value={profile.zipCode} onChange={e => setProfile({...profile, zipCode: e.target.value})} /></div>
-                <div><Label>Travel Radius (miles)</Label><Input type="number" min={5} max={100} value={profile.travelRadius} onChange={e => setProfile({...profile, travelRadius: parseInt(e.target.value) || 25})} /></div>
+                <div><Label htmlFor="onboarding-zip">Zip Code</Label><Input id="onboarding-zip" value={profile.zipCode} onChange={e => setProfile({...profile, zipCode: e.target.value})} /></div>
+                <div><Label htmlFor="onboarding-radius">Travel Radius (miles)</Label><Input id="onboarding-radius" type="number" min={5} max={100} value={profile.travelRadius} onChange={e => setProfile({...profile, travelRadius: parseInt(e.target.value) || 25})} /></div>
               </div>
 
               <Separator />
@@ -228,9 +254,9 @@ export default function TrainerOnboardingPage() {
                 <Label className="text-base font-semibold">Certifications</Label>
                 {certifications.map((cert, i) => (
                   <div key={i} className="flex gap-2 mt-2">
-                    <Input placeholder="Certification name" value={cert.name} onChange={e => { const c = [...certifications]; c[i].name = e.target.value; setCertifications(c) }} />
-                    <Input placeholder="Issuing org" value={cert.issuingOrg} onChange={e => { const c = [...certifications]; c[i].issuingOrg = e.target.value; setCertifications(c) }} />
-                    {certifications.length > 1 && <Button variant="ghost" size="icon" onClick={() => setCertifications(certifications.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
+                    <Input aria-label={`Certification ${i + 1} name`} placeholder="Certification name" value={cert.name} onChange={e => { const c = [...certifications]; c[i].name = e.target.value; setCertifications(c) }} />
+                    <Input aria-label={`Certification ${i + 1} organization`} placeholder="Issuing org" value={cert.issuingOrg} onChange={e => { const c = [...certifications]; c[i].issuingOrg = e.target.value; setCertifications(c) }} />
+                    {certifications.length > 1 && <Button aria-label={`Remove certification ${i + 1}`} title={`Remove certification ${i + 1}`} variant="ghost" size="icon" onClick={() => setCertifications(certifications.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="mt-2" onClick={() => setCertifications([...certifications, { name: '', issuingOrg: '' }])}>
@@ -249,17 +275,24 @@ export default function TrainerOnboardingPage() {
                 <div key={i} className="p-4 border rounded-lg space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-sm">Service {i + 1}</span>
-                    {services.length > 1 && <Button variant="ghost" size="icon" onClick={() => setServices(services.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
+                    {services.length > 1 && <Button aria-label={`Remove service ${i + 1}`} title={`Remove service ${i + 1}`} variant="ghost" size="icon" onClick={() => setServices(services.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
-                  <div><Label>Title</Label><Input placeholder="e.g. 1-on-1 Quarterback Training" value={svc.title} onChange={e => { const s = [...services]; s[i].title = e.target.value; setServices(s) }} /></div>
-                  <div><Label>Description</Label><Textarea placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div><Label>Duration (min)</Label><Input type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
-                    <div><Label>Price ($)</Label><Input type="number" min={15} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = parseInt(e.target.value) * 100; setServices(s) }} /></div>
+                  <div>
+                    <Label htmlFor={`service-sport-${i}`}>Sport *</Label>
+                    <Select value={catalog.some(sport => sport.id === svc.sportId && sport.isActive && selectedSports.includes(sport.slug)) ? svc.sportId : ''} onValueChange={value => setServices(current => current.map((service, index) => index === i ? { ...service, sportId: value } : service))}>
+                      <SelectTrigger id={`service-sport-${i}`} aria-label={`Service ${i + 1} sport`}><SelectValue placeholder="Choose sport" /></SelectTrigger>
+                      <SelectContent>{catalog.filter(sport => sport.isActive && selectedSports.includes(sport.slug)).map(sport => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label htmlFor={`onboarding-service-title-${i}`}>Title</Label><Input id={`onboarding-service-title-${i}`} placeholder="e.g. 1-on-1 Quarterback Training" value={svc.title} onChange={e => { const s = [...services]; s[i].title = e.target.value; setServices(s) }} /></div>
+                  <div><Label htmlFor={`onboarding-service-description-${i}`}>Description</Label><Textarea id={`onboarding-service-description-${i}`} placeholder="What does this session include?" value={svc.description} onChange={e => { const s = [...services]; s[i].description = e.target.value; setServices(s) }} rows={2} /></div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div><Label htmlFor={`onboarding-service-durationMinutes-${i}`}>Duration (min)</Label><Input id={`onboarding-service-durationMinutes-${i}`} type="number" min={15} max={480} value={svc.durationMinutes} onChange={e => { const s = [...services]; s[i].durationMinutes = parseInt(e.target.value); setServices(s) }} /></div>
+                    <div><Label htmlFor={`onboarding-service-priceInCents-${i}`}>Price ($)</Label><Input id={`onboarding-service-priceInCents-${i}`} type="number" min={minServicePrice / 100} step={0.01} value={svc.priceInCents / 100} onChange={e => { const s = [...services]; s[i].priceInCents = Math.round(Number(e.target.value) * 100); setServices(s) }} /></div>
                     <div>
-                      <Label>Type</Label>
+                      <Label htmlFor={`onboarding-service-type-${i}`}>Type</Label>
                       <Select value={svc.type} onValueChange={v => { const s = [...services]; s[i].type = v; setServices(s) }}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`onboarding-service-type-${i}`}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="INDIVIDUAL">1-on-1</SelectItem>
                           <SelectItem value="GROUP">Group</SelectItem>
@@ -281,20 +314,20 @@ export default function TrainerOnboardingPage() {
         {step === 3 && (
           <Card>
             <CardContent className="p-6 space-y-3">
-              <p className="text-sm text-muted-foreground">Select the days you&apos;re available and set your hours.</p>
+              <ScheduleTimeZoneSelect value={profile.timeZone} onChange={timeZone => setProfile(current => ({ ...current, timeZone }))} />
               {DAY_NAMES.map((day, i) => {
                 const slot = availability.find(a => a.dayOfWeek === i)
                 const isActive = !!slot
                 return (
-                  <div key={i} className={`flex items-center gap-4 p-3 rounded-lg border ${isActive ? 'border-primary bg-green-50' : 'border-gray-200'}`}>
-                    <button type="button" onClick={() => toggleDayAvailability(i)} className={`w-20 text-left font-medium text-sm ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <div key={i} className={`flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center ${isActive ? 'border-primary bg-green-50' : 'border-gray-200'}`}>
+                    <button type="button" aria-pressed={isActive} onClick={() => toggleDayAvailability(i)} className={`w-20 shrink-0 text-left font-medium text-sm ${isActive ? 'text-green-950' : 'text-muted-foreground'}`}>
                       {day}
                     </button>
                     {isActive && (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Input type="time" value={slot.startTime} onChange={e => updateAvailTime(i, 'startTime', e.target.value)} className="w-32" />
-                        <span className="text-sm text-muted-foreground">to</span>
-                        <Input type="time" value={slot.endTime} onChange={e => updateAvailTime(i, 'endTime', e.target.value)} className="w-32" />
+                      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                        <Input aria-label={`${day} start time`} type="time" value={slot.startTime} onChange={e => updateAvailTime(i, 'startTime', e.target.value)} className="min-w-0 w-full [color-scheme:dark]" />
+                        <span className="text-sm text-green-950">to</span>
+                        <Input aria-label={`${day} end time`} type="time" value={slot.endTime} onChange={e => updateAvailTime(i, 'endTime', e.target.value)} className="min-w-0 w-full [color-scheme:dark]" />
                       </div>
                     )}
                     {!isActive && <span className="text-sm text-muted-foreground flex-1">Not available</span>}
@@ -311,14 +344,18 @@ export default function TrainerOnboardingPage() {
             <CardContent className="p-6 space-y-4">
               <h3 className="font-semibold">Review Your Profile</h3>
               <div className="space-y-3 text-sm">
-                <div><span className="text-muted-foreground">Sports:</span> {selectedSports.map(s => SPORTS.find(sp => sp.slug === s)?.name).join(', ')}</div>
-                <div><span className="text-muted-foreground">Specialties:</span> {selectedSpecialties.join(', ')}</div>
+                <div><span className="text-muted-foreground">Sports:</span> {selectedSports.map(s => catalog.find(sp => sp.slug === s)?.name).join(', ')}</div>
+                <div><span className="text-muted-foreground">Specialties:</span> {selectedSpecialties.map(id => {
+                  const specialty = availableSpecialties.find(option => option.id === id)
+                  return specialty ? `${specialty.name} (${specialty.sportName})` : 'Unavailable specialty'
+                }).join(', ')}</div>
                 <div><span className="text-muted-foreground">Name:</span> {profile.firstName} {profile.lastName}</div>
                 {profile.headline && <div><span className="text-muted-foreground">Headline:</span> {profile.headline}</div>}
                 <div><span className="text-muted-foreground">Experience:</span> {profile.yearsExperience} years</div>
                 <div><span className="text-muted-foreground">Location:</span> {profile.city && profile.state ? `${profile.city}, ${profile.state}` : 'Not set'} ({profile.locationType})</div>
                 <div><span className="text-muted-foreground">Services:</span> {services.length} service(s) starting at {formatCurrency(Math.min(...services.map(s => s.priceInCents)))}</div>
                 <div><span className="text-muted-foreground">Availability:</span> {availability.length} day(s)</div>
+                <div className="break-words"><span className="text-muted-foreground">Schedule time zone:</span> {profile.timeZone.replaceAll('_', ' ')}</div>
               </div>
 
               <div className="bg-yellow-50 p-4 rounded-lg text-sm">

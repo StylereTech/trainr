@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// @ts-ignore - next-auth/jwt types not resolving in edge middleware
 import { getToken } from 'next-auth/jwt'
 
 async function getAuthToken(req: NextRequest) {
@@ -9,7 +8,7 @@ async function getAuthToken(req: NextRequest) {
     cookieName: '__Secure-next-auth.session-token',
   })
 
-  if (!token) {
+  if (!token?.sub) {
     token = await getToken({
       req,
       secret: process.env.NEXTAUTH_SECRET,
@@ -30,8 +29,11 @@ const PROTECTED_ROUTES: ProtectedRouteRule[] = [
   { prefix: '/parent', roles: ['PARENT'] },
   { prefix: '/trainer/dashboard', roles: ['TRAINER'] },
   { prefix: '/trainer/profile', roles: ['TRAINER'] },
+  { prefix: '/trainer/packages', roles: ['TRAINER'] },
+  { prefix: '/trainer/purchases', roles: ['TRAINER'] },
   { prefix: '/trainer/onboarding', roles: ['TRAINER'] },
   { prefix: '/messages' },
+  { prefix: '/notifications' },
   { prefix: '/review', roles: ['PARENT'] },
 ]
 
@@ -58,7 +60,7 @@ export async function middleware(req: NextRequest) {
 
   const token = await getAuthToken(req)
 
-  if (!token) {
+  if (!token || typeof token.sub !== 'string' || !token.sub || typeof token.sessionVersion !== 'number' || !Number.isSafeInteger(token.sessionVersion) || token.sessionVersion < 0) {
     const url = req.nextUrl.clone()
     url.pathname = '/auth/signin'
     url.searchParams.set('callbackUrl', pathname)

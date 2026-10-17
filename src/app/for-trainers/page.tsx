@@ -16,7 +16,7 @@ const benefits = [
   { icon: Calendar, title: 'Control your schedule', description: 'Open only the slots you want to coach and keep your calendar aligned with real demand.' },
   { icon: Users, title: 'Reach serious families', description: 'Get discovered by parents already looking for trustworthy youth development.' },
   { icon: Zap, title: 'Fast payout flow', description: 'Move from booking to payout through a cleaner Stripe-powered system.' },
-  { icon: Star, title: 'Build social proof', description: 'Verified reviews compound trust and make conversion easier over time.' },
+  { icon: Star, title: 'Parent feedback', description: 'Session reviews from parents.' },
   { icon: CheckCircle2, title: 'Low-friction launch', description: 'No upfront fees, no subscription pressure, and no messy setup before you start.' },
 ]
 

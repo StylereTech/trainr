@@ -10,73 +10,63 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import {
-  MapPin, Clock, Award, Heart, Share2, MessageSquare, Calendar,
-  Video, Users, Shield, ChevronLeft, CheckCircle2, Loader2, Sparkles, ArrowUpRight, Trophy, Quote
+  MapPin, Clock, Award, MessageSquare, Calendar,
+  Video, Users, Shield, ChevronLeft, CheckCircle2, Loader2, Sparkles, ArrowUpRight, Quote
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-
-interface Review {
-  id: string
-  rating: number
-  knowledgeRating: number
-  communicationRating: number
-  punctualityRating: number
-  comment: string | null
-  createdAt: string
-  parentProfile: {
-    user: { email: string }
-  }
-}
-
-interface TrainerData {
-  id: string
-  firstName: string
-  lastName: string
-  slug: string
-  headline: string | null
-  bio: string | null
-  city: string | null
-  state: string | null
-  locationType: string
-  travelRadius: number
-  yearsExperience: number
-  avgRating: number
-  totalReviews: number
-  totalSessions: number
-  sports: { sport: { name: string; icon: string | null } }[]
-  specialties: { specialty: { name: string; slug: string } }[]
-  certifications: { name: string; issuingOrg: string | null; isVerified: boolean }[]
-  serviceOfferings: { id: string; title: string; description: string | null; durationMinutes: number; priceInCents: number; type: string; maxParticipants: number }[]
-  packages: { id: string; title: string; description: string | null; totalSessions: number; priceInCents: number; validForDays: number; items: { serviceOffering: { title: string }; sessionsCount: number }[] }[]
-  availabilitySlots: { dayOfWeek: number | null; startTime: string; endTime: string; isRecurring: boolean }[]
-  assets: { url: string; type: string; order: number }[]
-  reviews: Review[]
-  _count: { reviews: number }
-}
+import { publicTrainerSchema, type PublicTrainer } from '@/lib/public-trainer-schema'
+import { CopyProfileLink } from '@/components/shared/CopyProfileLink'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function TrainerProfilePage() {
   const params = useParams()
   const slug = params.slug as string
-  const [trainer, setTrainer] = useState<TrainerData | null>(null)
+  const [trainer, setTrainer] = useState<PublicTrainer | null>(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    fetch(`/api/trainers/${slug}`)
-      .then(res => res.json())
-      .then(data => setTrainer(data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [slug])
+    const controller = new AbortController()
+    let active = true
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    setLoading(true)
+    setTrainer(null)
+    setFailed(false)
+    async function load() {
+      try {
+        const res = await fetch(`/api/trainers/${encodeURIComponent(slug)}`, { signal: controller.signal })
+        if (res.status === 404) return
+        if (!res.ok) throw new Error('Profile unavailable')
+        const data = publicTrainerSchema.parse(await res.json())
+        if (active) setTrainer(data)
+      } catch {
+        if (active) setFailed(true)
+      } finally {
+        clearTimeout(timeout)
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => { active = false; clearTimeout(timeout); controller.abort() }
+  }, [slug, attempt])
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
+      <div role="status" aria-label="Loading trainer profile" className="flex justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
+  }
+
+  if (failed) {
+    return <div className="container py-20 text-center" role="alert">
+      <h1 className="mb-2 text-2xl font-bold">Trainer profile unavailable</h1>
+      <p className="mb-4 text-muted-foreground">We couldn&apos;t load this profile. Please try again.</p>
+      <Button onClick={() => setAttempt(value => value + 1)}>Retry profile</Button>
+    </div>
   }
 
   if (!trainer) {
@@ -84,7 +74,7 @@ export default function TrainerProfilePage() {
       <div className="container py-20 text-center">
         <h2 className="mb-2 text-2xl font-bold">Trainer Not Found</h2>
         <p className="mb-4 text-muted-foreground">The trainer you&apos;re looking for doesn&apos;t exist or is no longer available.</p>
-        <Link href="/browse"><Button>Browse Trainers</Button></Link>
+        <Button asChild><Link href="/browse">Browse Trainers</Link></Button>
       </div>
     )
   }
@@ -102,7 +92,8 @@ export default function TrainerProfilePage() {
 
   const availabilityByDay: Record<string, { start: string; end: string }[]> = {}
   trainer.availabilitySlots.forEach(slot => {
-    const day = slot.dayOfWeek !== null ? DAY_NAMES[slot.dayOfWeek] : 'One-time'
+    if (!slot.isAvailable || !slot.isRecurring || slot.dayOfWeek === null) return
+    const day = DAY_NAMES[slot.dayOfWeek]
     if (!availabilityByDay[day]) availabilityByDay[day] = []
     availabilityByDay[day].push({ start: slot.startTime, end: slot.endTime })
   })
@@ -157,8 +148,7 @@ export default function TrainerProfilePage() {
                       </div>
 
                       <div className="flex gap-2 self-start">
-                        <Button variant="outline" size="icon" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Heart className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"><Share2 className="h-4 w-4" /></Button>
+                        <CopyProfileLink slug={trainer.slug} />
                       </div>
                     </div>
 
@@ -176,8 +166,8 @@ export default function TrainerProfilePage() {
                         <div className="mt-1 font-semibold text-white">{trainer.city && trainer.state ? `${trainer.city}, ${trainer.state}` : trainer.locationType === 'VIRTUAL' ? 'Virtual only' : 'Travel-based'}</div>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3 text-sm text-slate-300">
-                        <div className="flex items-center gap-2 text-white"><Shield className="h-4 w-4 text-emerald-300" /> Verified</div>
-                        <div className="mt-1 font-semibold text-white">{trainer.certifications.filter((cert) => cert.isVerified).length} certs listed</div>
+                        <div className="flex items-center gap-2 text-white"><Shield className="h-4 w-4 text-emerald-300" /> Credentials</div>
+                        <div className="mt-1 font-semibold text-white">{trainer.certifications.filter((cert) => cert.isVerified).length} of {trainer.certifications.length} marked verified</div>
                       </div>
                     </div>
 
@@ -191,20 +181,6 @@ export default function TrainerProfilePage() {
                       </div>
                     )}
 
-                    <div className="mt-6 grid gap-3 md:grid-cols-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Best for</div>
-                        <p className="mt-2 text-sm text-slate-300">Families who want a clearer sense of coach quality, structure, and session fit before booking.</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Session style</div>
-                        <p className="mt-2 text-sm text-slate-300">Offerings are presented with cleaner pricing and format badges so mobile scanning is faster.</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-300">Trust layer</div>
-                        <p className="mt-2 text-sm text-slate-300">Reviews, certifications, and profile hierarchy now work together instead of competing visually.</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -214,7 +190,7 @@ export default function TrainerProfilePage() {
               <Card className="rounded-[2rem] border-white/10 bg-white/[0.05] text-white shadow-2xl">
                 <CardHeader className="pb-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Book with confidence</div>
-                  <h2 className="text-2xl font-semibold">Quick decision panel</h2>
+                  <h2 className="text-2xl font-semibold">Book a session</h2>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="rounded-2xl bg-slate-950/50 p-4 text-center">
@@ -223,36 +199,29 @@ export default function TrainerProfilePage() {
                     <div className="mt-1 text-xs text-slate-400">per session</div>
                   </div>
 
-                  <Link href={`/book/${trainer.slug}`}>
-                    <Button className="gradient-primary w-full border-0 text-white" size="lg">
+                  <Button asChild className="gradient-primary w-full border-0 text-white" size="lg">
+                    <Link href={`/book/${trainer.slug}`}>
                       <Calendar className="mr-2 h-4 w-4" />
                       Book Now
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
-                  <Link href={`/messages?to=${trainer.id}`}>
-                    <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="lg">
+                  <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="lg">
+                    <Link href={`/messages?trainer=${encodeURIComponent(trainer.id)}`}>
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Send Message
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
                   <Separator className="bg-white/10" />
 
                   <div className="space-y-3 text-sm text-slate-300">
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Background verified</div>
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Identity verified</div>
-                    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-300" /> Transparent pricing before checkout</div>
+                    <p>Profile approval does not establish identity or background screening.</p>
+                    <Link href="/legal/safety" className="inline-block text-emerald-300 underline">Safety guidelines</Link>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[2rem] border-white/10 bg-white/[0.05] text-white shadow-xl">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><Trophy className="h-4 w-4" /> Why this profile now converts better</div>
-                  <p className="mt-3 text-sm text-slate-300">This profile reads like a premium coaching destination with clearer hierarchy, stronger trust framing, and tighter mobile decision blocks.</p>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
@@ -260,7 +229,7 @@ export default function TrainerProfilePage() {
 
       <section className="container py-8 md:py-10">
         <Tabs defaultValue="about">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-slate-900 p-2 md:flex md:w-auto md:flex-wrap md:justify-start">
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="availability">Availability</TabsTrigger>
@@ -294,6 +263,7 @@ export default function TrainerProfilePage() {
                             <div>
                               <div className="text-sm font-medium text-white">{cert.name}</div>
                               {cert.issuingOrg && <div className="text-xs text-slate-400">{cert.issuingOrg}</div>}
+                              <div className="mt-1 text-xs text-slate-300">{cert.isVerified ? 'Marked verified' : 'Not verified'}</div>
                             </div>
                           </div>
                         </div>
@@ -327,6 +297,9 @@ export default function TrainerProfilePage() {
 
           <TabsContent value="services" className="mt-4">
             <div className="space-y-4">
+              {trainer.serviceOfferings.length === 0 && trainer.packages.length === 0 && (
+                <p className="py-6 text-sm text-slate-300">No services published yet.</p>
+              )}
               {trainer.serviceOfferings.map((service) => (
                 <Card key={service.id} className="border-white/10 bg-white/[0.04] text-white">
                   <CardContent className="p-5">
@@ -361,20 +334,21 @@ export default function TrainerProfilePage() {
                     <Card key={pkg.id} className="border-emerald-500/20 bg-white/[0.04] text-white">
                       <CardContent className="p-5">
                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <h4 className="text-lg font-semibold">{pkg.title}</h4>
-                            {pkg.description && <p className="mt-1 text-sm text-slate-300">{pkg.description}</p>}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="break-words text-lg font-semibold">{pkg.title}</h4>
+                            {pkg.description && <p className="mt-1 break-words text-sm text-slate-300">{pkg.description}</p>}
                             <div className="mt-3 space-y-2">
                               {pkg.items.map((item, i) => (
-                                <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-                                  {item.sessionsCount}× {item.serviceOffering.title}
+                                <div key={i} className="flex min-w-0 items-start gap-2 text-sm text-slate-300">
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                                  <span className="min-w-0 break-words">{item.sessionsCount}× {item.serviceOffering.title}</span>
                                 </div>
                               ))}
                             </div>
-                            <p className="mt-3 text-xs text-slate-400">Valid for {pkg.validForDays} days</p>
+                            <p className="mt-3 text-xs text-slate-400">Shared across your children. Valid for {pkg.validForDays} days from successful payment.</p>
+                            <Button asChild variant="outline" className="mt-4"><Link href={`/parent/packages/buy/${encodeURIComponent(pkg.id)}`}><ArrowUpRight className="mr-2 h-4 w-4" />Review package</Link></Button>
                           </div>
-                          <div className="rounded-2xl bg-slate-950/50 px-4 py-3 text-left md:text-right">
+                          <div className="shrink-0 rounded-2xl bg-slate-950/50 px-4 py-3 text-left md:text-right">
                             <div className="text-2xl font-bold text-white">{formatCurrency(pkg.priceInCents)}</div>
                             <div className="text-xs text-slate-400">{pkg.totalSessions} sessions</div>
                           </div>
@@ -391,6 +365,7 @@ export default function TrainerProfilePage() {
             <Card className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-5 md:p-6">
                 <h3 className="text-xl font-semibold">Weekly Availability</h3>
+                <p className="text-sm text-slate-300">{trainer.timeZone ? `Session time zone: ${trainer.timeZone}` : 'Schedule time zone not set'}</p>
                 {Object.keys(availabilityByDay).length > 0 ? (
                   <div className="mt-5 grid gap-3">
                     {DAY_NAMES.filter(day => availabilityByDay[day]).map(day => (
@@ -416,6 +391,9 @@ export default function TrainerProfilePage() {
           <TabsContent value="reviews" className="mt-4">
             <Card className="border-white/10 bg-white/[0.04] text-white">
               <CardContent className="p-5 md:p-6">
+                {trainer.reviews.length === 0 ? (
+                  <p className="text-sm text-slate-300">No reviews yet.</p>
+                ) : <>
                 <div className="grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
                   <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-5">
                     <div className="text-4xl font-bold">{trainer.avgRating.toFixed(1)}</div>
@@ -441,6 +419,7 @@ export default function TrainerProfilePage() {
                 </div>
 
                 <Separator className="my-6 bg-white/10" />
+                </>}
 
                 <div className="space-y-5">
                   {trainer.reviews.map((review) => (
@@ -448,13 +427,13 @@ export default function TrainerProfilePage() {
                       <div className="flex items-start gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback className="bg-white/10 text-xs text-white">
-                            {review.parentProfile.user.email[0].toUpperCase()}
+                            <Users className="h-4 w-4" aria-hidden="true" />
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <div className="text-sm font-medium text-white">{review.parentProfile.user.email.split('@')[0]}</div>
+                              <div className="text-sm font-medium text-white">Parent</div>
                               <div className="text-xs text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</div>
                             </div>
                             <StarRating rating={review.rating} size="sm" />
@@ -506,18 +485,17 @@ export default function TrainerProfilePage() {
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Ready to move</div>
               <h3 className="mt-2 text-2xl font-semibold">Take the next step with {trainer.firstName}.</h3>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">The redesigned profile leads naturally into booking or messaging, with stronger mobile readability and less visual clutter.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href={`/book/${trainer.slug}`}>
-                <Button className="gradient-primary w-full border-0 text-white sm:w-auto">Book a session</Button>
-              </Link>
-              <Link href={`/messages?to=${trainer.id}`}>
-                <Button variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
+              <Button asChild className="gradient-primary w-full border-0 text-white sm:w-auto">
+                <Link href={`/book/${trainer.slug}`}>Book a session</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
+                <Link href={`/messages?trainer=${encodeURIComponent(trainer.id)}`}>
                   Message trainer
                   <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

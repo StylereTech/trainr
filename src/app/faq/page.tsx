@@ -16,7 +16,7 @@ const faqs = [
     category: 'For Parents',
     items: [
       { q: 'How do I find a trainer?', a: 'Use the Browse page to search by sport, location, and rating. Read reviews from other parents, compare coaches, and book the one that fits.' },
-      { q: 'How are trainers verified?', a: 'Every trainer has a profile with their background, credentials, and reviews from real parents. We verify coaches before they can accept bookings.' },
+      { q: 'How are trainers verified?', a: 'Listings require administrative approval. Approval is not proof of identity or background screening. Credential status applies only to the listed credential.' },
       { q: 'How does payment work?', a: 'You pay securely through Stripe when you book a session. The price is shown up front — no hidden fees or surprise charges.' },
       { q: 'Can I book recurring sessions?', a: 'Yes. Most families start with one session and rebook the coaches their kid connects with.' },
       { q: 'What sports do you cover?', a: 'Football, baseball, basketball, soccer, and track & field.' },
@@ -34,8 +34,8 @@ const faqs = [
   {
     category: 'Safety & Trust',
     items: [
-      { q: 'What safety measures are built in?', a: 'Verified trainer profiles, secure Stripe payments, in-app messaging, and session-based reviews. You always know who you\'re booking.' },
-      { q: 'How do I report a concern?', a: 'Go to the Contact page and select "Safety Concern" as the topic. Our team will follow up within 24 hours.' },
+      { q: 'What safety measures are built in?', a: 'Profile approval does not establish identity or background screening. Review individual credential status and the Safety Guidelines before booking.' },
+      { q: 'How do I report a concern?', a: 'Go to the Contact page and select "Safety Concern" as the topic. For emergencies, call 911 rather than waiting for a platform response.' },
     ],
   },
 ]
@@ -57,7 +57,7 @@ export default function FAQPage() {
             <div className="absolute inset-x-0 bottom-0 p-6">
               <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-emerald-300" /> No surprises</div>
-                <p className="mt-2 text-sm text-slate-300">Clear pricing, verified coaches, and secure payments. You know what you&apos;re getting before you book.</p>
+                <p className="mt-2 text-sm text-slate-300">Session prices, credential status, and parent feedback.</p>
               </div>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function FAQPage() {
 
           <div className="rounded-[1.75rem] bg-slate-50 p-8 text-center">
             <h3 className="text-lg font-bold">Still have questions?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Reach out and we&apos;ll get back to you within 24 hours.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Contact the Trainr team.</p>
             <Link href="/contact">
               <Button className="mt-5 gradient-primary border-0 text-white">Contact Us <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </Link>

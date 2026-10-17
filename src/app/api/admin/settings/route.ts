@@ -1,69 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from '@/lib/auth'
-import { authOptions } from '@/lib/auth'
+import { getRequestUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { defaultFeeValues, FeeEditConflict, feeUpdateSchema, updateFeeConfiguration } from '@/lib/fee-config'
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return null
-  if (session.user.role !== 'ADMIN') return null
-  return session
-}
-
-// GET /api/admin/settings — Get fee configuration
 export async function GET(req: NextRequest) {
-  const session = await requireAdmin()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const configs = await prisma.feeConfig.findMany({
-    orderBy: { effectiveDate: 'desc' },
-    take: 10,
-  })
-
-  const active = await prisma.feeConfig.findFirst({
-    where: { isActive: true },
-    orderBy: { effectiveDate: 'desc' },
-  })
-
-  return NextResponse.json({ configs, active })
+  try {
+    const user = await getRequestUser(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const result = await prisma.$transaction(async (tx) => {
+      const configs = await tx.feeConfig.findMany({ orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }], take: 10 })
+      const active = await tx.feeConfig.findFirst({ where: { isActive: true }, orderBy: [{ effectiveDate: 'desc' }, { id: 'desc' }] })
+      return { configs, active, defaults: defaultFeeValues }
+    }, { isolationLevel: 'RepeatableRead' })
+    return NextResponse.json(result)
+  } catch {
+    return NextResponse.json({ error: 'Unable to load fee settings.' }, { status: 503 })
+  }
 }
 
-// POST /api/admin/settings — Update fee configuration
 export async function POST(req: NextRequest) {
-  const session = await requireAdmin()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const adminUserId = session.user.id
-  const body = await req.json()
-  const { platformCommissionPercent, stripeFeePercent, processingFeeCents, minBookingAmountCents } = body
-
-  // Deactivate previous configs
-  await prisma.feeConfig.updateMany({
-    where: { isActive: true },
-    data: { isActive: false },
-  })
-
-  const newConfig = await prisma.feeConfig.create({
-    data: {
-      platformCommissionPercent: platformCommissionPercent ?? 15.0,
-      stripeFeePercent: stripeFeePercent ?? 2.9,
-      processingFeeCents: processingFeeCents ?? 30,
-      minBookingAmountCents: minBookingAmountCents ?? 1500,
-      isActive: true,
-      effectiveDate: new Date(),
-    },
-  })
-
-  await prisma.adminAction.create({
-    data: {
-      adminUserId,
-      actionType: 'UPDATE_SETTINGS',
-      targetType: 'FEE_CONFIG',
-      targetId: newConfig.id,
-      description: 'Updated fee configuration',
-      metadata: body,
-    },
-  })
-
-  return NextResponse.json(newConfig, { status: 201 })
+  try {
+    const user = await getRequestUser(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const parsed = feeUpdateSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
+    return NextResponse.json(await updateFeeConfiguration(user.id, parsed.data), { status: 201 })
+  } catch (error) {
+    if (error instanceof FeeEditConflict) return NextResponse.json({ error: error.message }, { status: 409 })
+    return NextResponse.json({ error: 'Unable to save fee settings. Reload before retrying.' }, { status: 503 })
+  }
 }

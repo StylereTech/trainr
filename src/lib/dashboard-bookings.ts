@@ -1,0 +1,46 @@
+import { Prisma } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { bookingStates, viewStates, type DashboardView } from '@/lib/dashboard-contract'
+import { creditBookingInclude, packageCreditFunding } from '@/lib/package-credit-booking-hold'
+import { readPackageReviewHolds } from '@/lib/package-review-presence'
+import { readPaymentReviewHolds } from '@/lib/payment-review-presence'
+
+export class DashboardReadError extends Error {
+  constructor(message: string, public status: number) { super(message) }
+}
+export async function readDashboardBookings(actor: { id: string; role?: string }, view: DashboardView, requestedPage: number, limit: number) {
+  if (!['PARENT', 'TRAINER'].includes(actor.role || '')) throw new DashboardReadError('Dashboard access requires a parent or trainer account', 403)
+  if (!(actor.role === 'PARENT' ? ['upcoming', 'past'] : ['pending', 'confirmed', 'completed', 'all']).includes(view)) throw new DashboardReadError('Invalid dashboard view for this role', 400)
+  return prisma.$transaction(async tx => {
+    const profile = actor.role === 'PARENT' ? await tx.parentProfile.findUnique({ where: { userId: actor.id }, select: { id: true } }) : await tx.trainerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } })
+    if (!profile) throw new DashboardReadError('Profile not found', 404)
+    const scope: Prisma.BookingWhereInput = actor.role === 'PARENT' ? { parentProfileId: profile.id } : { trainerProfileId: profile.id }
+    const grouped = await tx.booking.groupBy({ by: ['status'], where: scope, _count: { _all: true } })
+    const counts = Object.fromEntries(bookingStates.map(status => [status, grouped.find(row => row.status === status)?._count._all || 0])) as Record<typeof bookingStates[number], number>
+    const total = viewStates[view].reduce((sum, status) => sum + counts[status], 0)
+    const totalPages = Math.ceil(total / limit)
+    const page = Math.min(requestedPage, Math.max(1, totalPages))
+    const rows = await tx.booking.findMany({ where: { ...scope, status: { in: viewStates[view] } },
+      select: { id: true, date: true, startTime: true, endTime: true, timeZone: true, startsAt: true, endsAt: true, status: true, totalAmountInCents: true, trainerPayoutInCents: true, notes: true,
+        parentProfileId: true, trainerProfileId: true, serviceOfferingId: true, platformFeeInCents: true, packageId: true, packageSessionNumber: true,
+        ...creditBookingInclude,
+        serviceOffering: { select: { title: true, durationMinutes: true } },
+        trainerProfile: { select: { firstName: true, lastName: true, stripeAccountId: true, stripeOnboardingComplete: true } },
+        parentProfile: { select: { user: { select: { email: true } } } }, athleteProfile: { select: { firstName: true, lastName: true } }, review: { select: { id: true } },
+        payment: { select: { status: true, refundAmountInCents: true, refundPendingAmountInCents: true, refundFailedCount: true, refundsVerifiedAt: true,
+          settlementVerifiedAt: true, financialReview: true } } },
+      orderBy: [{ date: view === 'past' || view === 'completed' || view === 'all' ? 'desc' : 'asc' }, { startTime: 'asc' }, { id: 'asc' }], skip: (page - 1) * limit, take: limit })
+    const reviewsToLeave = actor.role === 'PARENT' ? await tx.booking.count({ where: { ...scope, status: 'COMPLETED', review: null } }) : 0
+    const held = await readPackageReviewHolds(tx, rows.flatMap(row => row.creditRedemption ? [row.creditRedemption.purchaseId] : []))
+    const paymentHeld = await readPaymentReviewHolds(tx, rows.filter(row => row.payment).map(row => row.id))
+    return { bookings: rows.map(row => ({
+      id: row.id, date: row.date, startTime: row.startTime, endTime: row.endTime, timeZone: row.timeZone,
+      startsAt: row.startsAt, endsAt: row.endsAt, status: row.status, totalAmountInCents: row.totalAmountInCents,
+      trainerPayoutInCents: row.trainerPayoutInCents, notes: row.notes, serviceOffering: row.serviceOffering,
+      parentProfile: row.parentProfile, athleteProfile: row.athleteProfile, review: row.review,
+      creditFunding: packageCreditFunding(row, held.has(row.creditRedemption?.purchaseId || '')),
+      payment: row.payment ? { ...row.payment, financialReview: paymentHeld.has(row.id) } : null,
+      trainerProfile: { firstName: row.trainerProfile.firstName, lastName: row.trainerProfile.lastName,
+      paymentReady: !!row.trainerProfile.stripeAccountId && row.trainerProfile.stripeOnboardingComplete } })), counts, reviewsToLeave, pagination: { page, limit, total, totalPages } }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
+}
