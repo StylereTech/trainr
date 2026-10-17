@@ -41,7 +41,7 @@ export default function AdminCoupons() {
     discountType: 'percent' as 'percent' | 'fixed',
     discountPercent: 10,
     discountAmountInCents: 1000,
-    maxUses: 100,
+    maxUses: 1,
     expiresAt: '',
     applicableSportId: '',
   })
@@ -79,7 +79,7 @@ export default function AdminCoupons() {
     if (res.ok) {
       toast({ title: 'Coupon created!' })
       setShowCreate(false)
-      setForm({ code: '', discountType: 'percent', discountPercent: 10, discountAmountInCents: 1000, maxUses: 100, expiresAt: '', applicableSportId: '' })
+      setForm({ code: '', discountType: 'percent', discountPercent: 10, discountAmountInCents: 1000, maxUses: 1, expiresAt: '', applicableSportId: '' })
       fetchCoupons()
     } else {
       const data = await res.json()
@@ -172,13 +172,13 @@ export default function AdminCoupons() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Coupon code</Label>
-              <Input placeholder="e.g. SUMMER2026" value={form.code} onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))} className="h-12 border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
+              <Label htmlFor="coupon-code">Coupon code</Label>
+              <Input id="coupon-code" placeholder="e.g. SUMMER2026" value={form.code} onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))} className="h-12 border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
             </div>
             <div className="space-y-2">
-              <Label>Discount type</Label>
+              <Label htmlFor="coupon-discount-type">Discount type</Label>
               <Select value={form.discountType} onValueChange={(v: any) => setForm((prev) => ({ ...prev, discountType: v }))}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-white"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="coupon-discount-type" className="border-white/10 bg-white/5 text-white"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percent">Percentage</SelectItem>
                   <SelectItem value="fixed">Fixed amount</SelectItem>
@@ -187,23 +187,23 @@ export default function AdminCoupons() {
             </div>
             {form.discountType === 'percent' ? (
               <div className="space-y-2">
-                <Label>Discount percentage</Label>
-                <Input type="number" min="1" max="100" value={form.discountPercent} onChange={(e) => setForm((prev) => ({ ...prev, discountPercent: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-white/5 text-white" />
+                <Label htmlFor="coupon-discount-percent">Discount percentage</Label>
+                <Input id="coupon-discount-percent" type="number" min="1" max="100" value={form.discountPercent} onChange={(e) => setForm((prev) => ({ ...prev, discountPercent: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-white/5 text-white" />
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>Discount amount (cents)</Label>
-                <Input type="number" min="100" step="100" value={form.discountAmountInCents} onChange={(e) => setForm((prev) => ({ ...prev, discountAmountInCents: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-white/5 text-white" />
+                <Label htmlFor="coupon-discount-amount">Discount amount (cents)</Label>
+                <Input id="coupon-discount-amount" type="number" min="100" step="100" value={form.discountAmountInCents} onChange={(e) => setForm((prev) => ({ ...prev, discountAmountInCents: parseInt(e.target.value) || 0 }))} className="h-12 border-white/10 bg-white/5 text-white" />
                 <p className="text-xs text-slate-400">${(form.discountAmountInCents / 100).toFixed(2)}</p>
               </div>
             )}
             <div className="space-y-2">
-              <Label>Max uses</Label>
-              <Input type="number" min="1" value={form.maxUses} onChange={(e) => setForm((prev) => ({ ...prev, maxUses: parseInt(e.target.value) || 1 }))} className="h-12 border-white/10 bg-white/5 text-white" />
+              <Label htmlFor="coupon-max-uses">Max uses</Label>
+              <Input id="coupon-max-uses" type="number" min="1" value={form.maxUses} onChange={(e) => setForm((prev) => ({ ...prev, maxUses: parseInt(e.target.value) || 1 }))} className="h-12 border-white/10 bg-white/5 text-white" />
             </div>
             <div className="space-y-2">
-              <Label>Expires at (optional)</Label>
-              <Input type="date" value={form.expiresAt} onChange={(e) => setForm((prev) => ({ ...prev, expiresAt: e.target.value }))} className="h-12 border-white/10 bg-white/5 text-white" />
+              <Label htmlFor="coupon-expires-at">Expires at (optional)</Label>
+              <Input id="coupon-expires-at" type="date" value={form.expiresAt} onChange={(e) => setForm((prev) => ({ ...prev, expiresAt: e.target.value }))} className="h-12 border-white/10 bg-white/5 text-white" />
             </div>
             <Button className="w-full gradient-primary border-0 text-white" onClick={handleCreate} disabled={creating || !form.code.trim()}>
               {creating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
