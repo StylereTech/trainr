@@ -1,5 +1,9 @@
 # Legacy Payment Integrity Gate
 
+## Duplicate Provider Identity Retest, 2026-10-18 05:30 UTC
+
+On audit-branch source `952f530a9f7d3ee869ca1bb29b083e29471bcefb`, the preflight had no cross-record check for a settled Stripe Checkout, PaymentIntent, charge or transfer ID shared by two positive terminal booking/package payments. Added one aggregate-only count across both tables; it fails `verify:prod` when any provider ID is reused within its type. No identifier or customer row is printed. Focused readiness tests passed **32/32** after a sandbox-only esbuild filesystem denial; full `npm run check` passed lint (0 errors, 42 existing warnings), typecheck, **86 files / 1,839 unit tests**, and production build. The exact new SQL compiled under PostgreSQL `EXPLAIN` and executed read-only on isolated Neon `trainr_legacy_restore`: **0 duplicate provider-ID groups**; the prior **19/19 missing provider-receipt and settlement-verification** counts remain. A separate read-only `VALUES` fixture with one booking and one package sharing a synthetic PaymentIntent returned **1** duplicate group, proving the positive SQL path. The standalone CLI was not run against that database; no Production database, payment or Stripe account was changed. **Duplicate detection PASS; historical provider reconciliation and Production money-flow signoff HOLD.**
+
 **Observed:** 2026-10-18 04:44 UTC. **Environment:** isolated upgraded Neon `trainr_legacy_restore` database in project `summer-mode-24133651`, based on the encrypted snapshot of public `trainr.cc`; local audit-branch source before this evidence commit was `c9ff1e6f380562dc10a70faf9a8decccb278972c`. **Account:** existing Neon owner connection through the connector; no TRAINR parent, trainer, admin or customer row was opened. No live Production database, domain, Stripe object or payment state was changed.
 
 ## Exact Read-Only Checks

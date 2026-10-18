@@ -145,12 +145,30 @@ export async function readPaymentIntegrity(client, schema = 'public') {
       (SELECT count(*)::int FROM ${identifier}."package_purchases" p
         WHERE p."amountInCents" <= 0 OR p."platformFeeInCents" < 0 OR p."trainerPayoutInCents" < 0
           OR p."amountInCents" <> p."platformFeeInCents" + p."trainerPayoutInCents"
-          OR p."refundAmountInCents" < 0 OR p."refundAmountInCents" > p."amountInCents") AS "invalidPackageAmounts"
+          OR p."refundAmountInCents" < 0 OR p."refundAmountInCents" > p."amountInCents") AS "invalidPackageAmounts",
+      (SELECT count(*)::int FROM (
+        SELECT kind, provider_id FROM (
+          SELECT v.kind, v.provider_id FROM ${identifier}."payments" p
+            CROSS JOIN LATERAL (VALUES
+              ('checkout', p."stripeCheckoutSessionId"), ('intent', p."stripePaymentIntentId"),
+              ('charge', p."stripeChargeId"), ('transfer', p."stripeTransferId")
+            ) v(kind, provider_id)
+            WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          UNION ALL
+          SELECT v.kind, v.provider_id FROM ${identifier}."package_purchases" p
+            CROSS JOIN LATERAL (VALUES
+              ('checkout', p."stripeCheckoutSessionId"), ('intent', p."stripePaymentIntentId"),
+              ('charge', p."stripeChargeId"), ('transfer', p."stripeTransferId")
+            ) v(kind, provider_id)
+            WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+        ) ids WHERE provider_id IS NOT NULL
+        GROUP BY kind, provider_id HAVING count(*) > 1
+      ) repeated) AS "duplicateTerminalProviderIds"
   `)
   const keys = ['positiveTerminal', 'missingProviderReceipt', 'missingSettlementVerification', 'openFinancialReview',
     'missingBookingOrAmountMismatch', 'invalidPaymentAmounts', 'invalidBookingAmounts', 'positivePackageTerminal',
     'missingPackageProviderReceipt', 'missingPackageSettlementVerification', 'missingPackageSuccessReceipt',
-    'openPackageFinancialReview', 'invalidPackageAmounts']
+    'openPackageFinancialReview', 'invalidPackageAmounts', 'duplicateTerminalProviderIds']
   if (!Array.isArray(rows) || rows.length !== 1 || keys.some(key => !Number.isSafeInteger(rows[0]?.[key]) || rows[0][key] < 0)) {
     throw new Error('Invalid payment integrity response')
   }
@@ -170,5 +188,6 @@ export function paymentIntegrityIssues(counts) {
     ['missingPackageSuccessReceipt', 'positive settled packages lack a matching signed-success receipt'],
     ['openPackageFinancialReview', 'positive settled packages have open financial review'],
     ['invalidPackageAmounts', 'packages have invalid or inconsistent amounts'],
+    ['duplicateTerminalProviderIds', 'Stripe provider IDs are shared by multiple settled bookings or packages'],
   ].filter(([key]) => counts[key] > 0).map(([key, label]) => `${counts[key]} ${label}`)
 }

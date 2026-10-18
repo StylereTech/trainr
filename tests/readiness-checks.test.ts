@@ -157,7 +157,8 @@ describe('read-only payment integrity preflight', () => {
   const clean = { positiveTerminal: 1, missingProviderReceipt: 0, missingSettlementVerification: 0,
     openFinancialReview: 0, missingBookingOrAmountMismatch: 0, invalidPaymentAmounts: 0, invalidBookingAmounts: 0,
     positivePackageTerminal: 1, missingPackageProviderReceipt: 0, missingPackageSettlementVerification: 0,
-    missingPackageSuccessReceipt: 0, openPackageFinancialReview: 0, invalidPackageAmounts: 0 }
+    missingPackageSuccessReceipt: 0, openPackageFinancialReview: 0, invalidPackageAmounts: 0,
+    duplicateTerminalProviderIds: 0 }
 
   it('accepts an aggregate-only clean result and scopes the query to the configured schema', async () => {
     const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([clean]) }
@@ -168,6 +169,8 @@ describe('read-only payment integrity preflight', () => {
     expect(sql).toContain('p."stripePaymentIntentId" IS NULL OR p."stripeChargeId" IS NULL')
     expect(sql).toContain('"audit""schema"."package_purchases"')
     expect(sql).toContain('"audit""schema"."package_payment_receipts"')
+    expect(sql).toContain('GROUP BY kind, provider_id HAVING count(*) > 1')
+    expect(sql).toContain('"duplicateTerminalProviderIds"')
     expect(paymentIntegrityIssues(clean)).toEqual([])
   })
 
@@ -190,6 +193,12 @@ describe('read-only payment integrity preflight', () => {
       '1 positive settled packages lack complete Stripe Checkout, intent, charge or transfer IDs',
       '1 positive settled packages lack settlement verification',
       '1 positive settled packages lack a matching signed-success receipt',
+    ])
+  })
+
+  it('holds when settled bookings and packages share Stripe provider identities', () => {
+    expect(paymentIntegrityIssues({ ...clean, duplicateTerminalProviderIds: 2 })).toEqual([
+      '2 Stripe provider IDs are shared by multiple settled bookings or packages',
     ])
   })
 
