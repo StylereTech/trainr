@@ -26,11 +26,25 @@ Created only the separate `trainr_legacy_restore` database inside the isolated N
 
 The audit branch's `npm run check` then passed lint (42 warnings, zero errors), typecheck, unit tests and production build. An initial sandboxed run failed at Vitest startup because the checkout's shared `node_modules` path was denied; the authorized full rerun exited 0. This is local code quality proof, not a hosted deployment or live booking/payment retest.
 
-**Retest boundary:** record counts match before and after the rehearsal, but this does not prove row-by-row preservation, application behavior or Stripe settlement. A proposed aggregate financial fingerprint comparison was not run: the local security review rejected emitting derived live payment data into the tool transcript without more specific owner approval. No workaround was used.
+## Approved Aggregate Integrity Retest
+
+**Observed:** 2026-10-18 02:56 UTC. **Tested source commit:** `0bae49b8acc17309c7b253a96761d78026da73cf` plus the uncommitted read-only fingerprint script subsequently included in this report commit. **Environments:** Vercel `styleres-projects/trainr-node` Production database and the isolated upgraded `trainr_legacy_restore` database. **Accounts used:** Vercel `styleretech` CLI login and the existing database roles; no TRAINR customer login. The owner explicitly approved publishing aggregate hashes and financial totals, but no individual rows, names, emails or Stripe IDs.
+
+**Steps and endpoints:** Run `vercel env run -e production -- node <absolute path>/scripts/financial-fingerprint.mjs` from the linked scratch directory; then run the same script through the identity-guarded restore helper against `trainr_legacy_restore`. Each script invocation uses one PostgreSQL `READ ONLY` transaction and a 10-second statement timeout. The script queries `public.users`, `public.bookings` and `public.payments`; it prints counts, booking/payment financial sums and MD5 comparison fingerprints over selected ID, role, status and financial fields. No HTTP route or Stripe endpoint was invoked.
+
+| Aggregate | Live source | Upgraded restore | Result |
+| --- | ---: | ---: | --- |
+| User count / selected-field fingerprint | 31 / `76ec0484dbbeab59281ae31c93de7048` | 31 / same | PASS |
+| Booking count / selected-field fingerprint | 35 / `a2f8360d7d6416676f2257c678858d2a` | 35 / same | PASS |
+| Booking total / platform fee / trainer payout, cents | 181600 / 27240 / 154360 | same | PASS |
+| Payment count / selected-field fingerprint | 28 / `d87776f624287f194406d89e85fdfb7a` | 28 / same | PASS |
+| Payment amount / platform fee / trainer payout / recorded refund, cents | 143600 / 21540 / 122060 / 0 | same | PASS |
+
+**Expected/actual:** selected fields and totals should agree; all compared aggregates did agree. The restore helper exited 0 with `LEGACY_FINGERPRINT_REHEARSAL: PASS`; the live command exited 0. These MD5 values are equality checks, not cryptographic security attestations. The query omits many columns and cannot prove full row-by-row identity, referential validity, current application behavior or Stripe settlement. The source can receive new writes after this snapshot, so a final cutover requires a fresh, bounded reconciliation. **Fix status:** no source-data fix required for these selected fields; live schema and hosted application blockers remain. **Retest proof:** the two independent invocations above yielded identical aggregates. **Launch decision: HOLD.**
 
 ## Remaining Gates
 
 - The restored copy is now upgraded, but the **live source remains unmodified**: no migration ledger and 144 current-schema columns absent. A controlled Production rollout requires a fresh backup, an explicit one-column/index bridge, baseline parity recheck on the then-current live source, maintenance or a dual-write/catch-up strategy, and a rollback procedure. Do not apply the rehearsed commands to Production automatically.
-- The counts above are a bounded preservation check, not row-by-row integrity proof. Compare all critical foreign keys, payment amounts/statuses, Stripe IDs and refund records without exposing customer data; account for writes occurring after the snapshot before any eventual cutover. The aggregate fingerprint check awaits specific approval.
+- The matching aggregate hashes cover selected critical foreign keys, statuses, payment amounts, Stripe IDs and recorded refund amounts, but not every field or a row-by-row audit. Account for writes occurring after the snapshot before any eventual cutover.
 - The encrypted local backup is recoverable only under the Windows user that created its DPAPI key. Preserve it until a durable backup and an independently tested recovery process exist. The restored copy contains real customer and payment metadata; keep it isolated and do not point any app or public endpoint at it.
 - Test authenticated bookings, shared package credits, checkout/webhooks, Connect and payout in a separate synthetic-data environment. Stripe trainer onboarding and provider-backed money-flow proof remain open. **Launch decision: HOLD.**
