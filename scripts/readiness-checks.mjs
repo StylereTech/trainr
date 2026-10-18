@@ -88,10 +88,87 @@ export async function missingDatabaseColumns(client, models, schema = 'public') 
     .filter(column => !present.has(column))).sort()
 }
 
-export async function readMigrationLedger(client, schema = 'public') {
+function quotedSchema(schema) {
   if (typeof schema !== 'string' || !schema || schema.includes('\0') || Buffer.byteLength(schema, 'utf8') > 63) {
     throw new Error('Invalid migration schema')
   }
-  const identifier = `"${schema.replaceAll('"', '""')}"`
+  return `"${schema.replaceAll('"', '""')}"`
+}
+
+export async function readMigrationLedger(client, schema = 'public') {
+  const identifier = quotedSchema(schema)
   return client.$queryRawUnsafe(`SELECT migration_name, checksum, finished_at, rolled_back_at FROM ${identifier}."_prisma_migrations"`)
+}
+
+export async function readPaymentIntegrity(client, schema = 'public') {
+  const identifier = quotedSchema(schema)
+  const rows = await client.$queryRawUnsafe(`
+    SELECT
+      (SELECT count(*)::int FROM ${identifier}."payments" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')) AS "positiveTerminal",
+      (SELECT count(*)::int FROM ${identifier}."payments" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND (p."stripeCheckoutSessionId" IS NULL OR p."stripePaymentIntentId" IS NULL OR p."stripeChargeId" IS NULL
+            OR p."stripeTransferId" IS NULL)) AS "missingProviderReceipt",
+      (SELECT count(*)::int FROM ${identifier}."payments" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND p."settlementVerifiedAt" IS NULL) AS "missingSettlementVerification",
+      (SELECT count(*)::int FROM ${identifier}."payments" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND p."financialReview" IS NOT NULL) AS "openFinancialReview",
+      (SELECT count(*)::int FROM ${identifier}."payments" p LEFT JOIN ${identifier}."bookings" b ON b.id = p."bookingId"
+        WHERE b.id IS NULL OR p."amountInCents" <> b."totalAmountInCents") AS "missingBookingOrAmountMismatch",
+      (SELECT count(*)::int FROM ${identifier}."payments" p
+        WHERE p."amountInCents" < 0 OR p."platformFeeInCents" < 0 OR p."trainerPayoutInCents" < 0
+          OR p."amountInCents" <> p."platformFeeInCents" + p."trainerPayoutInCents"
+          OR p."refundAmountInCents" < 0 OR p."refundAmountInCents" > p."amountInCents") AS "invalidPaymentAmounts",
+      (SELECT count(*)::int FROM ${identifier}."bookings" b
+        WHERE b."totalAmountInCents" < 0 OR b."platformFeeInCents" < 0 OR b."trainerPayoutInCents" < 0
+          OR b."totalAmountInCents" <> b."platformFeeInCents" + b."trainerPayoutInCents") AS "invalidBookingAmounts",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')) AS "positivePackageTerminal",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND (p."stripeCheckoutSessionId" IS NULL OR p."stripePaymentIntentId" IS NULL OR p."stripeChargeId" IS NULL
+            OR p."stripeTransferId" IS NULL)) AS "missingPackageProviderReceipt",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND p."settlementVerifiedAt" IS NULL) AS "missingPackageSettlementVerification",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        LEFT JOIN ${identifier}."package_payment_receipts" r ON r."purchaseId" = p.id
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND (r."purchaseId" IS NULL OR r."stripePaymentIntentId" <> p."stripePaymentIntentId"
+            OR r."stripeChargeId" <> p."stripeChargeId" OR r."stripeCheckoutSessionId" <> p."stripeCheckoutSessionId")) AS "missingPackageSuccessReceipt",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND p."financialReview" IS NOT NULL) AS "openPackageFinancialReview",
+      (SELECT count(*)::int FROM ${identifier}."package_purchases" p
+        WHERE p."amountInCents" <= 0 OR p."platformFeeInCents" < 0 OR p."trainerPayoutInCents" < 0
+          OR p."amountInCents" <> p."platformFeeInCents" + p."trainerPayoutInCents"
+          OR p."refundAmountInCents" < 0 OR p."refundAmountInCents" > p."amountInCents") AS "invalidPackageAmounts"
+  `)
+  const keys = ['positiveTerminal', 'missingProviderReceipt', 'missingSettlementVerification', 'openFinancialReview',
+    'missingBookingOrAmountMismatch', 'invalidPaymentAmounts', 'invalidBookingAmounts', 'positivePackageTerminal',
+    'missingPackageProviderReceipt', 'missingPackageSettlementVerification', 'missingPackageSuccessReceipt',
+    'openPackageFinancialReview', 'invalidPackageAmounts']
+  if (!Array.isArray(rows) || rows.length !== 1 || keys.some(key => !Number.isSafeInteger(rows[0]?.[key]) || rows[0][key] < 0)) {
+    throw new Error('Invalid payment integrity response')
+  }
+  return rows[0]
+}
+
+export function paymentIntegrityIssues(counts) {
+  return [
+    ['missingProviderReceipt', 'positive settled payments lack complete Stripe Checkout, intent, charge or transfer IDs'],
+    ['missingSettlementVerification', 'positive settled payments lack settlement verification'],
+    ['openFinancialReview', 'positive settled payments have open financial review'],
+    ['missingBookingOrAmountMismatch', 'payments lack a booking or disagree with its amount'],
+    ['invalidPaymentAmounts', 'payments have invalid or inconsistent amounts'],
+    ['invalidBookingAmounts', 'bookings have invalid or inconsistent amounts'],
+    ['missingPackageProviderReceipt', 'positive settled packages lack complete Stripe Checkout, intent, charge or transfer IDs'],
+    ['missingPackageSettlementVerification', 'positive settled packages lack settlement verification'],
+    ['missingPackageSuccessReceipt', 'positive settled packages lack a matching signed-success receipt'],
+    ['openPackageFinancialReview', 'positive settled packages have open financial review'],
+    ['invalidPackageAmounts', 'packages have invalid or inconsistent amounts'],
+  ].filter(([key]) => counts[key] > 0).map(([key, label]) => `${counts[key]} ${label}`)
 }

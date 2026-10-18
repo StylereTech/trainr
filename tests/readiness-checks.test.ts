@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { databaseCheckUrl, loadReadinessEnv, missingDatabaseColumns, productionEnvErrors, readMigrationLedger, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
+import { databaseCheckUrl, loadReadinessEnv, missingDatabaseColumns, paymentIntegrityIssues, productionEnvErrors, readMigrationLedger, readPaymentIntegrity, verifyDatabaseQuery, verifyStripeLive } from '../scripts/readiness-checks.mjs'
 
 const validEnv = () => ({
   DATABASE_URL: 'postgresql://synthetic:synthetic@localhost:55439/disposable',
@@ -149,6 +149,55 @@ describe('read-only migration ledger query', () => {
     for (const schema of ['', 'a\0b', 'a'.repeat(64)]) {
       await expect(readMigrationLedger(client, schema)).rejects.toThrow('Invalid migration schema')
     }
+    expect(client.$queryRawUnsafe).not.toHaveBeenCalled()
+  })
+})
+
+describe('read-only payment integrity preflight', () => {
+  const clean = { positiveTerminal: 1, missingProviderReceipt: 0, missingSettlementVerification: 0,
+    openFinancialReview: 0, missingBookingOrAmountMismatch: 0, invalidPaymentAmounts: 0, invalidBookingAmounts: 0,
+    positivePackageTerminal: 1, missingPackageProviderReceipt: 0, missingPackageSettlementVerification: 0,
+    missingPackageSuccessReceipt: 0, openPackageFinancialReview: 0, invalidPackageAmounts: 0 }
+
+  it('accepts an aggregate-only clean result and scopes the query to the configured schema', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([clean]) }
+    expect(await readPaymentIntegrity(client, 'audit"schema')).toEqual(clean)
+    const sql = client.$queryRawUnsafe.mock.calls[0][0]
+    expect(sql).toContain('"audit""schema"."payments"')
+    expect(sql).toContain('"audit""schema"."bookings"')
+    expect(sql).toContain('p."stripePaymentIntentId" IS NULL OR p."stripeChargeId" IS NULL')
+    expect(sql).toContain('"audit""schema"."package_purchases"')
+    expect(sql).toContain('"audit""schema"."package_payment_receipts"')
+    expect(paymentIntegrityIssues(clean)).toEqual([])
+  })
+
+  it('fails a positive succeeded legacy payment lacking provider IDs and settlement proof', () => {
+    expect(paymentIntegrityIssues({ ...clean, positiveTerminal: 19, missingProviderReceipt: 19,
+      missingSettlementVerification: 19 })).toEqual([
+      '19 positive settled payments lack complete Stripe Checkout, intent, charge or transfer IDs',
+      '19 positive settled payments lack settlement verification',
+    ])
+  })
+
+  it('also flags amount drift and an open financial review without printing any row', () => {
+    expect(paymentIntegrityIssues({ ...clean, openFinancialReview: 1, missingBookingOrAmountMismatch: 2,
+      invalidPaymentAmounts: 3, invalidBookingAmounts: 4 })).toHaveLength(4)
+  })
+
+  it('holds a paid package without provider or signed-success receipts', () => {
+    expect(paymentIntegrityIssues({ ...clean, missingPackageProviderReceipt: 1,
+      missingPackageSettlementVerification: 1, missingPackageSuccessReceipt: 1 })).toEqual([
+      '1 positive settled packages lack complete Stripe Checkout, intent, charge or transfer IDs',
+      '1 positive settled packages lack settlement verification',
+      '1 positive settled packages lack a matching signed-success receipt',
+    ])
+  })
+
+  it('rejects malformed aggregates and schema names before trusting the result', async () => {
+    const client = { $queryRawUnsafe: vi.fn().mockResolvedValue([{ ...clean, missingProviderReceipt: -1 }]) }
+    await expect(readPaymentIntegrity(client)).rejects.toThrow('Invalid payment integrity response')
+    client.$queryRawUnsafe.mockClear()
+    await expect(readPaymentIntegrity(client, 'bad\0schema')).rejects.toThrow('Invalid migration schema')
     expect(client.$queryRawUnsafe).not.toHaveBeenCalled()
   })
 })
