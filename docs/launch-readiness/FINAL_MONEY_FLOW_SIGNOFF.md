@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+**2026-10-18 04:06 UTC, NOT SIGNED OFF:** isolated Preview webhook rejected an unsigned and a forged synthetic payment event with HTTP 400, while the current Stripe-generated signed event below was delivered with HTTP 200. [Exact negative probes and limits](STRIPE_CONNECT_READINESS_REPORT.md). This narrows the webhook ingress/security gate but does not prove TRAINR Checkout or payout.
+
 **2026-10-18 04:03 UTC, NOT SIGNED OFF:** a fresh Stripe-generated `payment_intent.succeeded` test fixture and its `charge.updated` follow-up were delivered to the audit Preview platform webhook, each **HTTP 200** with `{ "received": true }`. [Exact destination, event IDs, steps and limits](STRIPE_CONNECT_READINESS_REPORT.md). This proves current provider webhook delivery, not a TRAINR Checkout or settlement: the $20 sandbox fixture had no booking/package metadata, customer or connected-account destination. Parent booking, shared credits, destination transfer, application fee and payout remain untested with real provider events; Connect onboarding remains the payment gate. Production remains unchanged.
 
 **2026-10-18 03:58 UTC, NOT SIGNED OFF:** real PostgreSQL integration tests passed **736 focused / 1,212 full** on a fresh checksum-verified disposable database, with synthetic Stripe responses and zero critical fixtures remaining. [Exact SQL proof and limits](POSTGRES_INTEGRATION_REPORT.md). This is not an actual sandbox charge, signed current webhook, trainer transfer or bank payout; the linked trainer Connect account is still Restricted.
