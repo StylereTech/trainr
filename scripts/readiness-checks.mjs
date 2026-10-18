@@ -137,8 +137,10 @@ export async function readPaymentIntegrity(client, schema = 'public') {
       (SELECT count(*)::int FROM ${identifier}."package_purchases" p
         LEFT JOIN ${identifier}."package_payment_receipts" r ON r."purchaseId" = p.id
         WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
-          AND (r."purchaseId" IS NULL OR r."stripePaymentIntentId" <> p."stripePaymentIntentId"
-            OR r."stripeChargeId" <> p."stripeChargeId" OR r."stripeCheckoutSessionId" <> p."stripeCheckoutSessionId")) AS "missingPackageSuccessReceipt",
+          AND (r."purchaseId" IS NULL OR r.livemode IS DISTINCT FROM TRUE
+            OR r."stripePaymentIntentId" IS DISTINCT FROM p."stripePaymentIntentId"
+            OR r."stripeChargeId" IS DISTINCT FROM p."stripeChargeId"
+            OR r."stripeCheckoutSessionId" IS DISTINCT FROM p."stripeCheckoutSessionId")) AS "missingPackageSuccessReceipt",
       (SELECT count(*)::int FROM ${identifier}."package_purchases" p
         WHERE p."amountInCents" > 0 AND p.status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
           AND p."financialReview" IS NOT NULL) AS "openPackageFinancialReview",
@@ -185,7 +187,7 @@ export function paymentIntegrityIssues(counts) {
     ['invalidBookingAmounts', 'bookings have invalid or inconsistent amounts'],
     ['missingPackageProviderReceipt', 'positive settled packages lack complete Stripe Checkout, intent, charge or transfer IDs'],
     ['missingPackageSettlementVerification', 'positive settled packages lack settlement verification'],
-    ['missingPackageSuccessReceipt', 'positive settled packages lack a matching signed-success receipt'],
+    ['missingPackageSuccessReceipt', 'positive settled packages lack a matching live-mode signed-success receipt'],
     ['openPackageFinancialReview', 'positive settled packages have open financial review'],
     ['invalidPackageAmounts', 'packages have invalid or inconsistent amounts'],
     ['duplicateTerminalProviderIds', 'Stripe provider IDs are shared by multiple settled bookings or packages'],

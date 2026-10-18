@@ -169,6 +169,10 @@ describe('read-only payment integrity preflight', () => {
     expect(sql).toContain('p."stripePaymentIntentId" IS NULL OR p."stripeChargeId" IS NULL')
     expect(sql).toContain('"audit""schema"."package_purchases"')
     expect(sql).toContain('"audit""schema"."package_payment_receipts"')
+    expect(sql).toContain('r.livemode IS DISTINCT FROM TRUE')
+    expect(sql).toContain('r."stripePaymentIntentId" IS DISTINCT FROM p."stripePaymentIntentId"')
+    expect(sql).toContain('r."stripeChargeId" IS DISTINCT FROM p."stripeChargeId"')
+    expect(sql).toContain('r."stripeCheckoutSessionId" IS DISTINCT FROM p."stripeCheckoutSessionId"')
     expect(sql).toContain('GROUP BY kind, provider_id HAVING count(*) > 1')
     expect(sql).toContain('"duplicateTerminalProviderIds"')
     expect(paymentIntegrityIssues(clean)).toEqual([])
@@ -192,7 +196,7 @@ describe('read-only payment integrity preflight', () => {
       missingPackageSettlementVerification: 1, missingPackageSuccessReceipt: 1 })).toEqual([
       '1 positive settled packages lack complete Stripe Checkout, intent, charge or transfer IDs',
       '1 positive settled packages lack settlement verification',
-      '1 positive settled packages lack a matching signed-success receipt',
+      '1 positive settled packages lack a matching live-mode signed-success receipt',
     ])
   })
 
