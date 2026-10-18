@@ -2,7 +2,7 @@
 
 ## Current Preview Test Accounts
 
-2026-10-16: owner-approved parent/trainer/admin fixtures exist only in `trainr-audit-staging-20261009`. [Identities, source commit, tested routes and exact proof](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md). Generated credentials are in the local Git-ignored `.postgres-test/preview-test-accounts.json`; never commit or copy them to Production. Do not rerun the destructive demo seed or overwrite existing accounts. Complete the open Stripe terms and Book & Pay handoffs through the user, using sandbox data only, then verify provider receipts and database state before assigning any payment/payout pass.
+2026-10-16: owner-approved parent/trainer/admin fixtures exist only in `trainr-audit-staging-20261009`. [Identities, source commit, tested routes and exact proof](PREVIEW_ACCOUNT_PROVISIONING_REPORT.md). The originally documented Git-ignored `.postgres-test/preview-test-accounts.json` is **absent from this audit checkout as of 2026-10-18**; do not assume its credentials are available, commit recovered secrets, copy them to Production, or replace them with public demo passwords. Recover access through an approved secure channel before repeating automated signed-in role tests. Do not rerun the destructive demo seed or overwrite existing accounts. Complete the open Stripe terms and Book & Pay handoffs through the user, using sandbox data only, then verify provider receipts and database state before assigning any payment/payout pass.
 
 ## Legacy Payment Cutover Hold
 
