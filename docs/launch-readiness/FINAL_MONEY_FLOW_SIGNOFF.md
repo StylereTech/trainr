@@ -1,5 +1,7 @@
 # Final Money Flow Signoff
 
+**2026-10-18 03:58 UTC, NOT SIGNED OFF:** real PostgreSQL integration tests passed **736 focused / 1,212 full** on a fresh checksum-verified disposable database, with synthetic Stripe responses and zero critical fixtures remaining. [Exact SQL proof and limits](POSTGRES_INTEGRATION_REPORT.md). This is not an actual sandbox charge, signed current webhook, trainer transfer or bank payout; the linked trainer Connect account is still Restricted.
+
 **2026-10-18 03:26 UTC, NOT SIGNED OFF:** both sandbox audit-Preview Stripe webhook destinations remain Active and show zero failed deliveries in their `This week` views (platform 2/2, Connect 3/3), but these are prior events, not a completed TRAINR booking. The existing trainer account remains Restricted and parent Book & Pay is disabled. No new charge, settlement, destination transfer or payout was tested. [Provider, app and destination evidence](STRIPE_CONNECT_READINESS_REPORT.md).
 
 **2026-10-17 17:56 UTC, NOT SIGNED OFF:** new admin coupon issuance defaults to one use and deployed malformed input fails without a write; this is an operations safeguard, not proof that the promised 10% credit reached a parent. Coupon use is counted before payment, codes are not parent-bound, and no real sandbox charge/refund/transfer/payout was completed. [Exact safeguards and remaining work](SUPPORT_CREDIT_COUPON_REPORT.md). Main/Production unchanged.
