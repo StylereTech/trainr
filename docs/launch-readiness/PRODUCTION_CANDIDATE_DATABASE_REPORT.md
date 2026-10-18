@@ -15,6 +15,7 @@ The owner authorized creation of a database if the existing project could not be
 3. Independently queried only `public._prisma_migrations` metadata through Neon: **26 total, 26 applied, 0 unresolved**. Its ordered name/SHA-256 checksum aggregate `459b59becb4dede7e99e79a3b910364f` matched a fresh local calculation over the 26 checked-out migration SQL files.
 4. Read `information_schema.columns`: `payments.stripeCheckoutSessionId` exists as nullable `text`. The new schema has **44** base tables including the Prisma migration ledger.
 5. Ran the repo's read-only `scripts/schema-check.mjs` and `scripts/migration-check.mjs` against the same candidate via transient connection string. Both returned **PASS**, exit 0. These checks cover Prisma model column presence and migration names/checksums/applied status, not all constraints, indexes, data integrity or payment behavior.
+6. A bounded read-only count query returned **0 users, 0 bookings, 0 payments and 0 package purchases** in the candidate. No application session, checkout, webhook or payout has been exercised against it.
 
 **Account used:** Neon project owner role for migration; no TRAINR application user logged in. **Routes/endpoints tested:** Neon project/branch/database metadata; direct PostgreSQL endpoint for Prisma migration and read-only gates. No application route was pointed at this candidate. No screenshots were needed; sanitized CLI/SQL result counts above are the retest proof.
 
